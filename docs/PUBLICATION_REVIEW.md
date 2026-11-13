@@ -5,8 +5,9 @@ upublicznieniem historii wcześniejszych instalacji.
 
 * Nowe repo ma własną historię. Nie kopiowano `.git`, historycznych raportów,
   archiwów odbioru, logów ani wyników produkcyjnych.
-* Konfiguracja przykładowa jest mała i neutralna. Osobisty korpus, OAuth oraz
-  potwierdzenia z prywatnej rozmowy nie są częścią dystrybucji.
+* Publiczna konfiguracja obejmuje zatwierdzone 23 akty NL i 65 pozycji UE.
+  Usunięto prywatne odsyłacze do plików, archiwów i potwierdzenia z rozmowy.
+  OAuth oraz dane prywatnej instalacji nie są częścią dystrybucji.
 * Zmieniono znacznik własności magazynu Drive. Program nie otwiera danych
   instalacji używającej innego znacznika. Nie dodano funkcji publicznego
   udostępniania plików Drive.
@@ -25,7 +26,8 @@ upublicznieniem historii wcześniejszych instalacji.
   walidacji parametrów i osobnej końcowej kontroli bajtów po publikacji.
 * Actions używa standardowego `ubuntu-24.04`, akcji przypiętych SHA,
   uprawnień `contents: read` i jednego zapisu naraz. Workflow testowy nie
-  otrzymuje sekretów. Workflow danych wymaga środowiska `updater` i `main`.
+  otrzymuje sekretów. Opcjonalny workflow Drive wymaga środowiska `updater` i `main`.
+  Wspólna baza używa osobnego workflow bez sekretów Drive.
 * W plikach aktywnych workflow nie ma wyzwalacza `schedule`. Kod obsługuje
   świadome przyszłe włączenie harmonogramu z dodatkową zmienną aktywacyjną.
 * Nie dołączono GitHub Artifacts, prywatnych identyfikatorów archiwów ani
@@ -35,6 +37,12 @@ upublicznieniem historii wcześniejszych instalacji.
   Zachowano licencję Apache-2.0 i atrybucję parsera oraz oznaczenia materiałów
   zewnętrznych. MIT nie zmienia ich warunków.
 
-Kontrole kodu i paczki nie zastępują pierwszego odbioru danych na własnym
-Drive. Właściciel musi skonfigurować OAuth, środowisko i zakres, a następnie
-wykonać `initialize` i zweryfikować sposób odczytu przez `active.json`.
+Wspólny korpus powstaje w osobnym workflow bez OAuth. Oba moduły przechodzą
+walidację i niezależny audyt przed atomową publikacją na `dane`. Gałąź zachowuje
+jeden bieżący snapshot bez poprzednich commitów; stare pliki są zastępowane,
+a tymczasowe dane i cache są usuwane w kroku `always()`. Dodano siedem testów
+żądań publicznych, cooldown, integralności snapshotu, konfliktu lease, zachowania
+kodu, usuwania poprzedniej historii i sprzątania.
+
+Dodatkowa ochrona `main` wymaga ustawienia właściciela. Próba zapisu reguły przez
+integrację zwróciła 403; sama obecność kodu i instrukcji nie dowodzi jej aktywacji.

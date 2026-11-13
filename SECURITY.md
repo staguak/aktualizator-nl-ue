@@ -5,7 +5,7 @@ commitach lub publicznych załącznikach Actions. W zgłoszeniu opisz objaw i we
 bez sekretów i danych osobowych. Podatność zgłoś przez zakładkę Security,
 jeśli prywatne zgłaszanie jest dostępne.
 
-Workflow aktualizatora uruchamia się ręcznie wyłącznie z `main`. Dostęp do
+Opcjonalny workflow prywatnego Drive uruchamia się ręcznie wyłącznie z `main`. Dostęp do
 Google Drive pochodzi z sekretu środowiska `updater`. Zalecane ustawienia:
 dozwolona gałąź `main`, wymagany recenzent będący właścicielem repo oraz zakaz
 omijania ochrony środowiska. Nie zatwierdzaj uruchomienia nieprzejrzanego kodu.
@@ -31,3 +31,19 @@ danych osobowych. Sekrety nie chronią przed złośliwym kodem, któremu przyzna
 XML/XSD jest walidowany offline z blokadą zewnętrznych zasobów i DTD.
 Obowiązują limity rozmiaru odpowiedzi, kolejek, ZIP i czasu. Brak opcjonalnej
 reprezentacji lub węższe metadane pozostają jawnym ostrzeżeniem w raporcie.
+
+## Wspólna publiczna baza
+
+Workflow `public-corpus.yml` publikuje wyłącznie materiały urzędowe z publicznej
+konfiguracji. Nie otrzymuje OAuth ani innych prywatnych sekretów. Jego krótko żyjący
+`GITHUB_TOKEN` jest przekazywany tylko publikatorowi i obsłudze odpowiedzi na zgłoszenie.
+Procesy pobierające/parsujące źródła nie dostają tokenu publikacji.
+
+Żądanie przez issue wybiera wyłącznie odświeżenie. Kod, konfiguracja, daty i ścieżki
+nie pochodzą z treści zgłoszenia. Workflow wykonuje kod wskazany niezmiennym SHA zdarzenia
+z `main`, z kolejką jednego publikatora i z godzinną ochroną przed powtórzeniami.
+Każde prawidłowe odświeżenie publikuje kompletny snapshot, z kontrolą poprzedniej rewizji.
+Błąd nie powoduje celowego usunięcia ostatniego prawidłowego zestawu.
+
+Włącz dodatkowo ochronę `main` zgodnie z docs/CODE_PROTECTION.md. Nie przyznawaj
+nieznanym osobom praw zapisu, żeby umożliwić im odświeżanie bazy — wystarcza formularz.
