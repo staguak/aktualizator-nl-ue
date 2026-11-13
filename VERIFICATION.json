@@ -1,0 +1,44 @@
+{
+  "status": "PASS",
+  "audit": "independent byte/XML audit",
+  "results": [
+    {
+      "jurisdiction": "NL",
+      "acts": 23,
+      "sourceFiles": 144,
+      "sourceBytes": 203256600,
+      "formexPackages": 0,
+      "formexLayers": 0,
+      "xmlFiles": 144,
+      "warnings": 0,
+      "representationIndexes": 0,
+      "formexUnavailable": 0,
+      "branchNotices": 0,
+      "objectNotices": 0,
+      "finalFiles": 53,
+      "range": [
+        "2025-01-01",
+        "2026-11-13"
+      ]
+    },
+    {
+      "jurisdiction": "EU",
+      "acts": 65,
+      "sourceFiles": 452,
+      "sourceBytes": 208174123,
+      "formexPackages": 93,
+      "formexLayers": 43,
+      "xmlFiles": 98,
+      "warnings": 11,
+      "representationIndexes": 98,
+      "formexUnavailable": 5,
+      "branchNotices": 6,
+      "objectNotices": 0,
+      "finalFiles": 348,
+      "range": [
+        "2025-01-01",
+        "2026-11-13"
+      ]
+    }
+  ]
+}
