@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Synthetic regression fixture; this is not an official legal source. -->
+<wetstechnische-informatie bwb-id="BWBR0009616"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:noNamespaceSchemaLocation="https://repository.officiele-overheidspublicaties.nl/Schema/BWB-WTI/2016-1/xsd/wti_2016-1.xsd">
+ <algemene-informatie gegenereerd="2026-10-18T00:00:00Z">
+  <eerstverantwoordelijke>Test fixture</eerstverantwoordelijke>
+  <soort-regeling>wet</soort-regeling>
+  <identificatienummer>synthetic-test</identificatienummer>
+ </algemene-informatie>
+ <wijzigingen gegenereerd="2026-10-18T00:00:00Z">
+  <regeling><datum waarde="2025-01-01"><details><betreft>wijziging</betreft></details></datum></regeling>
+  <regelingelementen><regelingelement label-id="synthetic-label">
+   <datum waarde="2025-01-01"><details><betreft>wijziging</betreft>
+    <opmerkingen><opmerking type="test">Voor <al>De tekst.</al> Na.</opmerking></opmerkingen>
+   </details></datum>
+  </regelingelement></regelingelementen>
+ </wijzigingen>
+</wetstechnische-informatie>

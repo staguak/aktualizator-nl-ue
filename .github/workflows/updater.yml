@@ -1,0 +1,124 @@
+name: Aktualizator prawa NL i UE
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Paired operation; manual mutations require explicit approval below.'
+        type: choice
+        default: check
+        options: [check, update, initialize, rollback, recover]
+      approve_mutation:
+        description: 'The owner explicitly approved this particular mutation; false keeps manual operations read-only.'
+        type: boolean
+        default: false
+      range_to:
+        description: 'Inclusive end date for update/initialize; empty resolves in the durable runner.'
+        type: string
+        required: false
+      full_source_audit:
+        description: 'For an approved update/initialize only: bypass HTTP validators and parser cache while preserving complete scope.'
+        type: boolean
+        default: false
+      target_release_id:
+        description: 'Previously committed release UUID for rollback/recover only.'
+        type: string
+        required: false
+      expected_active_sha256:
+        description: 'Recover only: exact diagnosed active SHA256, or missing if active.json is confirmed absent.'
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nl-law-updater-publication
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    # Future opt-in schedules also require the explicit repository variable.
+    if: github.ref == 'refs/heads/main' && (github.event_name != 'schedule' || vars.NL_EU_PAIRED_RELEASES_ENABLED == 'true')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    environment: updater
+    env:
+      LAW_SOURCE_CACHE_DIR: .source-cache
+      LAW_METRICS_DIR: .source-diagnostics/metrics
+      LAW_UPDATER_REVISION: ${{ github.sha }}
+      LAW_RELEASE_NAMESPACE: ${{ vars.LAW_RELEASE_NAMESPACE || 'production' }}
+      LAW_PAIRED_RELEASES_ENABLED: ${{ vars.NL_EU_PAIRED_RELEASES_ENABLED }}
+      INPUT_RELEASE_OPERATION: ${{ inputs.operation || 'check' }}
+      INPUT_APPROVE_MUTATION: ${{ inputs.approve_mutation }}
+      INPUT_RANGE_TO: ${{ inputs.range_to }}
+      INPUT_TARGET_RELEASE_ID: ${{ inputs.target_release_id }}
+      INPUT_EXPECTED_ACTIVE_SHA256: ${{ inputs.expected_active_sha256 }}
+    defaults:
+      run:
+        working-directory: aktualizator-ph
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version-file: aktualizator-ph/.node-version
+          package-manager-cache: false
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+
+      - name: Load optional private configuration
+        env:
+          LAW_CONFIG_JSON: ${{ secrets.LAW_CONFIG_JSON }}
+        run: python3 scripts/write_private_config.py
+
+      - name: Install pinned runtime and dependencies
+        run: |
+          python -m pip install --disable-pip-version-check --index-url https://pypi.org/simple -r scripts/xml-requirements.txt -r scripts/rdf-requirements.txt
+          npm ci --no-audit --no-fund
+      - name: Validate the requested operation before authentication
+        id: plan
+        env:
+          LAW_SOURCE_AUDIT: ${{ inputs.full_source_audit && 'unconditional' || 'conditional' }}
+        run: node --import tsx src/public-run.ts --plan > .release-plan.log 2>&1
+      - run: npm run typecheck
+      - run: npm run typecheck:tools
+      - run: npm run parser:selftest
+      - run: npm test
+      - run: npm run test:xml
+
+      - name: Run paired preflight, durable operation and final byte check
+        env:
+          LAW_SOURCE_AUDIT: ${{ inputs.full_source_audit && 'unconditional' || 'conditional' }}
+          GOOGLE_DRIVE_OAUTH_JSON: ${{ secrets.GOOGLE_DRIVE_OAUTH_JSON }}
+        run: |
+          set -euo pipefail
+          if node --import tsx src/public-run.ts > .release-production.log 2>&1; then
+            echo 'Updater operation and final byte verification passed. Private diagnostics remain on Drive.'
+          else
+            echo 'Updater failed. Check the private diagnostics on Drive.'
+            exit 1
+          fi
+
+      - name: Preserve operation diagnostics without removing prior evidence (Google Drive)
+        if: always() && steps.plan.outcome == 'success'
+        env:
+          GOOGLE_DRIVE_OAUTH_JSON: ${{ secrets.GOOGLE_DRIVE_OAUTH_JSON }}
+          LAW_EVIDENCE_GROUP: evidence-publication
+          EVIDENCE_NAME: paired-release-diagnostics-${{ github.run_attempt }}
+          LAW_EVIDENCE_ALLOW_EMPTY: '1'
+          LAW_EVIDENCE_ALLOW_MISSING: '1'
+        run: node --import tsx scripts/drive_evidence.ts save "$EVIDENCE_NAME" 'output' 'output-ue' '.checkpoint' '.checkpoint-ue' '.source-diagnostics' '.release-plan.log' '.release-production.log'
+
+
+      - name: Record validated evidence completion or protected failure
+        if: always() && steps.plan.outcome == 'success'
+        env:
+          GOOGLE_DRIVE_OAUTH_JSON: ${{ secrets.GOOGLE_DRIVE_OAUTH_JSON }}
+          LAW_EVIDENCE_GROUP: evidence-publication
+          LAW_EVIDENCE_JOB_RESULTS: '{"validate":"${{ job.status }}"}'
+          LAW_EVIDENCE_PRESERVE: '1'
+        run: node --import tsx scripts/drive_evidence.ts finalize completed

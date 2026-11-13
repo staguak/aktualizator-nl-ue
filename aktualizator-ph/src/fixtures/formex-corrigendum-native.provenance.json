@@ -1,0 +1,10 @@
+{
+  "classification": "OFFICIAL_SOURCE_BYTES",
+  "celex": "32025L2450R(01)",
+  "observedOn": "2026-10-20",
+  "containerEntry": "documents/32025L2450R_01_.fmx4.zip",
+  "containerSha256": "ca36abf8ca9e0d2a4a052e9ec7ab25a1b0e0d5f388db320f391b0b40747dc159",
+  "member": "L_202690894EN.000101.fmx.xml",
+  "sha256": "d1a4cc450e628ccf498f2d29c43695ee0b00dd6284b8b49f8d8898b01034ba87",
+  "url": "https://publications.europa.eu/resource/cellar/6327badd-cb56-11f1-8b4c-01aa75ed71a1.0006.02/zip"
+}

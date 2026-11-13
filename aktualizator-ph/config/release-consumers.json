@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "namespace": "production",
+  "approved": false,
+  "consumers": [
+    {
+      "id": "manual-drive-reader",
+      "kind": "manual",
+      "verified": false,
+      "readContract": "Open active.json and follow openFolder; read NL and EU from the same immutable generation."
+    }
+  ],
+  "reason": "Set approved and verified to true only after accepting this read contract for your installation."
+}

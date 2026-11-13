@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "source": {
+    "title": "Public example scope",
+    "derivedAt": "2026-11-12"
+  },
+  "policy": {
+    "rangeTo": "run-date",
+    "baselineBeforeRange": true,
+    "failClosedOnMissingMigrationArticles": true
+  },
+  "acts": [
+    {
+      "order": 1,
+      "title": "Algemene wet bestuursrecht — artikel 1:1",
+      "bwbId": "BWBR0005537",
+      "include": {
+        "articles": [
+          "1:1"
+        ]
+      },
+      "mustIncludeArticles": [
+        "1:1"
+      ]
+    }
+  ]
+}

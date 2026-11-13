@@ -1,0 +1,6 @@
+# Development-only workflow parsing; CPython3.12 Linux x86_64, like XML CI.
+# Wheel SHA256 verified against versioned PyPI metadata and downloaded bytes.
+--require-hashes
+--only-binary=:all:
+PyYAML==6.0.3 \
+    --hash=sha256:ba1cc08a7ccde2d2ec775841541641e4548226580ab850948cbfda66a1befcdc

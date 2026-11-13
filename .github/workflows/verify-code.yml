@@ -1,0 +1,46 @@
+name: Verify public updater code
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-updater-code-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: aktualizator-ph
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version-file: aktualizator-ph/.node-version
+          package-manager-cache: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Install pinned dependencies
+        run: |
+          npm ci --no-audit --no-fund
+          python -m pip install --disable-pip-version-check --index-url https://pypi.org/simple -r scripts/xml-requirements.txt -r scripts/rdf-requirements.txt -r scripts/workflow-requirements.txt
+      - run: npm run typecheck
+      - run: npm run typecheck:tools
+      - run: npm run parser:selftest
+      - run: npm test
+      - run: npm run test:xml
+      - run: npm run test:evidence
+      - name: Verify publication and configuration boundaries
+        run: python3 -m unittest discover -s tests -p test_public_distribution.py

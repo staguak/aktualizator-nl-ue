@@ -1,0 +1,15 @@
+NL/EU law updater
+Copyright (c) 2026 staguak
+
+Original project code is distributed under the MIT License (LICENSE).
+
+The BWB hierarchy/parsing approach in aktualizator-ph/src/bwb-parser.ts was
+adapted from Dutch-law-mcp by Ansvar Systems AB, Copyright 2026, under
+Apache License 2.0. The original attribution is retained in that file and
+the upstream license is included in third_party/Ansvar-Apache-2.0.txt.
+The project MIT license does not replace that upstream license.
+
+The pinned XML schemas and official source fixtures are third-party
+materials. Their original bytes and embedded notices are preserved.
+They are not relicensed under MIT. See THIRD_PARTY.md for their provenance.
+Installed dependencies retain their respective licenses.

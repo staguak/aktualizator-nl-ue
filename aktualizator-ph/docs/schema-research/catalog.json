@@ -1,0 +1,317 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "url": "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-WTI/2016-1/xsd/wti_2016-1.xsd",
+      "fetchUrl": "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-WTI/2016-1/xsd/wti_2016-1.xsd",
+      "file": "f5f2fe55796237177f6cf6b3c74ae53fe4ddcdd888ab246e4c66bf2b9bd62508.xsd",
+      "sha256": "31c82ff986ec8440283a01b7431418b6659db59ec64451054878792e775461bb",
+      "imports": [
+        "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-WTI/2016-1/xsd/bwb_owms_2016-01.xsd"
+      ]
+    },
+    {
+      "url": "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-toestand/2016-1/xsd/toestand_2016-1.xsd",
+      "fetchUrl": "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-toestand/2016-1/xsd/toestand_2016-1.xsd",
+      "file": "b6350fd688aa1ed480a40fef46cc836c846c75e434fd033390b773f863dea41e.xsd",
+      "sha256": "80e740da208fa1ed051889f0acac24892d9f62af70d65a5fe6dd355e12d529dd",
+      "imports": [
+        "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-toestand/2016-1/xsd/toestand_base_2016-1.xsd"
+      ]
+    },
+    {
+      "url": "http://formex.publications.europa.eu/schema/formex-05.56-20160701.xd",
+      "fetchUrl": "http://publications.europa.eu/resource/cellar/fab97dc0-2f75-11e9-8d04-01aa75ed71a1.0001.01/DOC_54",
+      "file": "11206122b61bd65d015bdabef4943ac34e8ae73bb69441205b8ccffcd9a7ba50.xsd",
+      "sha256": "ae44e4e60bdeeb52a6a95c282d3cc154c078b5eb628096c1a36e42ed27f52079",
+      "imports": []
+    },
+    {
+      "url": "http://formex.publications.europa.eu/schema/formex-06.02.1-20231031.xd",
+      "fetchUrl": "http://publications.europa.eu/resource/cellar/fab97dc0-2f75-11e9-8d04-01aa75ed71a1.0001.01/DOC_61",
+      "file": "194ec703a573b0f4266611d56b73a4f1f1c2a4e72d67e893b0fede225f997f7d.xsd",
+      "sha256": "f9fe3a6261ec934cae116c547f5fab3a7d70c0f8336e703a418e342cc652433d",
+      "imports": []
+    },
+    {
+      "url": "http://formex.publications.europa.eu/schema/formex-05.51-20130501.xd",
+      "fetchUrl": "http://publications.europa.eu/resource/cellar/fab97dc0-2f75-11e9-8d04-01aa75ed71a1.0001.01/DOC_48",
+      "file": "332405ffbe42f52c27ee9d73dc6c9f33b6cfdb40a53b67b2652b5fa73cae6b37.xsd",
+      "sha256": "e51f921e618b3321d481fbb358f19e1c791bdc5702e077c5438c8f95da12f4d1",
+      "imports": []
+    },
+    {
+      "url": "http://formex.publications.europa.eu/schema/formex-03.00-20051001.xd",
+      "fetchUrl": "http://publications.europa.eu/resource/cellar/fab97dc0-2f75-11e9-8d04-01aa75ed71a1.0001.01/DOC_35",
+      "file": "a7ca6e1e2a631866e0e9a7e06e9992ecaaadd5e2a779bc32af15bb45eebbf298.xsd",
+      "sha256": "7dd713315b3389c6f62a4a04f067beb6cf2d759e2249aa757fefb7fbf7beee82",
+      "imports": []
+    },
+    {
+      "url": "http://formex.publications.europa.eu/schema/formex-05.59-20170418.xd",
+      "fetchUrl": "http://publications.europa.eu/resource/cellar/fab97dc0-2f75-11e9-8d04-01aa75ed71a1.0001.01/DOC_57",
+      "file": "dcf318c06a51837464f785c5aa72ea9a3d76e9a644f1fc6e710376f25e45d21c.xsd",
+      "sha256": "3e8c33a245a2733e43a80f6cf6a7d6223f86443673da3483ca26e82a3bb79e70",
+      "imports": []
+    },
+    {
+      "url": "http://formex.publications.europa.eu/schema/formex-05.58-20161101.xd",
+      "fetchUrl": "http://publications.europa.eu/resource/cellar/fab97dc0-2f75-11e9-8d04-01aa75ed71a1.0001.01/DOC_56",
+      "file": "34b103be8393d7d25d25d4fd0d2a115d96ed256eb921fd1cd34677c41801f947.xsd",
+      "sha256": "500113550d2fcc369a6be3cdf13e6519dea3f2fc0f491d2dab5246ef473c132b",
+      "imports": []
+    },
+    {
+      "url": "http://formex.publications.europa.eu/schema/formex-04.00-20061031.xd",
+      "fetchUrl": "http://publications.europa.eu/resource/cellar/fab97dc0-2f75-11e9-8d04-01aa75ed71a1.0001.01/DOC_36",
+      "file": "4b5e6c11ee00762cb0791d54d366fd3ea9d261055535f58447d8dfa5f4321daf.xsd",
+      "sha256": "9c5459d4afa6af25457139238e3772a3c1708c0ad01f50e4d552cd0a813371fa",
+      "imports": []
+    },
+    {
+      "url": "http://formex.publications.europa.eu/schema/formex-05.53-20130725.xd",
+      "fetchUrl": "http://publications.europa.eu/resource/cellar/fab97dc0-2f75-11e9-8d04-01aa75ed71a1.0001.01/DOC_50",
+      "file": "7b0113f8b7eaec3bf868f088de196ce7a221a176b4c2eaf32c5ab70346478150.xsd",
+      "sha256": "52fc2d40f173019072a71be66f12b1a49d9c44f60ba08d97824308b10022999f",
+      "imports": []
+    },
+    {
+      "url": "http://formex.publications.europa.eu/schema/formex-05.21-20110601.xd",
+      "fetchUrl": "http://publications.europa.eu/resource/cellar/fab97dc0-2f75-11e9-8d04-01aa75ed71a1.0001.01/DOC_43",
+      "file": "3973cae96315c7cb077b4febd83b1e8374d624020b4b950344d3dd27fc8aa73d.xsd",
+      "sha256": "d21ac32fd4271c07240b582182442924f1b7b6482ae2b24c4502663910b29f49",
+      "imports": []
+    },
+    {
+      "url": "http://formex.publications.europa.eu/schema/formex-05.22-20110811.xd",
+      "fetchUrl": "http://publications.europa.eu/resource/cellar/fab97dc0-2f75-11e9-8d04-01aa75ed71a1.0001.01/DOC_44",
+      "file": "1c286a7dd99ec66d7cece1750c2ffb07faa652e3696b2f86c03c80e78a12959c.xsd",
+      "sha256": "258b8688831e33b324943ac753ecb03890eedce71b9c5ec77884e37b21b41885",
+      "imports": []
+    },
+    {
+      "url": "http://formex.publications.europa.eu/schema/formex-05.00-20081231.xd",
+      "fetchUrl": "http://publications.europa.eu/resource/cellar/fab97dc0-2f75-11e9-8d04-01aa75ed71a1.0001.01/DOC_38",
+      "file": "458201db11124282a9345c1535e3454624b456a0b16de04c431207b36ea4b80e.xsd",
+      "sha256": "019b2d14017ab5e91fd8d7d269cf9f6f2d92fda46029623b9aaed695f16d7c93",
+      "imports": []
+    },
+    {
+      "url": "http://formex.publications.europa.eu/schema/formex-06.01-20220520.xd",
+      "fetchUrl": "http://publications.europa.eu/resource/cellar/fab97dc0-2f75-11e9-8d04-01aa75ed71a1.0001.01/DOC_59",
+      "file": "33c2ddd274eac4c538504f89366cf73200c7f4245b8b6d2cf2b09cdca554513f.xsd",
+      "sha256": "8512901809c6cfa469d7361b819b4eca3096a2fcccea99c61d3b845c125f3758",
+      "imports": []
+    },
+    {
+      "url": "http://formex.publications.europa.eu/schema/formex-06.02.2-20241118.xd",
+      "fetchUrl": "http://publications.europa.eu/resource/cellar/fab97dc0-2f75-11e9-8d04-01aa75ed71a1.0001.01/DOC_62",
+      "file": "1c22ced6f37bf295c9efdd4ddb7b822022a2e9028bb5cb542b06637ee589e5b6.xsd",
+      "sha256": "13a05462c76b10962680fa7b1dc5cf24e9a7c029bda5593b497a9765b8051689",
+      "imports": []
+    },
+    {
+      "url": "http://formex.publications.europa.eu/schema/formex-05.10-20100101.xd",
+      "fetchUrl": "http://publications.europa.eu/resource/cellar/fab97dc0-2f75-11e9-8d04-01aa75ed71a1.0001.01/DOC_40",
+      "file": "54cd707e6a8141c285a05e48a902ee1840494dc9cd2088d62522661da388f9bf.xsd",
+      "sha256": "7b174afb783de5503f5050ab287f28d593297c3e734286185381ba7a97028782",
+      "imports": []
+    },
+    {
+      "url": "http://formex.publications.europa.eu/schema/formex-06.00-20210715.xd",
+      "fetchUrl": "http://publications.europa.eu/resource/cellar/fab97dc0-2f75-11e9-8d04-01aa75ed71a1.0001.01/DOC_58",
+      "file": "1b45a52ee0221e71b163e5f3e21e26de991bc3b702bba7d63029ff88bac541ff.xsd",
+      "sha256": "1fd3be0c736cf31f1f5c3def174b170f712ac286f3bc47792be99ae7bb3cb72e",
+      "imports": []
+    },
+    {
+      "url": "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-WTI/2016-1/xsd/bwb_owms_2016-01.xsd",
+      "fetchUrl": "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-WTI/2016-1/xsd/bwb_owms_2016-01.xsd",
+      "file": "8a6c28e83b17b108d7095262b639283849b5797c6381c39986afc58032b6840f.xsd",
+      "sha256": "4b270774e14eb78a60a791c4a1918165abc0c8f352bbee2d8aa5bd491fa8f1aa",
+      "imports": [
+        "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-WTI/2016-1/xsd/dcterms-elem-plugin.xsd",
+        "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-WTI/2016-1/xsd/overheid-elem-plugin.xsd"
+      ]
+    },
+    {
+      "url": "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-toestand/2016-1/xsd/toestand_base_2016-1.xsd",
+      "fetchUrl": "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-toestand/2016-1/xsd/toestand_base_2016-1.xsd",
+      "file": "41549c966117e4011d74dc3f1e2b6e2f44589026bcca29b1786eb73082d5e5b9.xsd",
+      "sha256": "b313b96cde5b3b250feb4a39ccb57422843b6251a22163ee33986fb21ccf47dc",
+      "imports": [
+        "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-toestand/2016-1/xsd/xml_override_2016-1.xsd"
+      ]
+    },
+    {
+      "url": "https://repository.officiele-overheidspublicaties.nl/bwb/_manifest.xsd",
+      "fetchUrl": "https://repository.officiele-overheidspublicaties.nl/bwb/_manifest.xsd",
+      "file": "61bdad6b55c54e2bdcd6cd2a4cc3399139ad5a88caf110e55b6337bbd54c6e60.xsd",
+      "sha256": "7fa0ba33a20fcdfb421e270011c2e23e301314c5a0d74fc3e63eda0d39dc2c56",
+      "imports": [
+        "https://repository.officiele-overheidspublicaties.nl/_schemas/_manifest_1.08.xsd"
+      ]
+    },
+    {
+      "url": "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-WTI/2016-1/xsd/dcterms-elem-plugin.xsd",
+      "fetchUrl": "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-WTI/2016-1/xsd/dcterms-elem-plugin.xsd",
+      "file": "b48104894a6c416ef88f26f7dc4b81717535add36a028d09c915a283cc7e5c6d.xsd",
+      "sha256": "a3693dcc1635e87139ae3c62a54b98642b343f8fff3b7ababb02e957d8bb450c",
+      "imports": [
+        "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-WTI/2016-1/xsd/xml-att.xsd"
+      ]
+    },
+    {
+      "url": "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-WTI/2016-1/xsd/overheid-elem-plugin.xsd",
+      "fetchUrl": "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-WTI/2016-1/xsd/overheid-elem-plugin.xsd",
+      "file": "a58b59c59ea705b821724830926a70e945a698e5a3bd1be1aac3435df65e9457.xsd",
+      "sha256": "ccb0b85ce543c41739521fa1a7c80fa8ebb91235d5bbcc9725ae9a8f219e556c",
+      "imports": [
+        "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-WTI/2016-1/xsd/xml-att.xsd"
+      ]
+    },
+    {
+      "url": "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-toestand/2016-1/xsd/xml_override_2016-1.xsd",
+      "fetchUrl": "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-toestand/2016-1/xsd/xml_override_2016-1.xsd",
+      "file": "a403c97340476ceca24f0c92bcd5847b7b15d85a54104050068d39f1e8d94128.xsd",
+      "sha256": "bd1a1bf867f76ecb2b4ba4cb6306c1adae7ed7824696359e031e5de573ec9dc1",
+      "imports": []
+    },
+    {
+      "url": "https://repository.officiele-overheidspublicaties.nl/_schemas/_manifest_1.08.xsd",
+      "fetchUrl": "https://repository.officiele-overheidspublicaties.nl/_schemas/_manifest_1.08.xsd",
+      "file": "0b086ca063dd26fb3d2d1d82218407b335e021052c72a2338added512ed2e7b4.xsd",
+      "sha256": "02caa28a6fb82c79372c5bc0bcac6ad201fea482da9b5b17ecd6cc679eb55f5b",
+      "imports": []
+    },
+    {
+      "url": "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-WTI/2016-1/xsd/xml-att.xsd",
+      "fetchUrl": "https://repository.officiele-overheidspublicaties.nl/Schema/BWB-WTI/2016-1/xsd/xml-att.xsd",
+      "file": "9c7c4a8b96d301dfcb9636a9eb760229d86dce73012eb06075387e22429eb8b4.xsd",
+      "sha256": "4c8c0fa8328c2a70850c6c3a4af59c8534c925b3641ac308bca9197f3d38614b",
+      "imports": []
+    },
+    {
+      "url": "http://docs.oasis-open.org/search-ws/searchRetrieve/v1.0/os/schemas/sruResponse.xsd",
+      "fetchUrl": "https://docs.oasis-open.org/search-ws/searchRetrieve/v1.0/os/schemas/sruResponse.xsd",
+      "aliases": [],
+      "file": "af416acd1bbe67eee758a6702e3c163eb24c8e9881fdb8140bd6397136294ac3.xsd",
+      "sha256": "54f036668cdffe126768d2f1af9c2cd767ab8c25db712137700ef1a6bb78822e",
+      "targetNamespace": "http://docs.oasis-open.org/ns/search-ws/sruResponse",
+      "imports": [
+        "http://docs.oasis-open.org/search-ws/ searchRetrieve/v1.0/csd01/schemas/diagnostic.xsd",
+        "http://docs.oasis-open.org/search-ws/ searchRetrieve/v1.0/csd01/schemas/facetedResults.xsd",
+        "http://docs.oasis-open.org/search-ws/ searchRetrieve/v1.0/csd01/schemas/searchResultAnalysis.xsd",
+        "http://docs.oasis-open.org/search-ws/ searchRetrieve/v1.0/csd01/schemas/xcql.xsd",
+        "http://docs.oasis-open.org/search-ws/ searchRetrieve/v1.0/csd01/schemas/scan.xsd"
+      ],
+      "dependencyAssembly": [
+        {
+          "namespace": "http://docs.oasis-open.org/ns/search-ws/diagnostic",
+          "sourceLocation": "http://docs.oasis-open.org/search-ws/ searchRetrieve/v1.0/csd01/schemas/diagnostic.xsd",
+          "url": "https://docs.oasis-open.org/search-ws/searchRetrieve/v1.0/csd01/schemas/diagnostic.xsd"
+        },
+        {
+          "namespace": "http://docs.oasis-open.org/ns/search-ws/facetedResults",
+          "sourceLocation": "http://docs.oasis-open.org/search-ws/ searchRetrieve/v1.0/csd01/schemas/facetedResults.xsd",
+          "url": "https://docs.oasis-open.org/search-ws/searchRetrieve/v1.0/csd01/schemas/facetedResults.xsd"
+        },
+        {
+          "namespace": "http://docs.oasis-open.org/ns/search-ws/searchResultAnalysis",
+          "sourceLocation": "http://docs.oasis-open.org/search-ws/ searchRetrieve/v1.0/csd01/schemas/searchResultAnalysis.xsd",
+          "url": "https://docs.oasis-open.org/search-ws/searchRetrieve/v1.0/csd01/schemas/searchResultAnalysis.xsd"
+        },
+        {
+          "namespace": "http://docs.oasis-open.org/ns/search-ws/xcql",
+          "sourceLocation": "http://docs.oasis-open.org/search-ws/ searchRetrieve/v1.0/csd01/schemas/xcql.xsd",
+          "url": "https://docs.oasis-open.org/search-ws/searchRetrieve/v1.0/csd01/schemas/xcql.xsd"
+        },
+        {
+          "namespace": "http://docs.oasis-open.org/ns/search-ws/scan",
+          "sourceLocation": "http://docs.oasis-open.org/search-ws/ searchRetrieve/v1.0/csd01/schemas/scan.xsd",
+          "url": "https://docs.oasis-open.org/search-ws/searchRetrieve/v1.0/csd01/schemas/scan.xsd"
+        }
+      ]
+    },
+    {
+      "url": "https://docs.oasis-open.org/search-ws/searchRetrieve/v1.0/csd01/schemas/diagnostic.xsd",
+      "fetchUrl": "https://docs.oasis-open.org/search-ws/searchRetrieve/v1.0/csd01/schemas/diagnostic.xsd",
+      "aliases": [
+        "http://docs.oasis-open.org/search-ws/ searchRetrieve/v1.0/csd01/schemas/diagnostic.xsd",
+        "http://docs.oasis-open.org/search-ws/%20searchRetrieve/v1.0/csd01/schemas/diagnostic.xsd"
+      ],
+      "file": "40f2548dbb7425632c75791c13b6d0cf15dd0f62ee87c81c850a235922028c11.xsd",
+      "sha256": "90e429845489835a9f3e0b44201f45362d2a00995603015e84aea8ddccab9cea",
+      "targetNamespace": "http://docs.oasis-open.org/ns/search-ws/diagnostic",
+      "imports": []
+    },
+    {
+      "url": "https://docs.oasis-open.org/search-ws/searchRetrieve/v1.0/csd01/schemas/facetedResults.xsd",
+      "fetchUrl": "https://docs.oasis-open.org/search-ws/searchRetrieve/v1.0/csd01/schemas/facetedResults.xsd",
+      "aliases": [
+        "http://docs.oasis-open.org/search-ws/ searchRetrieve/v1.0/csd01/schemas/facetedResults.xsd",
+        "http://docs.oasis-open.org/search-ws/%20searchRetrieve/v1.0/csd01/schemas/facetedResults.xsd"
+      ],
+      "file": "9cd67a5c1cfca1d827e7e10f7321c8f4537ebc574336e82d776920fc981bebc5.xsd",
+      "sha256": "7d462f3618d0099439a606c640c77c4f3f321deb724ca53ba97d887e7b6ca7a8",
+      "targetNamespace": "http://docs.oasis-open.org/ns/search-ws/facetedResults",
+      "imports": []
+    },
+    {
+      "url": "https://docs.oasis-open.org/search-ws/searchRetrieve/v1.0/csd01/schemas/searchResultAnalysis.xsd",
+      "fetchUrl": "https://docs.oasis-open.org/search-ws/searchRetrieve/v1.0/csd01/schemas/searchResultAnalysis.xsd",
+      "aliases": [
+        "http://docs.oasis-open.org/search-ws/ searchRetrieve/v1.0/csd01/schemas/searchResultAnalysis.xsd",
+        "http://docs.oasis-open.org/search-ws/%20searchRetrieve/v1.0/csd01/schemas/searchResultAnalysis.xsd"
+      ],
+      "file": "f73dcab1bab4b0a6bc93d8ed81edea7494116a9f985e196f48161f610039d710.xsd",
+      "sha256": "977cd986d2e3b4a5cd1a66b246e2b1437d55fb2910e1c5c2543340b985cc1ae8",
+      "targetNamespace": "http://docs.oasis-open.org/ns/search-ws/searchResultAnalysis",
+      "imports": []
+    },
+    {
+      "url": "https://docs.oasis-open.org/search-ws/searchRetrieve/v1.0/csd01/schemas/xcql.xsd",
+      "fetchUrl": "https://docs.oasis-open.org/search-ws/searchRetrieve/v1.0/csd01/schemas/xcql.xsd",
+      "aliases": [
+        "http://docs.oasis-open.org/search-ws/ searchRetrieve/v1.0/csd01/schemas/xcql.xsd",
+        "http://docs.oasis-open.org/search-ws/%20searchRetrieve/v1.0/csd01/schemas/xcql.xsd"
+      ],
+      "file": "65b88a37df0cb51cb554db9d16730c4d46523c18abd30d17c9d1b4f29a6fd74e.xsd",
+      "sha256": "d126d85f881bdbf2f19f242289e069f4b6c66302818db9603b6a5d09fa9dd4d4",
+      "targetNamespace": "http://docs.oasis-open.org/ns/search-ws/xcql",
+      "imports": []
+    },
+    {
+      "url": "https://docs.oasis-open.org/search-ws/searchRetrieve/v1.0/csd01/schemas/scan.xsd",
+      "fetchUrl": "https://docs.oasis-open.org/search-ws/searchRetrieve/v1.0/csd01/schemas/scan.xsd",
+      "aliases": [
+        "http://docs.oasis-open.org/search-ws/ searchRetrieve/v1.0/csd01/schemas/scan.xsd",
+        "http://docs.oasis-open.org/search-ws/%20searchRetrieve/v1.0/csd01/schemas/scan.xsd"
+      ],
+      "file": "87ab90121b1b13eb844bc64ca5cc09cb010120f1d4f30a5fd87d8ab637785c38.xsd",
+      "sha256": "26ecc3f89e71cda643d7bfe16383d315fde941b2ce9c0962249a589719d3badd",
+      "targetNamespace": "http://docs.oasis-open.org/ns/search-ws/scan",
+      "imports": [
+        "http://docs.oasis-open.org/search-ws/ searchRetrieve/v1.0/csd01/schemas/xcql.xsd",
+        "http://docs.oasis-open.org/search-ws/ searchRetrieve/v1.0/csd01/schemas/diagnostic.xsd"
+      ],
+      "dependencyAssembly": [
+        {
+          "namespace": "http://docs.oasis-open.org/ns/search-ws/xcql",
+          "sourceLocation": "http://docs.oasis-open.org/search-ws/ searchRetrieve/v1.0/csd01/schemas/xcql.xsd",
+          "url": "https://docs.oasis-open.org/search-ws/searchRetrieve/v1.0/csd01/schemas/xcql.xsd"
+        },
+        {
+          "namespace": "http://docs.oasis-open.org/ns/search-ws/diagnostic",
+          "sourceLocation": "http://docs.oasis-open.org/search-ws/ searchRetrieve/v1.0/csd01/schemas/diagnostic.xsd",
+          "url": "https://docs.oasis-open.org/search-ws/searchRetrieve/v1.0/csd01/schemas/diagnostic.xsd"
+        }
+      ]
+    }
+  ],
+  "retrievedAt": "2026-10-11T23:06:02.902398+00:00",
+  "scope": "Preparation only: pinned BWB Toestand/WTI/manifest and historical Formex schemas. Does not implement the runtime XSD gate.",
+  "bundleSha256": "ef59d1ea33ac556df14b7bab0c20c923acbf8dc1e9029c46770b56a745e4a8be",
+  "updatedAt": "2026-10-16T16:02:35.788828+00:00",
+  "importAliasPolicy": "Original XSD bytes remain unchanged. For OASIS imports containing whitespace, an explicit generated assembly preloads the exact imported namespaces from pinned corresponding official csd01 URLs before including the original schema. Original import strings and targetNamespace are checked; no schema declarations are edited."
+}

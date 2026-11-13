@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "language": "EN",
+  "acts": [
+    {
+      "order": 1,
+      "title": "General Data Protection Regulation",
+      "celex": "32016R0679",
+      "include": "full-document",
+      "requiredVersions": [
+        "32016R0679"
+      ],
+      "attachedDocuments": []
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "name": "nl-eu-law-updater",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Configurable NL/EU official-law updater with private Google Drive output.",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "run": "node --import tsx src/public-run.ts",
+    "plan": "node --import tsx src/public-run.ts --plan",
+    "auth:check": "node --import tsx src/drive-auth.ts --check-auth",
+    "update:nl": "node --import tsx src/main.ts",
+    "update:ue": "node --import tsx src/eu-main.ts",
+    "typecheck": "tsc --noEmit",
+    "typecheck:tools": "tsc --noEmit -p tsconfig.tools.json",
+    "parser:selftest": "node --import tsx src/parser-selftest.ts",
+    "test": "node --import tsx --test src/*.test.ts",
+    "test:xml": "node --import tsx --test src/xml-validation.integration.ts && python3 -m unittest discover -s tests -p \"test_xml*.py\"",
+    "test:evidence": "python3 -m unittest discover -s tests -p test_evidence_bundle.py",
+    "verify:output": "python3 scripts/verify_official_output.py"
+  },
+  "dependencies": {
+    "cheerio": "1.2.0",
+    "fast-xml-parser": "5.12.0",
+    "fflate": "0.8.3",
+    "googleapis": "159.0.0"
+  },
+  "overrides": {
+    "undici": "7.30.1",
+    "googleapis-common": {
+      "gaxios": "7.3.1"
+    }
+  },
+  "devDependencies": {
+    "@types/node": "24.5.2",
+    "tsx": "4.20.5",
+    "typescript": "5.9.2"
+  },
+  "license": "MIT"
+}
