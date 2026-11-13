@@ -4,7 +4,6 @@ Issue titles and bodies never become shell commands, paths or configuration.
 Only the publish step receives the short-lived GitHub token; builders do not.
 """
 import argparse
-import base64
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -12,13 +11,15 @@ import os
 from pathlib import Path
 import re
 import shutil
-import subprocess
 import sys
-import urllib.request
 from zoneinfo import ZoneInfo
+from public_support import (PublicError, GitHubApi, authenticated_environment, executable_digest, git, parse_time, record_diagnostic)
+from public_admission import StateStore, acquire as acquire_lease, release as release_lease, request_time
 
 APP = Path(__file__).resolve().parents[1]
 STATE = APP / '.public-state'
+CONTROL = APP / '.public-control'
+STAGE = 'START'
 BRANCH = 'dane'
 REF = 'refs/heads/' + BRANCH
 PROFILE = 'public-nl-eu-corpus-v1'
@@ -28,14 +29,6 @@ MAX_TOTAL = 500_000_000
 MAX_FILES = 10_000
 COOLDOWN_SECONDS = 3600
 CONFIG_FILES = ('aktualizator.json', 'zakres.json', 'zakres-ue.json')
-
-
-def git(directory, *args, env=None, acceptable=(0,)):
-    process = subprocess.run(['git', '-C', str(directory), *args], env=env,
-                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=600)
-    if process.returncode not in acceptable:
-        raise RuntimeError('Git operation failed; no source or credential diagnostics are echoed')
-    return process
 
 
 def repository():
@@ -54,6 +47,111 @@ def trusted_event(event_name, event, ref):
     return (event_name == 'issues' and event.get('action') == 'opened'
             and issue.get('title') == REQUEST_TITLE and not issue.get('pull_request')
             and isinstance(issue.get('number'), int) and issue['number'] > 0)
+
+
+def stage(value):
+    global STAGE
+    STAGE = value
+
+
+def write_control(name, value):
+    CONTROL.mkdir(parents=True, exist_ok=True)
+    target = CONTROL / name
+    target.write_text(json.dumps(value, indent=2) + '\n')
+
+
+def read_control(name):
+    target = CONTROL / name
+    return json.loads(target.read_bytes()) if target.is_file() else None
+
+
+def run_identity():
+    run, attempt = os.environ.get('GITHUB_RUN_ID', ''), os.environ.get('GITHUB_RUN_ATTEMPT', '')
+    if not re.fullmatch('[1-9][0-9]*', run) or not re.fullmatch('[1-9][0-9]*', attempt):
+        raise PublicError('RUN_IDENTITY_INVALID', 'ADMISSION')
+    return run, int(attempt)
+
+
+def state_store():
+    repo = repository()
+    return StateStore(APP, CONTROL / 'lease-git', repo, 'https://github.com/' + repo + '.git',
+                      authenticated_environment(os.environ.get('GH_TOKEN', '')))
+
+
+def acquire():
+    stage('ADMISSION')
+    event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_bytes())
+    if not trusted_event(os.environ.get('GITHUB_EVENT_NAME'), event, os.environ.get('GITHUB_REF')):
+        raise PublicError('REQUEST_EVENT_INVALID', 'ADMISSION')
+    run, attempt = run_identity()
+    revision = os.environ.get('GITHUB_SHA', '')
+    if not re.fullmatch('[a-f0-9]{40}', revision):
+        raise PublicError('EXECUTABLE_REVISION_INVALID', 'ADMISSION')
+    api = GitHubApi(repository(), os.environ.get('GH_TOKEN', ''))
+    receipt = acquire_lease(state_store(), api, run, attempt, revision, request_time(api, run, attempt))
+    write_control('admission.json', receipt)
+    output(accepted=str(receipt['accepted']).lower())
+    if not receipt['accepted']:
+        code = receipt['reason']
+        print('Aktualizacja już trwa lub trwała w chwili zgłoszenia. Prośba odrzucona; nie dodano jej do kolejki.')
+        raise PublicError(code, 'ADMISSION')
+    print('Updater lease acquired; this request is the only admitted operation.')
+
+
+def release():
+    stage('RELEASE')
+    receipt = read_control('admission.json')
+    if not receipt or not receipt.get('accepted'):
+        print('No updater lease held by this request.')
+        return
+    result = read_control('result.json') or {'status': 'FAILED'}
+    release_lease(state_store(), receipt, result['status'])
+    print('Updater lease released; current idle status retained without a queue.')
+
+
+def report():
+    stage('REPORT')
+    admission = read_control('admission.json') or {}
+    publication = read_control('publication.json')
+    candidate = read_control('publication-attempt.json')
+    request = None
+    if (STATE / 'request.json').is_file():
+        request = json.loads((STATE / 'request.json').read_bytes())
+    errors = []
+    if (CONTROL / 'errors.jsonl').is_file():
+        errors = [json.loads(row) for row in (CONTROL / 'errors.jsonl').read_text().splitlines() if row]
+    if not admission.get('accepted') and admission.get('reason'):
+        status = 'BUSY' if admission['reason'] == 'UPDATER_BUSY' else 'STALE'
+    elif publication:
+        status = 'PUBLISHED'
+    elif candidate:
+        status = 'UNKNOWN'
+    elif request and not request['build'] and os.environ.get('PUBLIC_PREPARE_OUTCOME') == 'success':
+        status = 'REUSED'
+    else:
+        status = 'FAILED'
+    result = {'status': status, 'error': errors[-1] if errors else None,
+              'dataRevision': publication['sha'] if publication else None}
+    build_error = read_control('build-error.json')
+    if build_error:
+        result['error'] = {k: build_error[k] for k in ('code', 'stage')}
+        print('::error title=Public corpus build::' + build_error['code'] + '; etap=' + build_error['stage'])
+        if build_error.get('auditLine'):
+            print('Independent audit location: verify_official_output.py:' + str(build_error['auditLine']))
+    write_control('result.json', result)
+    output(result=status)
+    summary = os.environ.get('GITHUB_STEP_SUMMARY')
+    text = 'Wynik aktualizatora: **' + status + '**.\n'
+    if result['error']:
+        text += '\nKod: `' + result['error']['code'] + '`; etap: `' + result['error']['stage'] + '`.\n'
+        if result['error'].get('location'):
+            text += '\nMiejsce: `' + result['error']['location'] + '`.\n'
+    if publication:
+        text += '\nPublikacja potwierdzona: `' + publication['sha'] + '`.\n'
+    if summary:
+        with open(summary, 'a') as f:
+            f.write(text)
+    print(text)
 
 
 def configuration_digest():
@@ -104,6 +202,10 @@ def validate_snapshot(directory):
         raise ValueError('Snapshot producer revision is missing')
     if not re.fullmatch('[a-f0-9]{64}', value.get('configurationSha256', '')):
         raise ValueError('Snapshot configuration identity is missing')
+    if value.get('executionSha256') is not None and not re.fullmatch('[a-f0-9]{64}', value['executionSha256']):
+        raise PublicError('EXECUTION_IDENTITY_INVALID', 'VALIDATION')
+    if value.get('sourceAudit', 'conditional') not in {'conditional', 'unconditional'}:
+        raise PublicError('AUDIT_MODE_INVALID', 'VALIDATION')
     if not isinstance(value.get('counts'), dict):
         raise ValueError('Snapshot corpus counts are missing')
     for module in ('NL', 'UE'):
@@ -155,10 +257,12 @@ def restore_previous(remote, target):
     return actual, value
 
 
-def fresh(value, revision, config_digest, now, force=False):
-    if not value or force or value.get('codeRevision') != revision or value.get('configurationSha256') != config_digest:
+def fresh(value, revision, config_digest, now, force=False, execution=None):
+    same_execution = (value.get('executionSha256') == execution if value and value.get('executionSha256') and execution
+                      else bool(value and value.get('codeRevision') == revision))
+    if not value or force or not same_execution or value.get('configurationSha256') != config_digest:
         return False
-    checked = datetime.fromisoformat(value['publishedAt'])
+    checked = parse_time(value['publishedAt'])
     age = (now - checked).total_seconds()
     return (0 <= age < COOLDOWN_SECONDS and value['rangeTo'] == now.astimezone(ZoneInfo('Europe/Warsaw')).date().isoformat())
 
@@ -172,6 +276,10 @@ def output(**values):
 
 
 def prepare():
+    stage('PREPARE')
+    admission = read_control('admission.json')
+    if not admission or not admission.get('accepted'):
+        raise PublicError('ADMISSION_REQUIRED', 'PREPARE')
     event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_bytes())
     if not trusted_event(os.environ.get('GITHUB_EVENT_NAME'), event, os.environ.get('GITHUB_REF')):
         raise ValueError('Unsupported public refresh request')
@@ -183,12 +291,18 @@ def prepare():
         raise ValueError('Exact build revision required')
     if git(APP, 'rev-parse', 'HEAD').stdout.decode().strip() != revision:
         raise ValueError('Checked-out code differs from the event revision')
+    stage('RESTORE_PREVIOUS')
     sha, previous = restore_previous('https://github.com/' + repository() + '.git', STATE / 'prior')
     now = datetime.now(timezone.utc)
-    requested_force = os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch' and os.environ.get('INPUT_FORCE') == 'true'
-    rebuild = not fresh(previous, revision, configuration_digest(), now, requested_force)
+    stage('PLAN_BUILD')
+    manual = os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch'
+    full_audit = manual and os.environ.get('INPUT_FULL_SOURCE_AUDIT') == 'true'
+    requested_force = manual and (os.environ.get('INPUT_FORCE') == 'true' or full_audit)
+    execution = executable_digest(APP)
+    rebuild = not fresh(previous, revision, configuration_digest(), now, requested_force, execution)
     state = dict(previousSha=sha, revision=revision, configSha256=configuration_digest(),
-                 rangeTo=now.astimezone(ZoneInfo('Europe/Warsaw')).date().isoformat(), build=rebuild)
+                 rangeTo=now.astimezone(ZoneInfo('Europe/Warsaw')).date().isoformat(), build=rebuild,
+                 executionSha256=execution, sourceAudit='unconditional' if full_audit else 'conditional')
     (STATE / 'request.json').write_text(json.dumps(state))
     if previous and rebuild:
         for module, directory in [('NL', 'output'), ('UE', 'output-ue')]:
@@ -196,11 +310,11 @@ def prepare():
             if target.exists():
                 raise ValueError('Build output must start empty')
             shutil.copytree(STATE / 'prior' / module, target)
-    output(build=str(rebuild).lower(), range_to=state['rangeTo'])
+    output(build=str(rebuild).lower(), range_to=state['rangeTo'], audit_mode=state['sourceAudit'])
     print('A new public build is required.' if rebuild else 'The current validated public corpus is still fresh.')
 
 
-def create_snapshot(app, destination, revision, config_digest, now):
+def create_snapshot(app, destination, revision, config_digest, now, execution=None, source_audit='conditional'):
     if destination.exists():
         raise ValueError('New snapshot directory required')
     destination.mkdir(parents=True)
@@ -238,23 +352,15 @@ def create_snapshot(app, destination, revision, config_digest, now):
         + 'opisano w THIRD_PARTY.md na gałęzi z kodem.\n', encoding='utf-8')
     value = dict(profile=PROFILE, status='PASS', publishedAt=now.isoformat(), rangeFrom=range_from,
                  rangeTo=range_to, codeRevision=revision, configurationSha256=config_digest,
-                 counts=counts, files=inventory(destination))
+                 sourceAudit=source_audit, counts=counts, files=inventory(destination))
+    if execution:
+        value['executionSha256'] = execution
     (destination / 'publication.json').write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
     validate_snapshot(destination)
     return value
 
 
-def authenticated_environment(token):
-    if not token or '\n' in token or '\r' in token:
-        raise ValueError('A short-lived GitHub publication token is required')
-    env = dict(os.environ)
-    env.update(GIT_CONFIG_COUNT='1', GIT_CONFIG_KEY_0='http.https://github.com/.extraheader',
-               GIT_CONFIG_VALUE_0='AUTHORIZATION: basic ' + base64.b64encode(('x-access-token:' + token).encode()).decode(),
-               GIT_TERMINAL_PROMPT='0')
-    return env
-
-
-def push_snapshot(snapshot, previous_sha, remote, env=None):
+def push_snapshot(snapshot, previous_sha, remote, env=None, record=None):
     validate_snapshot(snapshot)
     if previous_sha and not re.fullmatch('[a-f0-9]{40}', previous_sha):
         raise ValueError('Invalid expected previous snapshot')
@@ -266,8 +372,17 @@ def push_snapshot(snapshot, previous_sha, remote, env=None):
     git(snapshot, '-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'Publish validated current NL/EU corpus')
     sha = git(snapshot, 'rev-parse', 'HEAD').stdout.decode().strip()
     # Exact lease: never overwrite a concurrent publisher or any code branch.
-    git(snapshot, 'push', '--quiet', '--force-with-lease=' + REF + ':' + previous_sha,
-        remote, 'HEAD:' + REF, env=env)
+    if record:
+        record(sha)
+    stage('PUSH_DATA')
+    try:
+        git(snapshot, 'push', '--quiet', '--force-with-lease=' + REF + ':' + previous_sha,
+            remote, 'HEAD:' + REF, env=env)
+    except PublicError:
+        current = git(snapshot, 'ls-remote', '--heads', remote, REF, env=env).stdout.decode().split()
+        if current != [sha, REF]:
+            raise PublicError('DATA_REF_CONFLICT' if current and current[0] != previous_sha else 'DATA_PUSH_FAILED', 'PUSH_DATA') from None
+    stage('VERIFY_PUBLICATION')
     actual = git(snapshot, 'ls-remote', '--heads', remote, REF, env=env).stdout.decode().split()
     if actual != [sha, REF]:
         raise RuntimeError('Published snapshot ref could not be verified')
@@ -275,49 +390,106 @@ def push_snapshot(snapshot, previous_sha, remote, env=None):
 
 
 def publish():
+    stage('VERIFY_LEASE')
+    receipt = read_control('admission.json')
+    if not receipt or not receipt.get('accepted'):
+        raise PublicError('ADMISSION_REQUIRED', 'PUBLISH')
+    store = state_store()
+    sha, state = store.read()
+    if sha != receipt['sha'] or state['status'] != 'RUNNING':
+        raise PublicError('LOCK_OWNERSHIP_CHANGED', 'PUBLISH')
+    stage('VALIDATE_PUBLICATION')
     request = json.loads((STATE / 'request.json').read_bytes())
     if not request['build']:
         return
-    if request['configSha256'] != configuration_digest():
-        raise ValueError('Configuration changed during the build')
+    if request['configSha256'] != configuration_digest() or request['executionSha256'] != executable_digest(APP):
+        raise PublicError('BUILD_INPUT_CHANGED', 'PUBLISH')
     destination = STATE / 'snapshot'
-    value = create_snapshot(APP, destination, request['revision'], request['configSha256'], datetime.now(timezone.utc))
+    value = create_snapshot(APP, destination, request['revision'], request['configSha256'], datetime.now(timezone.utc), request['executionSha256'], request['sourceAudit'])
     if value['rangeTo'] != request['rangeTo']:
-        raise ValueError('Published end date differs from the frozen build request')
+        raise PublicError('BUILD_RANGE_CHANGED', 'PUBLISH')
     sha = push_snapshot(destination, request['previousSha'], 'https://github.com/' + repository() + '.git',
-                        authenticated_environment(os.environ.get('GH_TOKEN', '')))
-    print('Validated public corpus published; previous snapshot branch replaced atomically. Revision: ' + sha)
+                        authenticated_environment(os.environ.get('GH_TOKEN', '')),
+                        record=lambda candidate: write_control('publication-attempt.json', {'sha': candidate}))
+    write_control('publication.json', {'status': 'PUBLISHED', 'sha': sha})
+    print('Validated public corpus published. Revision: ' + sha)
+
+
+def result_links(repo):
+    base = 'https://github.com/' + repo
+    return base + '/tree/dane', base + '/archive/refs/heads/dane.zip'
+
+
+def find_comment(api, number, marker):
+    for page in range(1, 11):
+        comments = api.request('/issues/' + str(number) + '/comments?per_page=100&page=' + str(page))
+        if not isinstance(comments, list):
+            raise PublicError('COMMENT_RESPONSE_INVALID', 'NOTIFY')
+        for comment in comments:
+            if (comment.get('user', {}).get('login') == 'github-actions[bot]' and marker in comment.get('body', '')
+                    and isinstance(comment.get('id'), int)):
+                return comment
+        if len(comments) < 100:
+            return None
+    raise PublicError('COMMENT_PAGINATION_LIMIT', 'NOTIFY')
+
+
+def notify(api, number, body, marker):
+    for attempt in range(3):
+        try:
+            previous = find_comment(api, number, marker)
+            if previous:
+                if previous['body'] != body:
+                    api.request('/issues/comments/' + str(previous['id']), {'body': body}, 'PATCH')
+                return
+            api.request('/issues/' + str(number) + '/comments', {'body': body}, 'POST', attempts=1)
+            return
+        except PublicError:
+            if attempt == 2:
+                # A final lost POST response may still have created the comment.
+                if find_comment(api, number, marker):
+                    return
+                raise
+            api.wait(attempt + 1)
 
 
 def finish_request():
+    stage('NOTIFY')
     event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_bytes())
-    if os.environ.get('GITHUB_EVENT_NAME') != 'issues':
+    if os.environ.get('GITHUB_EVENT_NAME') != 'issues' or not trusted_event('issues', event, os.environ.get('GITHUB_REF')):
         return
-    if not trusted_event('issues', event, os.environ.get('GITHUB_REF')):
-        return
-    succeeded = os.environ.get('PUBLIC_JOB_STATUS') == 'success'
+    result = read_control('result.json') or {'status': 'FAILED'}
+    status = result['status']
     repo = repository()
-    run = os.environ.get('GITHUB_RUN_ID', '')
-    if not re.fullmatch('[1-9][0-9]*', run):
-        raise ValueError('Invalid workflow run identity')
-    base = 'https://github.com/' + repo
-    body = ('Gotowa baza jest dostępna: ' + base + '/tree/dane\n\nPobierz ZIP: ' + base + '/archive/refs/heads/dane.zip'
-            if succeeded else 'Aktualizacja nie powiodła się. Ostatnia poprawna baza pozostaje dostępna: ' + base + '/tree/dane')
-    body += '\n\nWynik uruchomienia: ' + base + '/actions/runs/' + run
-    def api(suffix, payload, method='POST'):
-        request = urllib.request.Request('https://api.github.com/repos/' + repo + '/issues/' + str(event['issue']['number']) + suffix,
-            data=json.dumps(payload).encode(), method=method, headers={'Accept':'application/vnd.github+json',
-            'Authorization':'Bearer ' + os.environ['GH_TOKEN'], 'X-GitHub-Api-Version':'2022-11-28'})
-        with urllib.request.urlopen(request, timeout=30) as response:
-            response.read(1_000_000)
-    api('/comments', {'body': body})
-    if succeeded:
-        api('', {'state': 'closed', 'state_reason': 'completed'}, 'PATCH')
-    print('Public refresh request received its result links.')
+    run, attempt = run_identity()
+    data, archive = result_links(repo)
+    marker = '<!-- public-corpus-result:' + run + ':' + str(attempt) + ' -->'
+    if status in {'PUBLISHED', 'REUSED'}:
+        message = 'Gotowa, zweryfikowana baza jest dostępna.'
+    elif status in {'BUSY', 'STALE'}:
+        message = 'Prośba odrzucona: aktualizacja już trwa, trwała w chwili zgłoszenia albo GitHub dostarczył żądanie z opóźnieniem. Nie dodano go do kolejki i nie uruchomi się później.'
+    elif status == 'UNKNOWN':
+        message = 'Nie udało się potwierdzić końcowego stanu publikacji. Sprawdź wynik uruchomienia; dane mogły zostać zapisane.'
+    else:
+        message = 'Aktualizacja nie powiodła się. Wcześniej opublikowana poprawna baza, jeśli istniała, pozostaje dostępna.'
+    body = marker + '\n' + message + '\n\nBaza: ' + data + '\n\nPobierz ZIP: ' + archive
+    admission = read_control('admission.json') or {}
+    if admission.get('ownerRun'):
+        body += '\n\nUruchomienie aktualizatora: https://github.com/' + repo + '/actions/runs/' + admission['ownerRun']
+    body += '\n\nWynik żądania: https://github.com/' + repo + '/actions/runs/' + run
+    if result.get('error'):
+        body += '\n\nKod: `' + result['error']['code'] + '`; etap: `' + result['error']['stage'] + '`.'
+    api = GitHubApi(repo, os.environ.get('GH_TOKEN', ''))
+    notify(api, event['issue']['number'], body, marker)
+    if status in {'PUBLISHED', 'REUSED', 'BUSY', 'STALE'}:
+        api.request('/issues/' + str(event['issue']['number']),
+                    {'state': 'closed', 'state_reason': 'completed' if status in {'PUBLISHED', 'REUSED'} else 'not_planned'}, 'PATCH')
+    output(notification='success')
+    print('Public request received its result. Status: ' + status)
 
 
 def cleanup():
-    for name in ('.public-state', '.checkpoint', '.checkpoint-ue', '.source-cache', '.source-diagnostics', 'output', 'output-ue'):
+    for name in ('.public-state', '.public-control', '.checkpoint', '.checkpoint-ue', '.source-cache', '.source-diagnostics', 'output', 'output-ue'):
         target = APP / name
         if target.is_symlink():
             target.unlink()
@@ -330,14 +502,23 @@ def cleanup():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', choices=['prepare', 'publish', 'finish-request', 'cleanup'])
-    value = parser.parse_args().command
-    {'prepare': prepare, 'publish': publish, 'finish-request': finish_request, 'cleanup': cleanup}[value]()
+    parser.add_argument('command', choices=['acquire', 'prepare', 'publish', 'report', 'finish-request', 'release', 'cleanup'])
+    command = parser.parse_args().command
+    stage(command.replace('-', '_').upper())
+    commands = {'acquire': acquire, 'prepare': prepare, 'publish': publish, 'report': report,
+                'finish-request': finish_request, 'release': release, 'cleanup': cleanup}
+    try:
+        commands[command]()
+    except Exception as error:
+        warning = command == 'finish-request'
+        record_diagnostic(CONTROL, error, STAGE, warning=warning)
+        if warning:
+            output(notification='failed')
+            print('Powiadomienie nie zostało wysłane. Wynik publikacji pozostaje bez zmian.')
+            return 0
+        return 1
+    return 0
 
 
 if __name__ == '__main__':
-    try:
-        main()
-    except Exception:
-        print('Public corpus operation failed. Existing published data was not deliberately deleted.', file=sys.stderr)
-        sys.exit(1)
+    sys.exit(main())

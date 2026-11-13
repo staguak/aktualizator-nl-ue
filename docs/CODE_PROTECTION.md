@@ -13,8 +13,9 @@ Dodatkową ochronę przed przypadkową zmianą właściciela lub integracji usta
 5. Możesz włączyć **Do not allow bypassing the above settings**, aby reguła dotyczyła
    również administratora. Zmiany wtedy przechodzą przez PR i testy.
 
-Nie ustawiaj tej samej blokady force push dla `dane`: ta gałąź celowo przechowuje jeden
-bieżący snapshot bez poprzednich commitów. Publikator używa dokładnego lease poprzedniej
+Nie ustawiaj tej samej blokady force push dla `dane` ani `updater-state`: pierwsza
+gałąź przechowuje jeden bieżący snapshot, druga jeden bieżący rekord blokady, obie
+bez łańcucha poprzednich commitów. Publikator używa dokładnego lease poprzedniej
 rewizji i nigdy nie zapisuje do `main`. Jego krótkotrwały token ma zakres `contents: write`
 na poziomie repo; ograniczenie gałęzi jest realizowane przez sprawdzony kod publikatora,
 a ochrona `main` stanowi dodatkową blokadę po stronie GitHub.

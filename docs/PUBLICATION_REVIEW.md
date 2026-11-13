@@ -46,3 +46,16 @@ kodu, usuwania poprzedniej historii i sprzątania.
 
 Dodatkowa ochrona `main` wymaga ustawienia właściciela. Próba zapisu reguły przez
 integrację zwróciła 403; sama obecność kodu i instrukcji nie dowodzi jej aktywacji.
+
+## Poprawki obsługi uruchomień — 13.11.2026
+
+Wycofano kolejkę concurrency. Osobny atomowy rekord `updater-state` dopuszcza jednego
+aktualizatora, odrzuca konkurentów oraz żądania opóźnione z czasu poprzedniej pracy.
+Odzyskanie pozostawionej blokady wymaga potwierdzenia zakończenia konkretnej próby
+w API Actions. Zwalnianie używa dokładnego lease i sprawdza właściciela.
+
+Pełny audyt sam wymusza budowanie, a fingerprint plików wykonawczych oddzielono od
+rewizji producenta. Odpowiedzi na błędy kontroli wstępnej są obsługiwane; komentarze
+są ponawiane i uzgadniane po utraconej odpowiedzi, a błąd powiadomienia nie zmienia
+wyniku publikacji. Zachowywane są bezpieczne kody i etapy błędów oraz wskazanie
+kontroli niezależnego audytora, bez treści SDK i poświadczeń.

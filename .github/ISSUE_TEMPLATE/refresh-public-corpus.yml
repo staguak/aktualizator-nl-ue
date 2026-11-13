@@ -9,7 +9,8 @@ body:
         Nie zmieniaj tytułu zgłoszenia. Nie dodawaj danych osobowych ani sekretów.
         Wszystkie żądania używają publicznej konfiguracji właściciela repo.
         Gdy dane sprawdzono mniej niż godzinę temu, otrzymasz link do istniejącej bazy.
-        Trwająca aktualizacja kończy się przed następną; nadmiarowe oczekujące zadania mogą zostać zastąpione.
+        Jeżeli aktualizator już pracuje, prośba zostanie odrzucona z błędem „aktualizacja w toku”.
+        Nie ma kolejki i odrzucona prośba nie uruchomi się później. Po zakończeniu możesz wysłać nową.
   - type: checkboxes
     id: public_request
     attributes:

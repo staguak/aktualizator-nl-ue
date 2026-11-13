@@ -17,4 +17,5 @@ private-config/
 output/
 output-ue/
 .public-state/
+.public-control/
 *.log

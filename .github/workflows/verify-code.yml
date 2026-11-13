@@ -42,7 +42,5 @@ jobs:
       - run: npm test
       - run: npm run test:xml
       - run: npm run test:evidence
-      - name: Verify publication and configuration boundaries
-        run: python3 -m unittest discover -s tests -p test_public_distribution.py
-      - name: Verify shared public data publication, cleanup and request safety
-        run: python3 -m unittest discover -s tests -p test_public_github.py
+      - name: Verify public publication, admission, diagnostics and notification boundaries
+        run: python3 -m unittest discover -s tests -p 'test_public_*.py'
