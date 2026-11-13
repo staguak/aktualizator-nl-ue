@@ -16,4 +16,5 @@ private-config/
 .release-*.log
 output/
 output-ue/
+.public-state/
 *.log

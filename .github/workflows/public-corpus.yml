@@ -1,0 +1,92 @@
+name: Publiczna baza NL i UE
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Refresh even when the last verified publication is less than one hour old.'
+        type: boolean
+        default: false
+      full_source_audit:
+        description: 'Download all source bodies and bypass parser reuse.'
+        type: boolean
+        default: false
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shared-public-corpus
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'issues' && github.event.issue.title == '[Aktualizacja bazy]' && !github.event.issue.pull_request))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    permissions:
+      contents: write
+      issues: write
+    defaults:
+      run:
+        working-directory: aktualizator-ph
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Inspect the current public corpus and freeze this request
+        id: request
+        env:
+          INPUT_FORCE: ${{ inputs.force }}
+        run: python3 scripts/public_github.py prepare
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        if: steps.request.outputs.build == 'true'
+        with:
+          node-version-file: aktualizator-ph/.node-version
+          package-manager-cache: false
+      - name: Install pinned source processing runtime
+        if: steps.request.outputs.build == 'true'
+        run: |
+          npm ci --no-audit --no-fund
+          python -m pip install --disable-pip-version-check --index-url https://pypi.org/simple -r scripts/xml-requirements.txt -r scripts/rdf-requirements.txt
+      - name: Build and independently verify the complete public corpus
+        if: steps.request.outputs.build == 'true'
+        env:
+          LAW_UPDATER_REVISION: ${{ github.sha }}
+          LAW_RANGE_TO: ${{ steps.request.outputs.range_to }}
+          LAW_OBSERVED_ON: ${{ steps.request.outputs.range_to }}
+          LAW_SOURCE_AUDIT: ${{ inputs.full_source_audit && 'unconditional' || 'conditional' }}
+          LAW_SOURCE_CACHE_DIR: .source-cache
+          LAW_XML_VALIDATION: required
+        run: |
+          set -euo pipefail
+          if node --import tsx src/github-build.ts > public-build.log 2>&1; then
+            echo 'Complete NL/EU public build and independent source audit passed.'
+          else
+            echo 'Public build failed; the last verified publication remains available.'
+            tail -n 30 public-build.log
+            exit 1
+          fi
+      - name: Atomically replace the current data snapshot
+        if: steps.request.outputs.build == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/public_github.py publish
+      - name: Return the result to the public request
+        if: always() && steps.request.outcome == 'success' && github.event_name == 'issues'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLIC_JOB_STATUS: ${{ job.status }}
+        run: python3 scripts/public_github.py finish-request
+      - name: Remove all temporary corpus and build files
+        if: always()
+        run: python3 scripts/public_github.py cleanup

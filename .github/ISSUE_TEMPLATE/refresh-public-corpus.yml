@@ -1,0 +1,19 @@
+name: Odśwież publiczną bazę NL i UE
+description: Zamów aktualizację wspólnego publicznego zestawu oficjalnych źródeł.
+title: '[Aktualizacja bazy]'
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Po wysłaniu formularza GitHub uruchomi sprawdzenie wspólnej bazy.
+        Nie zmieniaj tytułu zgłoszenia. Nie dodawaj danych osobowych ani sekretów.
+        Wszystkie żądania używają publicznej konfiguracji właściciela repo.
+        Gdy dane sprawdzono mniej niż godzinę temu, otrzymasz link do istniejącej bazy.
+        Trwająca aktualizacja kończy się przed następną; nadmiarowe oczekujące zadania mogą zostać zastąpione.
+  - type: checkboxes
+    id: public_request
+    attributes:
+      label: Żądanie aktualizacji
+      options:
+        - label: Proszę odświeżyć publiczną bazę; rozumiem, że zgłoszenie i wyniki są publiczne.
+          required: true

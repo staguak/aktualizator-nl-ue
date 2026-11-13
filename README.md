@@ -1,63 +1,84 @@
-# Aktualizator prawa NL i UE
+# Publiczna baza prawa NL i UE
 
-Otwarty kod aktualizatora oficjalnych źródeł prawa niderlandzkiego i unijnego.
-Program zapisuje teksty, oryginalne źródła, raporty i historię wydań na własnym
-Google Drive użytkownika. Publiczne repozytorium zawiera kod i małą konfigurację
-przykładową. Nie zawiera konta Drive ani danych autora.
+Otwarty aktualizator i wspólna baza materiałów urzędowych: **23 akty NL i 65 pozycji UE**.
+Każdy może czytać i pobierać opublikowane pliki oraz kopiować kod. Zwykły odwiedzający
+nie ma prawa zapisu do tego repozytorium. Poprawki można zaproponować przez pull request.
 
-Możesz korzystać z programu lokalnie albo utworzyć **publiczny fork** i uruchamiać
-go ręcznie przez GitHub Actions. Standardowy runner `ubuntu-24.04` w publicznym
-repo jest bezpłatny według zasad GitHub. Nie jest to obietnica braku wszystkich
-limitów: obowiązują m.in. limit czasu zadania (6 godzin), współbieżność, ograniczenia
-API źródeł oraz pojemność Google Drive. Płatne większe runnery nie są potrzebne.
-Wyniki nie są przechowywane jako GitHub Artifacts.
+**[Otwórz aktualną bazę](https://github.com/staguak/aktualizator-nl-ue/tree/dane)** ·
+**[Pobierz ZIP](https://github.com/staguak/aktualizator-nl-ue/archive/refs/heads/dane.zip)** ·
+**[Zamów aktualizację](https://github.com/staguak/aktualizator-nl-ue/issues/new?template=refresh-public-corpus.yml)**
 
-## Uruchomienie w GitHub Actions
+Baza pojawia się po pierwszym udanym uruchomieniu workflow **Publiczna baza NL i UE**.
+Daty zakresu, liczba aktów, raporty, ostrzeżenia i sumy SHA-256 są zapisane w bazie.
+Nie zakładaj aktualności wyłącznie na podstawie zielonego testu kodu: sprawdź datę danych.
 
-1. Utwórz publiczny fork tego repozytorium. Włącz Actions, jeśli GitHub o to poprosi.
-2. W Google Cloud utwórz własny projekt, włącz Drive API i przygotuj klienta OAuth
-   oraz refresh token z **jedynym** zakresem `https://www.googleapis.com/auth/drive.file`.
-   Instrukcja: [docs/OAUTH.md](docs/OAUTH.md). Dla trwałego korzystania ustaw
-   odpowiedni status aplikacji OAuth; token aplikacji pozostającej w trybie
-   testowym może wygasnąć po 7 dniach.
-3. W repo utwórz środowisko **`updater`**. Zezwól mu na gałąź **`main`**.
-   Zalecany jest wymagany recenzent: właściciel repo. Dodaj sekret środowiska
-   **`GOOGLE_DRIVE_OAUTH_JSON`**:
+## Odczyt i uruchamianie
 
-   ```json
-   {"client_id":"YOUR_CLIENT_ID","client_secret":"YOUR_CLIENT_SECRET","refresh_token":"YOUR_REFRESH_TOKEN"}
-   ```
+* **Każdy, również bez konta GitHub**, może otworzyć gałąź `dane` lub pobrać ZIP.
+  Foldery `NL/` i `UE/` zawierają teksty, indeksy, raporty i oryginalne źródła.
+* **Każdy zalogowany użytkownik** może zamówić odświeżenie formularzem zgłoszenia
+  powyżej. Zachowaj tytuł `[Aktualizacja bazy]`. Nie wpisuj sekretów ani danych osobowych.
+  Po zakończeniu bot poda link do bazy i wyniku uruchomienia.
+* **Właściciel** może wybrać Actions → **Publiczna baza NL i UE** → Run workflow → `main`.
+  Opcja `force` pomija godzinną ochronę przed powtarzaniem tego samego odświeżenia.
+  `full_source_audit` wymusza pobranie wszystkich treści i pominięcie cache parserów.
 
-   Rzeczywistego JSON nie zapisuj w repo ani w zgłoszeniach.
-4. Wybierz konfigurację. Pliki w `aktualizator-ph/config/` stanowią mały przykład:
-   jeden artykuł NL oraz rozporządzenie UE. Dostosuj je do własnego zakresu.
-   W `release-consumers.json` potwierdź sposób odczytu (`approved: true` oraz
-   `verified: true`). Nie potwierdzaj go, jeśli używasz czytnika o innym kontrakcie.
-   Konfiguracja może pozostać prywatna: [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
-5. Otwórz Actions → **Aktualizator prawa NL i UE** → Run workflow, gałąź `main`.
-   Pierwsze uruchomienie: `operation: initialize`, `approve_mutation: true`.
-   Kolejne: `operation: update`, `approve_mutation: true`.
-   Domyślne `check` sprawdza istniejące wydanie bez publikacji. Przed pierwszym
-   `initialize` zakończy się błędem braku instalacji — to oczekiwane.
-6. Na Drive znajdź folder `Aktualizator-production`, otwórz `active.json` i przejdź
-   przez zapisany w nim `openFolder`. Czytaj NL i UE z **tego samego wydania**.
-   Nazwa namespace może być zmieniona zmienną repo `LAW_RELEASE_NAMESPACE`;
-   wtedy musi zgadzać się z `release-consumers.json`.
+Publiczne żądanie wybiera wyłącznie działanie „odśwież”. Nie wybiera kodu, gałęzi,
+ścieżek, poleceń ani konfiguracji. Używa zatwierdzonego zakresu z `main`.
+Jeśli ta sama wersja kodu i konfiguracji opublikowała poprawny zestaw mniej niż godzinę
+wcześniej i dla tego samego dnia w Warszawie, żądanie zwróci istniejącą bazę.
+Po godzinie albo zmianie dnia, kodu lub konfiguracji potrzebne jest nowe sprawdzenie.
 
-Pierwsza inicjalizacja buduje również bazę początkową i może być długa.
-Jeśli zadanie zostanie przerwane, powtórz tę samą operację z tą samą konfiguracją,
-datą końcową i rewizją kodu. Program sprawdza trwały dziennik przed wznowieniem.
-Nie zmieniaj ręcznie plików roboczych ani wskaźnika aktywnego wydania.
+Jednocześnie działa najwyżej jedna publikacja. GitHub utrzymuje najwyżej jedno zadanie
+oczekujące w tej grupie; nadmiarowe oczekujące żądania mogą zostać zastąpione nowszymi.
+Wszyscy korzystają z tej samej opublikowanej bazy. **Harmonogram nie jest ustawiony.**
 
-**Harmonogram nie jest skonfigurowany ani aktywny.** Program obsługuje zdarzenie
-`schedule`; jego świadome włączenie opisuje [docs/SCHEDULE.md](docs/SCHEDULE.md).
-Ręczne uruchamianie pozostaje dostępne niezależnie od harmonogramu.
+## Zapis danych i sprzątanie
 
-## Uruchomienie lokalne
+Program pobiera źródła i buduje oba moduły na tymczasowym runnerze GitHub. Po kontroli
+kompletności, treści, ZIP/XML i hashy publikuje **jeden spójny zestaw na gałęzi `dane`**.
+Cały wskaźnik gałęzi zmienia się atomowo, z kontrolą poprzedniej rewizji. Błąd budowania
+lub równoległa zmiana magazynu nie usuwa ostatniego poprawnego zestawu.
 
-Wymagane: Node **24** (wersja przypięta w `.node-version`), CPython **3.12**.
-Przypięte koła walidatora Python obsługują Linux x86_64; na innym systemie użyj
-zgodnego środowiska Linux. Program nie deklaruje zgodności z każdym systemem.
+Każda publikacja danych jest nowym, niezależnym commitem bez rodzica. Zastępuje stary
+snapshot, usuwa zbędne pliki poprzedniej wersji i nie zachowuje łańcucha starych wydań
+tej gałęzi. Historyczne teksty przepisów potrzebne dla wybranego zakresu są nadal
+częścią materiału urzędowego; nie są zbędnymi plikami technicznymi.
+
+Końcowy krok `always()` usuwa lokalne wyniki, checkpointy, cache źródeł, logi budowania
+oraz tymczasowe repozytoria. Runner jest następnie usuwany przez GitHub. Nie tworzymy
+GitHub Artifacts ani trwałego cache Actions. Logi statusów i informacje o zadaniach
+pozostają widoczne na GitHub zgodnie z jego zasadami przechowywania.
+
+Usunięcie starej historii z gałęzi nie gwarantuje natychmiastowego zmniejszenia zajętości
+repo na serwerze: nieosiągalne obiekty usuwa GitHub. Program odrzuca pojedynczy plik
+większy niż 95 MB lub zestaw większy niż 500 MB, zamiast opublikować niepełne dane.
+
+## Ochrona kodu i poświadczenia
+
+Publiczna publikacja **nie wymaga Google Drive, OAuth ani prywatnego sekretu**.
+Krótko żyjący `GITHUB_TOKEN`, tworzony przez GitHub, dostaje dopiero krok publikacji
+i krok odpowiedzi na zgłoszenie. Proces przetwarzania źródeł go nie otrzymuje.
+Kod pozostaje na `main`; publikator zapisuje wyłącznie gałąź `dane`.
+
+Właściciel powinien włączyć ochronę `main`: wymagany PR i poprawny test `verify`,
+wyłączone force push i usuwanie gałęzi. Instrukcja: [docs/CODE_PROTECTION.md](docs/CODE_PROTECTION.md).
+Ochrona kodu nie blokuje czytania, pobierania ani tworzenia własnych kopii.
+
+Opcjonalna prywatna instalacja Drive nadal jest dostępna jako osobny workflow;
+jej instrukcja znajduje się w [docs/PRIVATE_DRIVE.md](docs/PRIVATE_DRIVE.md).
+Sekretów Drive nie dodawaj do workflow publicznej bazy.
+
+## Własna kopia i konfiguracja
+
+Utwórz publiczny fork, włącz Actions i zachowaj gałąź `main` jako domyślną.
+W `aktualizator-ph/config/` ustaw zakres dla swojej wspólnej bazy. Konfiguracja oraz
+wszystkie opublikowane przez ten workflow wyniki będą publiczne.
+Zaktualizuj w swojej kopii linki w README, aby prowadziły do Twojego repo.
+[Opis konfiguracji](docs/CONFIGURATION.md) dotyczy selektorów BWB i CELEX;
+ustawienia odbiorców Drive nie są potrzebne do publikacji na GitHub.
+
+Lokalne zbudowanie publicznego zestawu (Linux x86_64, Node z `.node-version`, Python 3.12):
 
 ```sh
 cd aktualizator-ph
@@ -65,51 +86,25 @@ npm ci
 python3.12 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r scripts/xml-requirements.txt -r scripts/rdf-requirements.txt
+LAW_XML_VALIDATION=required node --import tsx src/github-build.ts
 ```
 
-Ustaw `GOOGLE_DRIVE_OAUTH_JSON` w środowisku procesu bez wypisywania go w terminalu.
-Skopiuj pliki `config/` do prywatnego katalogu, zmień zakres i potwierdź kontrakt
-czytelnika w `release-consumers.json`. Przykładowe polecenia:
+Nie przekazuj temu procesowi OAuth, tokenów GitHub ani prywatnej konfiguracji.
+Lokalnie wynik pozostanie w `output/` oraz `output-ue/`. Automatyczne publikowanie
+na GitHub wykonuje przygotowany workflow z kontrolą kontekstu i sprzątaniem.
 
-```sh
-npm run plan -- --operation=initialize --approve-mutation --config-dir=/path/to/private-config
-npm run run -- --operation=initialize --approve-mutation --config-dir=/path/to/private-config
-npm run run -- --operation=update --approve-mutation --config-dir=/path/to/private-config
-npm run run -- --operation=check --config-dir=/path/to/private-config
-```
+## Weryfikacja i koszty
 
-`--range-to=YYYY-MM-DD` ustala datę końcową, a `--full-source-audit` wymusza ponowne
-pobranie treści źródeł. `--plan` nie uwierzytelnia i nie zapisuje na Drive.
-Konfiguracja domyślna leży w `config/`; `--config-dir` wskazuje inny katalog.
-Lokalne logi i wyniki są prywatnymi plikami roboczymi i są wyłączone z Git.
+Workflow **Verify public updater code** testuje zmiany bez dostępu do danych prywatnych.
+Sprawdzenia obejmują parsery, oba moduły, XML, integralność, ochronę parametrów,
+atomową publikację, usuwanie starego snapshotu, konflikt równoległego zapisu i sprzątanie.
+Dodatkowo każdy publiczny zestaw przechodzi niezależny audyt bajtów źródeł i ZIP/XML.
+Brak opcjonalnego Formex lub węższe metadane RDF pozostają ostrzeżeniem w raporcie.
 
-`rollback` i `recover` wymagają `--target-release-id=UUID` oraz zatwierdzenia.
-`recover` dodatkowo wymaga dokładnego `--expected-active-sha256=HASH` lub
-`missing`, wyłącznie po potwierdzeniu braku `active.json`. Nie zgaduj tych wartości.
-Po udanej zmianie program wykonuje osobne pełne sprawdzenie bajtów wydania.
+Standardowy runner `ubuntu-24.04` w publicznym repo jest bezpłatny według zasad GitHub.
+Obowiązują limity techniczne, m.in. 6 godzin na zadanie oraz ograniczenia źródeł i repo.
+Kod korzysta z oficjalnych źródeł; sprawdzenie techniczne nie stanowi porady prawnej
+ani potwierdzenia poprawności interpretacji przepisów.
 
-## Testy i ograniczenia
-
-```sh
-npm run typecheck
-npm run typecheck:tools
-npm run parser:selftest
-npm test
-npm run test:xml
-npm run test:evidence
-python3 -m unittest discover -s tests -p test_public_distribution.py
-```
-
-Testy kodu nie wymagają poświadczeń ani dostępu do prywatnych materiałów.
-Workflow **Verify public updater code** uruchamia je na push/PR bez sekretów Drive.
-Konfiguracja przykładowa nie jest obietnicą kompletnego korpusu prawa.
-Ostrzeżenia o brakującym opcjonalnym Formex lub węższych metadanych RDF są
-zachowane w raportach; nie zastępuje się ich pozornym wynikiem pełnej kompletności.
-Walidacja struktury nie potwierdza interpretacji ani obowiązywania przepisów.
-
-Kod: [MIT](LICENSE), z wyjątkami i oznaczeniami w [NOTICE](NOTICE) i
-[THIRD_PARTY.md](THIRD_PARTY.md). Uwagi i propozycje zmian: issues oraz pull requests.
-Zasady poświadczeń i uruchomień: [SECURITY.md](SECURITY.md).
-
-Zasady GitHub: [rozliczanie Actions](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
-i [limity](https://docs.github.com/en/actions/reference/limits).
+Kod: [MIT](LICENSE), z wyjątkami opisanymi w [NOTICE](NOTICE) i [THIRD_PARTY.md](THIRD_PARTY.md).
+Uwagi i poprawki: issues i PR. Zasady bezpieczeństwa: [SECURITY.md](SECURITY.md).

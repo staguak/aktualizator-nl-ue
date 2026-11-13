@@ -1,16 +1,677 @@
 {
   "schemaVersion": 1,
   "language": "EN",
+  "source": {
+    "title": "Public official-law corpus configuration",
+    "derivedAt": "2026-11-13"
+  },
   "acts": [
     {
       "order": 1,
-      "title": "General Data Protection Regulation",
+      "title": "Richtlijn 2003/88/EG van het Europees Parlement en de Raad — van 4 november 2003 — betreffende een aantal aspecten van de organisatie van de arbeidstijd",
+      "celex": "32003L0088",
+      "include": "full-document",
+      "requiredVersions": [
+        "32003L0088"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 2,
+      "title": "RICHTLIJN 2008/104/EG VAN HET EUROPEES PARLEMENT EN DE RAAD — van 19 november 2008 — betreffende uitzendarbeid",
+      "celex": "32008L0104",
+      "include": "full-document",
+      "requiredVersions": [
+        "32008L0104"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 3,
+      "title": "RICHTLIJN (EU) 2019/1152 VAN HET EUROPEES PARLEMENT EN DE RAAD — van 20 juni 2019 — betreffende transparante en voorspelbare arbeidsvoorwaarden in de Europese Unie",
+      "celex": "32019L1152",
+      "include": "full-document",
+      "requiredVersions": [
+        "32019L1152"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 4,
+      "title": "RICHTLIJN (EU) 2024/2831 VAN HET EUROPEES PARLEMENT EN DE RAAD — van 23 oktober 2024 — betreffende de verbetering van de arbeidsvoorwaarden bij platformwerk",
+      "celex": "32024L2831",
+      "include": "full-document",
+      "requiredVersions": [
+        "32024L2831"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 5,
+      "title": "RICHTLIJN (EU) 2022/2041 VAN HET EUROPEES PARLEMENT EN DE RAAD — van 19 oktober 2022 — betreffende toereikende minimumlonen in de Europese Unie",
+      "celex": "32022L2041",
+      "include": "full-document",
+      "requiredVersions": [
+        "32022L2041"
+      ],
+      "attachedDocuments": [
+        {
+          "celex": "62023CJ0019",
+          "include": "operative-part"
+        }
+      ]
+    },
+    {
+      "order": 6,
+      "title": "RICHTLIJN (EU) 2023/970 VAN HET EUROPEES PARLEMENT EN DE RAAD — van 10 mei 2023 — ter versterking van de toepassing van het beginsel van gelijke beloning van mannen en vrouwen voor gelijke of gelijkwaardige arbeid door middel van beloningstransparantie en handhavingsmechanismen",
+      "celex": "32023L0970",
+      "include": "full-document",
+      "requiredVersions": [
+        "32023L0970"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 7,
+      "title": "RICHTLIJN 97/81/EG VAN DE RAAD — van 15 december 1997 — betreffende de door de Unice, het CEEP en het EVV gesloten raamovereenkomst inzake deeltijdarbeid",
+      "celex": "31997L0081",
+      "include": "full-document",
+      "requiredVersions": [
+        "01997L0081-19980525"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 8,
+      "title": "RICHTLIJN 2006/54/EG VAN HET EUROPEES PARLEMENT EN DE RAAD — van 5 juli 2006 — betreffende de toepassing van het beginsel van gelijke kansen en gelijke behandeling van mannen en vrouwen in arbeid en beroep (herschikking)",
+      "celex": "32006L0054",
+      "include": "full-document",
+      "requiredVersions": [
+        "02006L0054-20260619"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 9,
+      "title": "RICHTLIJN 98/59/EG VAN DE RAAD van 20 juli 1998 betreffende de aanpassing van de wetgevingen van de lidstaten inzake collectief ontslag",
+      "celex": "31998L0059",
+      "include": "full-document",
+      "requiredVersions": [
+        "01998L0059-20151009"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 10,
+      "title": "RICHTLIJN 2008/94/EG VAN HET EUROPEES PARLEMENT EN DE RAAD — van 22 oktober 2008 — betreffende de bescherming van de werknemers bij insolventie van de werkgever",
+      "celex": "32008L0094",
+      "include": "full-document",
+      "requiredVersions": [
+        "02008L0094-20151009"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 11,
+      "title": "VERORDENING (EU) Nr. 492/2011 VAN HET EUROPEES PARLEMENT EN DE RAAD — van 5 april 2011 — betreffende het vrije verkeer van werknemers binnen de Unie",
+      "celex": "32011R0492",
+      "include": "full-document",
+      "requiredVersions": [
+        "02011R0492-20210801"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 12,
+      "title": "RICHTLIJN VAN DE RAAD — van 12 juni 1989 — betreffende de tenuitvoerlegging van maatregelen ter bevordering van de verbetering van de veiligheid en de gezondheid van de werknemers op het werk",
+      "celex": "31989L0391",
+      "include": "full-document",
+      "requiredVersions": [
+        "01989L0391-20081211"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 13,
+      "title": "RICHTLIJN VAN DE RAAD — van 25 juni 1991 — ter aanvulling van de maatregelen ter bevordering van de verbetering van de veiligheid en de gezondheid op het werk van de werknemers met arbeidsbetrekkingen voor bepaalde tijd of uitzendarbeid-betrekkingen",
+      "celex": "31991L0383",
+      "include": "full-document",
+      "requiredVersions": [
+        "01991L0383-20070628"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 14,
+      "title": "Richtlijn 2000/78/EG van de Raad — van 27 november 2000 — tot instelling van een algemeen kader voor gelijke behandeling in arbeid en beroep",
+      "celex": "32000L0078",
+      "include": "full-document",
+      "requiredVersions": [
+        "32000L0078"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 15,
+      "title": "RICHTLIJN 2000/43/EG VAN DE RAAD — van 29 juni 2000 — houdende toepassing van het beginsel van gelijke behandeling van personen ongeacht ras of etnische afstamming",
+      "celex": "32000L0043",
+      "include": "full-document",
+      "requiredVersions": [
+        "02000L0043-20260619",
+        "32000L0043"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 16,
+      "title": "RICHTLIJN 2002/14/EG VAN HET EUROPEES PARLEMENT EN DE RAAD — van 11 maart 2002 — tot vaststelling van een algemeen kader betreffende de informatie en de raadpleging van de werknemers in de Europese Gemeenschap",
+      "celex": "32002L0014",
+      "include": "full-document",
+      "requiredVersions": [
+        "02002L0014-20151009"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 17,
+      "title": "RICHTLIJN 2014/54/EU VAN HET EUROPEES PARLEMENT EN DE RAAD — van 16 april 2014 — betreffende maatregelen om de uitoefening van de in de context van het vrije verkeer van werknemers aan werknemers verleende rechten te vergemakkelijken",
+      "celex": "32014L0054",
+      "include": "full-document",
+      "requiredVersions": [
+        "32014L0054"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 18,
+      "title": "RICHTLIJN 2001/23/EG VAN DE RAAD — van 12 maart 2001 — inzake de onderlinge aanpassing van de wetgevingen der lidstaten betreffende het behoud van de rechten van de werknemers bij overgang van ondernemingen, vestigingen of onderdelen van ondernemingen of vestigingen",
+      "celex": "32001L0023",
+      "include": "full-document",
+      "requiredVersions": [
+        "02001L0023-20151009"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 19,
+      "title": "RICHTLIJN (EU) 2019/1158 VAN HET EUROPEES PARLEMENT EN DE RAAD — van 20 juni 2019 — betreffende het evenwicht tussen werk en privéleven voor ouders en mantelzorgers en tot intrekking van Richtlijn 2010/18/EU van de Raad",
+      "celex": "32019L1158",
+      "include": "full-document",
+      "requiredVersions": [
+        "32019L1158"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 20,
+      "title": "RICHTLIJN 92/85/EEG VAN DE RAAD — van 19 oktober 1992 — inzake de tenuitvoerlegging van maatregelen ter bevordering van de verbetering van de veiligheid en de gezondheid op het werk van werkneemsters tijdens de zwangerschap, na de bevalling en tijdens de lactatie (tiende bijzondere richtlijn in de zin van artikel 16, lid 1, van Richtlijn 89/391/EEG)",
+      "celex": "31992L0085",
+      "include": "full-document",
+      "requiredVersions": [
+        "01992L0085-20190726"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 21,
+      "title": "RICHTLIJN 2009/38/EG VAN HET EUROPEES PARLEMENT EN DE RAAD — van 6 mei 2009 — inzake de instelling van een Europese ondernemingsraad of van een procedure in ondernemingen of concerns met een communautaire dimensie ter informatie en raadpleging van de werknemers",
+      "celex": "32009L0038",
+      "include": "full-document",
+      "requiredVersions": [
+        "02009L0038-20151009"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 22,
+      "title": "RICHTLIJN VAN DE RAAD — van 30 november 1989 — betreffende minimumvoorschriften inzake veiligheid en gezondheid voor arbeidsplaatsen (eerste bijzondere richtlijn in de zin van artikel 16, lid 1, van Richtlijn 89/391/EEG)",
+      "celex": "31989L0654",
+      "include": "full-document",
+      "requiredVersions": [
+        "01989L0654-20190726"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 23,
+      "title": "RICHTLIJN VAN DE RAAD — van 29 mei 1990 — betreffende minimumvoorschriften inzake veiligheid en gezondheid met betrekking tot het werken met beeldschermapparatuur (vijfde bijzondere richtlijn in de zin van artikel 16, lid 1, van Richtlijn 89/391/EEG)",
+      "celex": "31990L0270",
+      "include": "full-document",
+      "requiredVersions": [
+        "01990L0270-20190726"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 24,
+      "title": "RICHTLIJN VAN DE RAAD — van 30 november 1989 — betreffende de minimumvoorschriften inzake veiligheid en gezondheid voor het gebruik op het werk van persoonlijke beschermingsmiddelen door de werknemers (derde bijzondere richtlijn in de zin van artikel 16, lid 1, van Richtlijn 89/391/EEG)",
+      "celex": "31989L0656",
+      "include": "full-document",
+      "requiredVersions": [
+        "01989L0656-20191120"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 25,
+      "title": "RICHTLIJN VAN DE RAAD — van 29 mei 1990 — betreffende de minimum veiligheids- en gezondheidsvoorschriften voor het manueel hanteren van lasten met gevaar voor met name rugletsel voor de werknemers (vierde bijzondere richtlijn in de zin van artikel 16, lid 1, van Richtlijn 89/391/EEG)",
+      "celex": "31990L0269",
+      "include": "full-document",
+      "requiredVersions": [
+        "01990L0269-20190726"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 26,
+      "title": "RICHTLIJN 92/58/EEG VAN DE RAAD — van 24 juni 1992 — betreffende de minimumvoorschriften voor de veiligheids- en/of gezondheidssignalering op het werk (negende bijzondere richtlijn in de zin van artikel 16, lid 1, van Richtlijn 89/391/EEG)",
+      "celex": "31992L0058",
+      "include": "full-document",
+      "requiredVersions": [
+        "01992L0058-20190726"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 27,
+      "title": "RICHTLIJN 98/24/EG VAN DE RAAD — van 7 april 1998 — betreffende de bescherming van de gezondheid en de veiligheid van werknemers tegen risico's van chemische agentia op het werk (14e bijzondere richtlijn in de zin van artikel 16, lid 1, van Richtlijn 89/391/EEG)",
+      "celex": "31998L0024",
+      "include": "full-document",
+      "requiredVersions": [
+        "01998L0024-20240408"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 28,
+      "title": "RICHTLIJN 2000/54/EG VAN HET EUROPEES PARLEMENT EN DE RAAD — van 18 september 2000 — betreffende de bescherming van de werknemers tegen de risico's van blootstelling aan biologische agentia op het werk",
+      "celex": "32000L0054",
+      "include": "full-document",
+      "requiredVersions": [
+        "02000L0054-20200624"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 29,
+      "title": "RICHTLIJN 2002/44/EG VAN HET EUROPEES PARLEMENT EN DE RAAD — van 25 juni 2002 — betreffende de minimumvoorschriften inzake gezondheid en veiligheid met betrekking tot de blootstelling van werknemers aan de risico's van fysische agentia (trillingen) (zestiende bijzondere richtlijn in de zin van artikel 16, lid 1, van Richtlijn 89/391/EEG)",
+      "celex": "32002L0044",
+      "include": "full-document",
+      "requiredVersions": [
+        "02002L0044-20190726"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 30,
+      "title": "RICHTLIJN 2003/10/EG VAN HET EUROPEES PARLEMENT EN DE RAAD — van 6 februari 2003 — betreffende de minimumvoorschriften inzake gezondheid en veiligheid met betrekking tot de blootstelling van werknemers aan de risico's van fysische agentia (lawaai)",
+      "celex": "32003L0010",
+      "include": "full-document",
+      "requiredVersions": [
+        "02003L0010-20190726"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 31,
+      "title": "RICHTLIJN 2009/104/EG VAN HET EUROPEES PARLEMENT EN DE RAAD — van 16 september 2009 — betreffende minimumvoorschriften inzake veiligheid en gezondheid bij het gebruik door werknemers van arbeidsmiddelen op de arbeidsplaats (tweede bijzondere richtlijn in de zin van artikel 16, lid 1, van Richtlijn 89/391/EEG)",
+      "celex": "32009L0104",
+      "include": "full-document",
+      "requiredVersions": [
+        "32009L0104"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 32,
+      "title": "RICHTLIJN 2013/35/EU VAN HET EUROPEES PARLEMENT EN DE RAAD — van 26 juni 2013 — betreffende de minimumvoorschriften inzake gezondheid en veiligheid met betrekking tot de blootstelling van werknemers aan de risico’s van fysische agentia (elektromagnetische velden) (twintigste bijzondere richtlijn in de zin van artikel 16, lid 1, van Richtlijn 89/391/EEG) en tot intrekking van Richtlijn 2004/40/EG",
+      "celex": "32013L0035",
+      "include": "full-document",
+      "requiredVersions": [
+        "32013L0035"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 33,
+      "title": "RICHTLIJN 2006/25/EG VAN HET EUROPEES PARLEMENT EN DE RAAD — van 5 april 2006 — betreffende de minimumvoorschriften inzake gezondheid en veiligheid met betrekking tot de blootstelling van werknemers aan risico's van fysische agentia (kunstmatige optische straling) (19e bijzondere richtlijn in de zin van artikel 16, lid 1, van Richtlijn 89/391/EEG)",
+      "celex": "32006L0025",
+      "include": "full-document",
+      "requiredVersions": [
+        "02006L0025-20190726"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 34,
+      "title": "RICHTLIJN 2009/148/EG VAN HET EUROPEES PARLEMENT EN DE RAAD — van 30 november 2009 — betreffende de bescherming van werknemers tegen de risico’s van blootstelling aan asbest op het werk",
+      "celex": "32009L0148",
+      "include": "full-document",
+      "requiredVersions": [
+        "02009L0148-20231220"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 35,
+      "title": "RICHTLIJN 1999/92/EG VAN HET EUROPEES PARLEMENT EN DE RAAD — van 16 december 1999 — betreffende minimumvoorschriften voor de verbetering van de gezondheidsbescherming en van de veiligheid van werknemers die door explosieve atmosferen gevaar kunnen lopen (vijftiende bijzondere richtlijn in de zin van artikel 16, lid 1, van Richtlijn 89/391/EEG)",
+      "celex": "31999L0092",
+      "include": "full-document",
+      "requiredVersions": [
+        "01999L0092-20070627"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 36,
+      "title": "RICHTLIJN (EU) 2017/164 VAN DE COMMISSIE — van 31 januari 2017 — tot vaststelling van een vierde lijst van indicatieve grenswaarden voor beroepsmatige blootstelling uit hoofde van Richtlijn 98/24/EG van de Raad en tot wijziging van de Richtlijnen 91/322/EEG, 2000/39/EG en 2009/161/EU van de Commissie",
+      "celex": "32017L0164",
+      "include": "full-document",
+      "requiredVersions": [
+        "32017L0164"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 37,
+      "title": "RICHTLIJN 2009/161/EU VAN DE COMMISSIE — van 17 december 2009 — tot vaststelling van een derde lijst van indicatieve grenswaarden voor beroepsmatige blootstelling ter uitvoering van Richtlijn 98/24/EG van de Raad en tot wijziging van Richtlijn 2000/39/EG van de Commissie",
+      "celex": "32009L0161",
+      "include": "full-document",
+      "requiredVersions": [
+        "02009L0161-20180821"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 38,
+      "title": "RICHTLIJN 2000/39/EG VAN DE COMMISSIE — van 8 juni 2000 — tot vaststelling van een eerste lijst van indicatieve grenswaarden voor beroepsmatige blootstelling ter uitvoering van Richtlijn 98/24/EG van de Raad betreffende de bescherming van de gezondheid en de veiligheid van werknemers tegen risico's van chemische agentia op het werk",
+      "celex": "32000L0039",
+      "include": "full-document",
+      "requiredVersions": [
+        "02000L0039-20210520"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 39,
+      "title": "RICHTLIJN VAN DE COMMISSIE — van 29 mei 1991 — tot vaststelling van indicatieve grenswaarden ter uitvoering van Richtlijn 80/1107/EEG van de Raad betreffende de bescherming van werknemers tegen de risico's van blootstelling aan chemische, fysische en biologische agentia op het werk",
+      "celex": "31991L0322",
+      "include": "full-document",
+      "requiredVersions": [
+        "01991L0322-20180821"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 40,
+      "title": "RICHTLIJN (EU) 2019/1831 VAN DE COMMISSIE — van 24 oktober 2019 — tot vaststelling van een vijfde lijst van indicatieve grenswaarden voor beroepsmatige blootstelling uit hoofde van Richtlijn 98/24/EG van de Raad en tot wijziging van Richtlijn 2000/39/EG van de Commissie",
+      "celex": "32019L1831",
+      "include": "full-document",
+      "requiredVersions": [
+        "02019L1831-20191031"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 41,
+      "title": "RICHTLIJN 94/33/EG VAN DE RAAD — van 22 juni 1994 — betreffende de bescherming van jongeren op het werk",
+      "celex": "31994L0033",
+      "include": "full-document",
+      "requiredVersions": [
+        "01994L0033-20190726"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 42,
+      "title": "RICHTLIJN 2004/37/EG VAN HET EUROPEES PARLEMENT EN DE RAAD — van 29 april 2004 — betreffende de bescherming van de werknemers tegen de risico’s van blootstelling aan carcinogene, mutagene of reprotoxische agentia op het werk (zesde bijzondere richtlijn in de zin van artikel 16, lid 1, van Richtlijn 89/391/EEG van de Raad)",
+      "celex": "32004L0037",
+      "include": "full-document",
+      "requiredVersions": [
+        "02004L0037-20240408"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 43,
+      "title": "RICHTLIJN (EU) 2019/1937 VAN HET EUROPEES PARLEMENT EN DE RAAD — van 23 oktober 2019 — inzake de bescherming van personen die inbreuken op het Unierecht melden",
+      "celex": "32019L1937",
+      "include": "full-document",
+      "requiredVersions": [
+        "02019L1937-20241230"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 44,
+      "title": "RICHTLIJN 2014/50/EU VAN HET EUROPEES PARLEMENT EN DE RAAD — van 16 april 2014 — betreffende minimumvereisten voor de vergroting van de mobiliteit van werknemers tussen de lidstaten door het verbeteren van de verwerving en het behoud van aanvullende pensioenrechten",
+      "celex": "32014L0050",
+      "include": "full-document",
+      "requiredVersions": [
+        "32014L0050"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 45,
+      "title": "RICHTLIJN 98/49/EG VAN DE RAAD van 29 juni 1998 betreffende de bescherming van de rechten op aanvullend pensioen van werknemers en zelfstandigen die zich binnen de Gemeenschap verplaatsen",
+      "celex": "31998L0049",
+      "include": "full-document",
+      "requiredVersions": [
+        "31998L0049"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 46,
+      "title": "VERORDENING (EU) 2016/589 VAN HET EUROPEES PARLEMENT EN DE RAAD — van 13 april 2016 — inzake een Europees netwerk van diensten voor arbeidsvoorziening (EURES), de toegang van werknemers tot mobiliteitsdiensten en de verdere integratie van de arbeidsmarkten en tot wijziging van Verordeningen (EU) nr. 492/2011 en (EU) nr. 1296/2013",
+      "celex": "32016R0589",
+      "include": "full-document",
+      "requiredVersions": [
+        "02016R0589-20190731"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 47,
+      "title": "RICHTLIJN (EU) 2024/1499 VAN DE RAAD — van 7 mei 2024 — betreffende normen voor organen voor gelijke behandeling op het gebied van gelijke behandeling van personen ongeacht hun ras of etnische afstamming, gelijke behandeling van personen in arbeid en beroep ongeacht hun godsdienst of overtuiging, handicap, leeftijd of seksuele oriëntatie, gelijke behandeling van vrouwen en mannen op het gebied van sociale zekerheid en de toegang tot en het aanbod van goederen en diensten, en tot wijziging van Richtlijnen 2000/43/EG en 2004/113/EG",
+      "celex": "32024L1499",
+      "include": "full-document",
+      "requiredVersions": [
+        "32024L1499"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 48,
+      "title": "RICHTLIJN (EU) 2024/1500 VAN HET EUROPEES PARLEMENT EN DE RAAD — van 14 mei 2024 — betreffende normen voor organen voor gelijke behandeling op het gebied van gelijke behandeling en gelijke kansen voor vrouwen en mannen in arbeid en beroep, en tot wijziging van de Richtlijnen 2006/54/EG en 2010/41/EU",
+      "celex": "32024L1500",
+      "include": "full-document",
+      "requiredVersions": [
+        "32024L1500"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 49,
+      "title": "VERORDENING (EG) Nr. 593/2008 VAN HET EUROPEES PARLEMENT EN DE RAAD — van 17 juni 2008 — inzake het recht dat van toepassing is op verbintenissen uit overeenkomst (Rome I)",
+      "celex": "32008R0593",
+      "include": "full-document",
+      "requiredVersions": [
+        "32008R0593"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 50,
+      "title": "VERORDENING (EU) Nr. 1215/2012 VAN HET EUROPEES PARLEMENT EN DE RAAD — van 12 december 2012 — betreffende de rechterlijke bevoegdheid, de erkenning en de tenuitvoerlegging van beslissingen in burgerlijke en handelszaken",
+      "celex": "32012R1215",
+      "include": "full-document",
+      "requiredVersions": [
+        "02012R1215-20150226"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 51,
+      "title": "VERORDENING (EG) Nr. 883/2004 VAN HET EUROPEES PARLEMENT EN DE RAAD — van 29 april 2004 — betreffende de coördinatie van de socialezekerheidsstelsels",
+      "celex": "32004R0883",
+      "include": "full-document",
+      "requiredVersions": [
+        "02004R0883-20190731"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 52,
+      "title": "VERORDENING (EG) Nr. 987/2009 VAN HET EUROPEES PARLEMENT EN DE RAAD — van 16 september 2009 — tot vaststelling van de wijze van toepassing van Verordening (EG) nr. 883/2004 betreffende de coördinatie van de socialezekerheidsstelsels",
+      "celex": "32009R0987",
+      "include": "full-document",
+      "requiredVersions": [
+        "02009R0987-20180101"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 53,
+      "title": "RICHTLIJN (EU) 2016/2341 VAN HET EUROPEES PARLEMENT EN DE RAAD — van 14 december 2016 — betreffende de werkzaamheden van en het toezicht op instellingen voor bedrijfspensioenvoorziening (IBPV's)",
+      "celex": "32016L2341",
+      "include": "full-document",
+      "requiredVersions": [
+        "02016L2341-20250117",
+        "02016L2341-20240109"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 54,
+      "title": "VERORDENING (EU) 2016/679 VAN HET EUROPEES PARLEMENT EN DE RAAD — van 27 april 2016 — betreffende de bescherming van natuurlijke personen in verband met de verwerking van persoonsgegevens en betreffende het vrije verkeer van die gegevens en tot intrekking van Richtlijn 95/46/EG (algemene verordening gegevensbescherming)",
       "celex": "32016R0679",
       "include": "full-document",
       "requiredVersions": [
-        "32016R0679"
+        "02016R0679-20160504"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 55,
+      "title": "VERORDENING (EU) 2024/1689 VAN HET EUROPEES PARLEMENT EN DE RAAD — van 13 juni 2024 — tot vaststelling van geharmoniseerde regels betreffende artificiële intelligentie en tot wijziging van de Verordeningen (EG) nr. 300/2008, (EU) nr. 167/2013, (EU) nr. 168/2013, (EU) 2018/858, (EU) 2018/1139 en (EU) 2019/2144, en de Richtlijnen 2014/90/EU, (EU) 2016/797 en (EU) 2020/1828 (verordening artificiële intelligentie)",
+      "celex": "32024R1689",
+      "include": "full-document",
+      "requiredVersions": [
+        "02024R1689-20260727",
+        "32024R1689"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 56,
+      "title": "RICHTLIJN (EU) 2024/1760 VAN HET EUROPEES PARLEMENT EN DE RAAD — van 13 juni 2024 — inzake passende zorgvuldigheid in het bedrijfsleven op het gebied van duurzaamheid en tot wijziging van Richtlijn (EU) 2019/1937 en Verordening (EU) 2023/2859",
+      "celex": "32024L1760",
+      "include": "full-document",
+      "requiredVersions": [
+        "02024L1760-20260318",
+        "02024L1760-20250417"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 57,
+      "title": "RICHTLIJN (EU) 2024/1385 VAN HET EUROPEES PARLEMENT EN DE RAAD — van 14 mei 2024 — ter bestrijding van geweld tegen vrouwen en huiselijk geweld",
+      "celex": "32024L1385",
+      "include": "full-document",
+      "requiredVersions": [
+        "32024L1385"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 58,
+      "title": "HANDVEST VAN DE GRONDRECHTEN VAN DE EUROPESE UNIE",
+      "celex": "12012P/TXT",
+      "include": "full-document",
+      "requiredVersions": [
+        "12012P/TXT"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 59,
+      "title": "VERDRAG BETREFFENDE DE WERKING VAN DE EUROPESE UNIE",
+      "celex": "12016E/TXT",
+      "include": "full-document",
+      "requiredVersions": [
+        "12016E/TXT"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 60,
+      "title": "RICHTLIJN (EU) 2025/2450 VAN HET EUROPEES PARLEMENT EN DE RAAD — van 26 november 2025 — tot wijziging van Richtlijn 2009/38/EG wat betreft de instelling en werking van Europese ondernemingsraden en de doeltreffende handhaving van transnationale informatie- en raadplegingsrechten",
+      "celex": "32025L2450",
+      "include": "full-document",
+      "requiredVersions": [
+        "32025L2450"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 61,
+      "title": "RICHTLIJN 2004/38/EG VAN HET EUROPEES PARLEMENT EN DE RAAD — van 29 april 2004 — betreffende het recht van vrij verkeer en verblijf op het grondgebied van de lidstaten voor de burgers van de Unie en hun familieleden, tot wijziging van Verordening (EEG) nr. 1612/68 en tot intrekking van de Richtlijnen 64/221/EEG, 68/360/EEG, 72/194/EEG, 73/148/EEG, 75/34/EEG, 75/35/EEG, 90/364/EEG, 90/365/EEG en 93/96/EEG",
+      "celex": "32004L0038",
+      "include": "full-document",
+      "requiredVersions": [
+        "02004L0038-20110616"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 62,
+      "title": "VERORDENING (EU) 2026/1744 VAN HET EUROPEES PARLEMENT EN DE RAAD — van 8 juli 2026 — tot wijziging van de Verordeningen (EU) 2024/1689, (EU) 2018/1139 en (EU) 2023/1230 wat betreft vereenvoudiging van de uitvoering van geharmoniseerde regels betreffende artificiële intelligentie (Digitale omnibus inzake AI)",
+      "celex": "32026R1744",
+      "include": "full-document",
+      "requiredVersions": [
+        "32026R1744"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 63,
+      "title": "Wyrok Trybunału Sprawiedliwości — TimePartner Personalmanagement — C-311/21 — 15.12.2022",
+      "celex": "62021CJ0311",
+      "include": "full-document",
+      "requiredVersions": [
+        "62021CJ0311"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 64,
+      "title": "Wyrok Trybunału Sprawiedliwości — Luso Temp — C-426/20 — 12.05.2022",
+      "celex": "62020CJ0426",
+      "include": "full-document",
+      "requiredVersions": [
+        "62020CJ0426"
+      ],
+      "attachedDocuments": []
+    },
+    {
+      "order": 65,
+      "title": "Wyrok Trybunału Sprawiedliwości — Randstad Empleo — C-649/22 — 22.02.2024",
+      "celex": "62022CJ0649",
+      "include": "full-document",
+      "requiredVersions": [
+        "62022CJ0649"
       ],
       "attachedDocuments": []
     }
-  ]
+  ],
+  "policy": {
+    "geography": "EU law only; national law remains NL only",
+    "units": "full documents including preamble, annexes and footnotes",
+    "versions": "required corpus editions + latest available English consolidation at/before rangeFrom + every later English consolidation; original text retained when needed as baseline or in fixed corpus",
+    "caseLaw": "three fixed full judgments + C-19/23 operative part; no open-ended case search",
+    "legalDates": "Keep official date fields separately; consolidation date is documentary, not automatic applicability",
+    "rangeTo": "Europe/Warsaw calendar day at run start"
+  }
 }
