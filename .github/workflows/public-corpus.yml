@@ -17,10 +17,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: shared-public-corpus
-  cancel-in-progress: false
-
 jobs:
   publish:
     if: >-
@@ -32,21 +28,29 @@ jobs:
     permissions:
       contents: write
       issues: write
+      actions: read
     defaults:
       run:
         working-directory: aktualizator-ph
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        id: checkout
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.12'
+      - name: Admit one updater and reject concurrent or delayed requests
+        id: admission
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/public_github.py acquire
       - name: Inspect the current public corpus and freeze this request
         id: request
         env:
           INPUT_FORCE: ${{ inputs.force }}
+          INPUT_FULL_SOURCE_AUDIT: ${{ inputs.full_source_audit }}
         run: python3 scripts/public_github.py prepare
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         if: steps.request.outputs.build == 'true'
@@ -64,7 +68,7 @@ jobs:
           LAW_UPDATER_REVISION: ${{ github.sha }}
           LAW_RANGE_TO: ${{ steps.request.outputs.range_to }}
           LAW_OBSERVED_ON: ${{ steps.request.outputs.range_to }}
-          LAW_SOURCE_AUDIT: ${{ inputs.full_source_audit && 'unconditional' || 'conditional' }}
+          LAW_SOURCE_AUDIT: ${{ steps.request.outputs.audit_mode }}
           LAW_SOURCE_CACHE_DIR: .source-cache
           LAW_XML_VALIDATION: required
         run: |
@@ -81,12 +85,23 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/public_github.py publish
+      - name: Record publication result and safe failure diagnostics
+        id: result
+        if: always() && steps.checkout.outcome == 'success'
+        env:
+          PUBLIC_PREPARE_OUTCOME: ${{ steps.request.outcome }}
+        run: python3 scripts/public_github.py report
       - name: Return the result to the public request
-        if: always() && steps.request.outcome == 'success' && github.event_name == 'issues'
+        if: always() && steps.checkout.outcome == 'success' && github.event_name == 'issues'
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-          PUBLIC_JOB_STATUS: ${{ job.status }}
         run: python3 scripts/public_github.py finish-request
+      - name: Release the updater lease without scheduling another request
+        if: always() && steps.checkout.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/public_github.py release
       - name: Remove all temporary corpus and build files
-        if: always()
+        if: always() && steps.checkout.outcome == 'success'
         run: python3 scripts/public_github.py cleanup

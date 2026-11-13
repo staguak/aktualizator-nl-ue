@@ -36,12 +36,14 @@ reprezentacji lub węższe metadane pozostają jawnym ostrzeżeniem w raporcie.
 
 Workflow `public-corpus.yml` publikuje wyłącznie materiały urzędowe z publicznej
 konfiguracji. Nie otrzymuje OAuth ani innych prywatnych sekretów. Jego krótko żyjący
-`GITHUB_TOKEN` jest przekazywany tylko publikatorowi i obsłudze odpowiedzi na zgłoszenie.
+`GITHUB_TOKEN` jest przekazywany tylko publikatorowi, obsłudze blokady i odpowiedzi na zgłoszenie.
 Procesy pobierające/parsujące źródła nie dostają tokenu publikacji.
 
 Żądanie przez issue wybiera wyłącznie odświeżenie. Kod, konfiguracja, daty i ścieżki
 nie pochodzą z treści zgłoszenia. Workflow wykonuje kod wskazany niezmiennym SHA zdarzenia
-z `main`, z kolejką jednego publikatora i z godzinną ochroną przed powtórzeniami.
+z `main`, z atomową blokadą jednego aktualizatora i godzinną ochroną przed powtórzeniami.
+Nie ma kolejki: prośby podczas pracy są odrzucane. Rekord okna ostatniej operacji
+chroni też przed opóźnionym wykonaniem żądania po przydzieleniu runnera.
 Każde prawidłowe odświeżenie publikuje kompletny snapshot, z kontrolą poprzedniej rewizji.
 Błąd nie powoduje celowego usunięcia ostatniego prawidłowego zestawu.
 

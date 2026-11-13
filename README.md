@@ -18,19 +18,28 @@ Nie zakładaj aktualności wyłącznie na podstawie zielonego testu kodu: sprawd
   Foldery `NL/` i `UE/` zawierają teksty, indeksy, raporty i oryginalne źródła.
 * **Każdy zalogowany użytkownik** może zamówić odświeżenie formularzem zgłoszenia
   powyżej. Zachowaj tytuł `[Aktualizacja bazy]`. Nie wpisuj sekretów ani danych osobowych.
-  Po zakończeniu bot poda link do bazy i wyniku uruchomienia.
+  Gdy aktualizator jest wolny, bot poda wynik i linki. Gdy już pracuje, prośba
+  zostanie odrzucona z komunikatem i linkiem do trwającej operacji; nie trafi do kolejki.
 * **Właściciel** może wybrać Actions → **Publiczna baza NL i UE** → Run workflow → `main`.
   Opcja `force` pomija godzinną ochronę przed powtarzaniem tego samego odświeżenia.
-  `full_source_audit` wymusza pobranie wszystkich treści i pominięcie cache parserów.
+  `full_source_audit` samo wymusza ponowne pobranie wszystkich treści i pominięcie cache
+  parserów, również dla świeżej bazy i bez zaznaczania `force`. Żadna z tych opcji
+  nie omija blokady aktualizatora, który już pracuje.
 
 Publiczne żądanie wybiera wyłącznie działanie „odśwież”. Nie wybiera kodu, gałęzi,
 ścieżek, poleceń ani konfiguracji. Używa zatwierdzonego zakresu z `main`.
-Jeśli ta sama wersja kodu i konfiguracji opublikowała poprawny zestaw mniej niż godzinę
+Jeśli ten sam wykonywalny kod i konfiguracja opublikowały poprawny zestaw mniej niż godzinę
 wcześniej i dla tego samego dnia w Warszawie, żądanie zwróci istniejącą bazę.
-Po godzinie albo zmianie dnia, kodu lub konfiguracji potrzebne jest nowe sprawdzenie.
+Po godzinie albo zmianie dnia, wykonywalnego kodu lub konfiguracji potrzebne jest nowe
+sprawdzenie. Zmiana autora, komunikatu scalenia, dokumentacji lub testów nie wymusza
+pobierania całego korpusu. Manifest zachowuje rzeczywistą rewizję producenta, a osobny
+`executionSha256` identyfikuje kod używany do decyzji o ponownym budowaniu.
 
-Jednocześnie działa najwyżej jedna publikacja. GitHub utrzymuje najwyżej jedno zadanie
-oczekujące w tej grupie; nadmiarowe oczekujące żądania mogą zostać zastąpione nowszymi.
+Jednocześnie działa najwyżej jeden aktualizator. **Nie ma kolejki aktualizacji.**
+Nowe żądanie podczas pracy dostaje błąd „aktualizacja w toku” i nie uruchomi się później.
+Dotyczy to właściciela i publicznych zgłoszeń. GitHub może przydzielić runner z opóźnieniem;
+rekord ostatniej operacji pozwala odrzucić także tak opóźnione żądanie, zamiast wykonać je
+po zakończeniu poprzedniej pracy. Po zakończeniu można wysłać nowe żądanie.
 Wszyscy korzystają z tej samej opublikowanej bazy. **Harmonogram nie jest ustawiony.**
 
 ## Zapis danych i sprzątanie
@@ -45,10 +54,20 @@ snapshot, usuwa zbędne pliki poprzedniej wersji i nie zachowuje łańcucha star
 tej gałęzi. Historyczne teksty przepisów potrzebne dla wybranego zakresu są nadal
 częścią materiału urzędowego; nie są zbędnymi plikami technicznymi.
 
-Końcowy krok `always()` usuwa lokalne wyniki, checkpointy, cache źródeł, logi budowania
-oraz tymczasowe repozytoria. Runner jest następnie usuwany przez GitHub. Nie tworzymy
+Końcowe kroki `always()` zapisują bezpieczne podsumowanie wyniku, zwalniają blokadę
+i usuwają lokalne wyniki, checkpointy, cache źródeł, logi budowania oraz tymczasowe repozytoria. Runner jest następnie usuwany przez GitHub. Nie tworzymy
 GitHub Artifacts ani trwałego cache Actions. Logi statusów i informacje o zadaniach
-pozostają widoczne na GitHub zgodnie z jego zasadami przechowywania.
+pozostają widoczne na GitHub zgodnie z jego zasadami przechowywania. W razie błędu
+podsumowanie zawiera kod przyczyny, etap i bezpieczne wskazanie miejsca w kodzie.
+Błąd powiadomienia bota jest ostrzeżeniem i nie zmienia potwierdzonego wyniku publikacji.
+Powiadomienia mają ograniczone ponawianie i znacznik zapobiegający dublowaniu komentarzy.
+
+Mała gałąź `updater-state` przechowuje jeden plik `state.json` i jeden commit: aktualny
+stan RUNNING/IDLE, identyfikator uruchomienia oraz okno czasu ostatniej operacji. To
+rekord blokady, nie kolejka i nie archiwum danych. Każdy zapis zastępuje poprzedni stan.
+Po przerwanym zadaniu nowy start sprawdza stan właściciela w API GitHub; blokadę można
+odzyskać wyłącznie po potwierdzeniu zakończenia tamtej próby. Aktywna blokada nie jest
+przejmowana przez timeout lub upływ czasu. Nie edytuj tego pliku ręcznie.
 
 Usunięcie starej historii z gałęzi nie gwarantuje natychmiastowego zmniejszenia zajętości
 repo na serwerze: nieosiągalne obiekty usuwa GitHub. Program odrzuca pojedynczy plik
@@ -58,8 +77,9 @@ większy niż 95 MB lub zestaw większy niż 500 MB, zamiast opublikować niepe�
 
 Publiczna publikacja **nie wymaga Google Drive, OAuth ani prywatnego sekretu**.
 Krótko żyjący `GITHUB_TOKEN`, tworzony przez GitHub, dostaje dopiero krok publikacji
-i krok odpowiedzi na zgłoszenie. Proces przetwarzania źródeł go nie otrzymuje.
-Kod pozostaje na `main`; publikator zapisuje wyłącznie gałąź `dane`.
+oraz kroki obsługi blokady i odpowiedzi na zgłoszenie. Proces przetwarzania źródeł go
+nie otrzymuje.
+Kod pozostaje na `main`; dane trafiają do `dane`, a rekord blokady do `updater-state`.
 
 Właściciel powinien włączyć ochronę `main`: wymagany PR i poprawny test `verify`,
 wyłączone force push i usuwanie gałęzi. Instrukcja: [docs/CODE_PROTECTION.md](docs/CODE_PROTECTION.md).
@@ -77,6 +97,8 @@ wszystkie opublikowane przez ten workflow wyniki będą publiczne.
 Zaktualizuj w swojej kopii linki w README, aby prowadziły do Twojego repo.
 [Opis konfiguracji](docs/CONFIGURATION.md) dotyczy selektorów BWB i CELEX;
 ustawienia odbiorców Drive nie są potrzebne do publikacji na GitHub.
+W swojej kopii chroń `main`, a dla `dane` i `updater-state` zachowaj możliwość zapisu
+z dokładnym lease przez workflow.
 
 Lokalne zbudowanie publicznego zestawu (Linux x86_64, Node z `.node-version`, Python 3.12):
 

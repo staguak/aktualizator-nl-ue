@@ -5,12 +5,14 @@ import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 import yaml
 
 APP = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(APP / 'scripts'))
 spec = importlib.util.spec_from_file_location('public_github', APP / 'scripts/public_github.py')
 public = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(public)
@@ -148,11 +150,11 @@ class PublicGitHubTests(unittest.TestCase):
         self.assertNotIn('secrets.', text)
         self.assertNotIn('pull_request_target', text)
         self.assertNotIn('github.event.issue.body', text)
-        self.assertFalse(workflow['concurrency']['cancel-in-progress'])
+        self.assertNotIn('concurrency', workflow)
         job = workflow['jobs']['publish']
         self.assertIn("github.ref == 'refs/heads/main'", job['if'])
         cleanup = job['steps'][-1]
-        self.assertEqual(cleanup['if'], 'always()')
+        self.assertIn('always()', cleanup['if'])
         self.assertEqual(cleanup['run'], 'python3 scripts/public_github.py cleanup')
         build = next(s for s in job['steps'] if s.get('name') == 'Build and independently verify the complete public corpus')
         self.assertNotIn('GH_TOKEN', build.get('env', {}))
