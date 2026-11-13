@@ -1,8 +1,8 @@
 {
   "schemaVersion": 2,
   "source": {
-    "title": "Public example scope",
-    "derivedAt": "2026-11-12"
+    "title": "Public official-law corpus configuration",
+    "derivedAt": "2026-11-13"
   },
   "policy": {
     "rangeTo": "run-date",
@@ -12,15 +12,880 @@
   "acts": [
     {
       "order": 1,
-      "title": "Algemene wet bestuursrecht — artikel 1:1",
-      "bwbId": "BWBR0005537",
+      "title": "Burgerlijk Wetboek Boek 7",
+      "bwbId": "BWBR0005290",
       "include": {
-        "articles": [
-          "1:1"
+        "structures": [
+          "boek:7/titeldeel:10/afdeling:1",
+          "boek:7/titeldeel:10/afdeling:2",
+          "boek:7/titeldeel:10/afdeling:3",
+          "boek:7/titeldeel:10/afdeling:4",
+          "boek:7/titeldeel:10/afdeling:5",
+          "boek:7/titeldeel:10/afdeling:6",
+          "boek:7/titeldeel:10/afdeling:7",
+          "boek:7/titeldeel:10/afdeling:8",
+          "boek:7/titeldeel:10/afdeling:9",
+          "boek:7/titeldeel:10/afdeling:11"
         ]
       },
       "mustIncludeArticles": [
-        "1:1"
+        "610",
+        "610a",
+        "610b",
+        "611",
+        "611a",
+        "612",
+        "613",
+        "614",
+        "616",
+        "616a",
+        "616b",
+        "616c",
+        "616d",
+        "616e",
+        "616f",
+        "617",
+        "618",
+        "619",
+        "620",
+        "621",
+        "622",
+        "623",
+        "624",
+        "625",
+        "626",
+        "628",
+        "628a",
+        "628b",
+        "629",
+        "629a",
+        "630",
+        "631",
+        "632",
+        "633",
+        "634",
+        "635",
+        "636",
+        "637",
+        "638",
+        "639",
+        "640",
+        "640a",
+        "641",
+        "642",
+        "643",
+        "645",
+        "646",
+        "648",
+        "649",
+        "650",
+        "651",
+        "652",
+        "653",
+        "653a",
+        "654",
+        "655",
+        "656",
+        "657",
+        "658",
+        "658a",
+        "658b",
+        "659",
+        "660",
+        "660a",
+        "661",
+        "662",
+        "663",
+        "664",
+        "665",
+        "665a",
+        "666",
+        "666a",
+        "667",
+        "668",
+        "668a",
+        "669",
+        "670",
+        "670a",
+        "670b",
+        "671",
+        "671a",
+        "671b",
+        "671c",
+        "672",
+        "673",
+        "673b",
+        "673c",
+        "673e",
+        "674",
+        "675",
+        "676",
+        "677",
+        "678",
+        "679",
+        "681",
+        "682",
+        "682a",
+        "683",
+        "684",
+        "686",
+        "686a",
+        "690",
+        "691",
+        "692",
+        "692a"
+      ]
+    },
+    {
+      "order": 2,
+      "title": "Wet allocatie arbeidskrachten door intermediairs",
+      "bwbId": "BWBR0009616",
+      "include": {
+        "articles": [
+          "1",
+          "3",
+          "7a",
+          "7b",
+          "7c",
+          "8",
+          "8a",
+          "8b",
+          "8c",
+          "9",
+          "9a",
+          "10",
+          "11",
+          "12",
+          "12a"
+        ]
+      },
+      "mustIncludeArticles": [
+        "1",
+        "3",
+        "7a",
+        "7b",
+        "7c",
+        "8",
+        "8a",
+        "8b",
+        "8c",
+        "9",
+        "9a",
+        "10",
+        "11",
+        "12",
+        "12a"
+      ]
+    },
+    {
+      "order": 3,
+      "title": "Wet minimumloon en minimumvakantiebijslag",
+      "bwbId": "BWBR0002638",
+      "include": {
+        "articles": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "5a",
+          "6",
+          "6a",
+          "7",
+          "7a",
+          "8",
+          "11",
+          "13",
+          "13a",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18b",
+          "18c"
+        ]
+      },
+      "mustIncludeArticles": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "5a",
+        "6",
+        "6a",
+        "7",
+        "7a",
+        "8",
+        "11",
+        "13",
+        "13a",
+        "14",
+        "15",
+        "16",
+        "17",
+        "18b",
+        "18c"
+      ]
+    },
+    {
+      "order": 4,
+      "title": "Besluit minimumloon en minimumvakantiebijslag",
+      "bwbId": "BWBR0008222",
+      "include": {
+        "articles": [
+          "2a",
+          "2b"
+        ]
+      },
+      "mustIncludeArticles": [
+        "2a",
+        "2b"
+      ]
+    },
+    {
+      "order": 5,
+      "title": "Arbeidstijdenwet",
+      "bwbId": "BWBR0007671",
+      "include": {
+        "articles": [
+          "1:1",
+          "1:3",
+          "1:4",
+          "1:5",
+          "1:7",
+          "4:1",
+          "4:1a",
+          "4:2",
+          "4:3",
+          "4:9",
+          "5:2",
+          "5:3",
+          "5:4",
+          "5:5",
+          "5:6",
+          "5:7",
+          "5:8",
+          "5:9",
+          "5:10",
+          "5:11",
+          "5:12",
+          "5:14",
+          "5:15",
+          "5:16",
+          "6:1",
+          "6:2",
+          "6:3",
+          "8:1",
+          "8:2",
+          "8:3a",
+          "10:1",
+          "10:7"
+        ]
+      },
+      "mustIncludeArticles": [
+        "1:1",
+        "1:3",
+        "1:4",
+        "1:5",
+        "1:7",
+        "4:1",
+        "4:1a",
+        "4:2",
+        "4:3",
+        "4:9",
+        "5:2",
+        "5:3",
+        "5:4",
+        "5:5",
+        "5:6",
+        "5:7",
+        "5:8",
+        "5:9",
+        "5:10",
+        "5:11",
+        "5:12",
+        "5:14",
+        "5:15",
+        "5:16",
+        "6:1",
+        "6:2",
+        "6:3",
+        "8:1",
+        "8:2",
+        "8:3a",
+        "10:1",
+        "10:7"
+      ]
+    },
+    {
+      "order": 6,
+      "title": "Arbeidstijdenbesluit",
+      "bwbId": "BWBR0007687",
+      "include": {
+        "articles": [
+          "1:1",
+          "2.1:1",
+          "2.1:4",
+          "3.2:1",
+          "3.3:1",
+          "4.2:1",
+          "4.3:1",
+          "4.4:1",
+          "4.6:1",
+          "4.6:2",
+          "4.7:1",
+          "4.7:2",
+          "4.8:1",
+          "4.8:2",
+          "4.9:1",
+          "4.9:2"
+        ]
+      },
+      "mustIncludeArticles": [
+        "1:1",
+        "2.1:1",
+        "2.1:4",
+        "3.2:1",
+        "3.3:1",
+        "4.2:1",
+        "4.3:1",
+        "4.4:1",
+        "4.6:1",
+        "4.6:2",
+        "4.7:1",
+        "4.7:2",
+        "4.8:1",
+        "4.8:2",
+        "4.9:1",
+        "4.9:2"
+      ]
+    },
+    {
+      "order": 7,
+      "title": "Arbeidsomstandighedenwet",
+      "bwbId": "BWBR0010346",
+      "include": {
+        "articles": [
+          "1",
+          "3",
+          "5",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "14a",
+          "15",
+          "18",
+          "19",
+          "26",
+          "27",
+          "28",
+          "29",
+          "32",
+          "33"
+        ]
+      },
+      "mustIncludeArticles": [
+        "1",
+        "3",
+        "5",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "14a",
+        "15",
+        "18",
+        "19",
+        "26",
+        "27",
+        "28",
+        "29",
+        "32",
+        "33"
+      ]
+    },
+    {
+      "order": 8,
+      "title": "Arbeidsomstandighedenbesluit",
+      "bwbId": "BWBR0008498",
+      "include": {
+        "articles": [
+          "3.2",
+          "3.16",
+          "3.17",
+          "5.2",
+          "5.3",
+          "5.4",
+          "5.5",
+          "6.1",
+          "6.2",
+          "6.7",
+          "6.8",
+          "6.10",
+          "6.11",
+          "7.3",
+          "7.4",
+          "7.4a",
+          "7.5",
+          "7.6",
+          "7.11a",
+          "7.17a",
+          "7.17b",
+          "7.17c",
+          "8.3"
+        ]
+      },
+      "mustIncludeArticles": [
+        "3.2",
+        "3.16",
+        "3.17",
+        "5.2",
+        "5.3",
+        "5.4",
+        "5.5",
+        "6.1",
+        "6.2",
+        "6.7",
+        "6.8",
+        "6.10",
+        "6.11",
+        "7.3",
+        "7.4",
+        "7.4a",
+        "7.5",
+        "7.6",
+        "7.11a",
+        "7.17a",
+        "7.17b",
+        "7.17c",
+        "8.3"
+      ]
+    },
+    {
+      "order": 9,
+      "title": "Wet arbeid en zorg",
+      "bwbId": "BWBR0013008",
+      "include": {
+        "articles": [
+          "1:1",
+          "1:2",
+          "1:4",
+          "1:6",
+          "1:7",
+          "3:1",
+          "3:1a",
+          "3:2",
+          "3:3",
+          "3:4",
+          "3:5",
+          "3:7",
+          "4:1",
+          "4:2",
+          "4:2a",
+          "4:2b",
+          "4:3",
+          "4:4",
+          "4:4a",
+          "4:5",
+          "4:6",
+          "4:7",
+          "5:1",
+          "5:2",
+          "5:3",
+          "5:4",
+          "5:5",
+          "5:6",
+          "5:7",
+          "5:8",
+          "5:9",
+          "5:10",
+          "5:11",
+          "5:12",
+          "5:13",
+          "5:14",
+          "5:15",
+          "5:16",
+          "6:1",
+          "6:2",
+          "6:3",
+          "6:3a",
+          "6:4",
+          "6:5",
+          "6:6",
+          "6:7",
+          "6:8",
+          "6:9"
+        ]
+      },
+      "mustIncludeArticles": [
+        "1:1",
+        "1:2",
+        "1:4",
+        "1:6",
+        "1:7",
+        "3:1",
+        "3:1a",
+        "3:2",
+        "3:3",
+        "3:4",
+        "3:5",
+        "3:7",
+        "4:1",
+        "4:2",
+        "4:2a",
+        "4:2b",
+        "4:3",
+        "4:4",
+        "4:4a",
+        "4:5",
+        "4:6",
+        "4:7",
+        "5:1",
+        "5:2",
+        "5:3",
+        "5:4",
+        "5:5",
+        "5:6",
+        "5:7",
+        "5:8",
+        "5:9",
+        "5:10",
+        "5:11",
+        "5:12",
+        "5:13",
+        "5:14",
+        "5:15",
+        "5:16",
+        "6:1",
+        "6:2",
+        "6:3",
+        "6:3a",
+        "6:4",
+        "6:5",
+        "6:6",
+        "6:7",
+        "6:8",
+        "6:9"
+      ]
+    },
+    {
+      "order": 10,
+      "title": "Wet op de collectieve arbeidsovereenkomst",
+      "bwbId": "BWBR0001937",
+      "include": {
+        "articles": [
+          "1",
+          "7",
+          "9",
+          "10",
+          "12",
+          "13",
+          "14",
+          "14a",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19"
+        ]
+      },
+      "mustIncludeArticles": [
+        "1",
+        "7",
+        "9",
+        "10",
+        "12",
+        "13",
+        "14",
+        "14a",
+        "15",
+        "16",
+        "17",
+        "18",
+        "19"
+      ]
+    },
+    {
+      "order": 11,
+      "title": "Wet op het algemeen verbindend en het onverbindend verklaren van bepalingen van collectieve arbeidsovereenkomsten",
+      "bwbId": "BWBR0001987",
+      "include": {
+        "articles": [
+          "1",
+          "2",
+          "3",
+          "5",
+          "7",
+          "7a",
+          "8",
+          "9",
+          "10"
+        ]
+      },
+      "mustIncludeArticles": [
+        "1",
+        "2",
+        "3",
+        "5",
+        "7",
+        "7a",
+        "8",
+        "9",
+        "10"
+      ]
+    },
+    {
+      "order": 12,
+      "title": "Wet goed verhuurderschap",
+      "bwbId": "BWBR0048028",
+      "include": {
+        "articles": [
+          "1",
+          "2",
+          "17",
+          "18"
+        ]
+      },
+      "mustIncludeArticles": [
+        "1",
+        "2",
+        "17",
+        "18"
+      ]
+    },
+    {
+      "order": 13,
+      "title": "Burgerlijk Wetboek Boek 6",
+      "bwbId": "BWBR0005289",
+      "include": {
+        "articles": [
+          "89",
+          "119"
+        ]
+      },
+      "mustIncludeArticles": [
+        "89",
+        "119"
+      ]
+    },
+    {
+      "order": 14,
+      "title": "Burgerlijk Wetboek Boek 3",
+      "bwbId": "BWBR0005291",
+      "include": {
+        "articles": [
+          "307",
+          "308",
+          "316",
+          "317",
+          "318",
+          "319"
+        ]
+      },
+      "mustIncludeArticles": [
+        "307",
+        "308",
+        "316",
+        "317",
+        "318",
+        "319"
+      ]
+    },
+    {
+      "order": 15,
+      "title": "Wetboek van Burgerlijke Rechtsvordering",
+      "bwbId": "BWBR0001827",
+      "include": {
+        "articles": [
+          "21",
+          "22",
+          "93",
+          "100",
+          "130",
+          "150",
+          "194",
+          "195",
+          "195a",
+          "283"
+        ]
+      },
+      "mustIncludeArticles": [
+        "21",
+        "22",
+        "93",
+        "100",
+        "130",
+        "150",
+        "194",
+        "195",
+        "195a",
+        "283"
+      ]
+    },
+    {
+      "order": 16,
+      "title": "Besluit loonbegrip vergoeding aanzegtermijn en transitievergoeding",
+      "bwbId": "BWBR0035998",
+      "include": {
+        "articles": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6"
+        ]
+      },
+      "mustIncludeArticles": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6"
+      ]
+    },
+    {
+      "order": 17,
+      "title": "Regeling looncomponenten en arbeidsduur",
+      "bwbId": "BWBR0035984",
+      "include": {
+        "articles": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7"
+        ]
+      },
+      "mustIncludeArticles": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7"
+      ]
+    },
+    {
+      "order": 18,
+      "title": "Besluit minimumjeugdloon",
+      "bwbId": "BWBR0003599",
+      "include": {
+        "articles": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "mustIncludeArticles": [
+        "1",
+        "2",
+        "3"
+      ]
+    },
+    {
+      "order": 19,
+      "title": "Besluit voorwaarden in mindering brengen kosten op transitievergoeding",
+      "bwbId": "BWBR0036594",
+      "include": {
+        "articles": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8"
+        ]
+      },
+      "mustIncludeArticles": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8"
+      ]
+    },
+    {
+      "order": 20,
+      "title": "Algemene termijnenwet",
+      "bwbId": "BWBR0002448",
+      "include": {
+        "articles": [
+          "1",
+          "2",
+          "3",
+          "4"
+        ]
+      },
+      "mustIncludeArticles": [
+        "1",
+        "2",
+        "3",
+        "4"
+      ]
+    },
+    {
+      "order": 21,
+      "title": "Wet financiering sociale verzekeringen",
+      "bwbId": "BWBR0017745",
+      "include": {
+        "articles": [
+          "20",
+          "34"
+        ]
+      },
+      "mustIncludeArticles": [
+        "20",
+        "34"
+      ]
+    },
+    {
+      "order": 22,
+      "title": "Regeling Wfsv",
+      "bwbId": "BWBR0019150",
+      "include": {
+        "articles": [
+          "3.18"
+        ]
+      },
+      "mustIncludeArticles": [
+        "3.18"
+      ]
+    },
+    {
+      "order": 23,
+      "title": "Wet op de loonbelasting 1964",
+      "bwbId": "BWBR0002471",
+      "include": {
+        "articles": [
+          "10",
+          "11",
+          "11c",
+          "31a"
+        ]
+      },
+      "mustIncludeArticles": [
+        "10",
+        "11",
+        "11c",
+        "31a"
       ]
     }
   ]
