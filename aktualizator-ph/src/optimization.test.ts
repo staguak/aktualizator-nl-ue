@@ -78,12 +78,13 @@ test('byte accounting uses exactly the final header and legal delimiters',()=>{
   assert.equal(euLayoutBytes('Titel ą',celex,1,2,'https://example.org/act'),Buffer.byteLength(output)-Buffer.byteLength(extractEuBody(output)));
  }
 });
-test('a sensitive element in one part disables indentation normalization for the entire document',()=>{
+test('a sensitive element in one part preserves itself while safe indentation in another part is optimized',()=>{
  const chunks=['<p>tekst</p>\n  <div>blok</div>','<pre>a  b</pre>'],celex='32008L0104';
  const built={order:1,title:'Test',celex,excludedDocuments:[],documents:[{celex,include:'full-document',role:'original',metadata:{},sourceUrl:'https://example.org/act',sourceSha256:'a'.repeat(64),articleCount:1,textLength:0,integrity:htmlIntegrity(chunks.join('\n'))}],files:chunks.map((_c,i)=>({name:`01_part${i+1}.md`,celex,part:i+1,md5:'a'.repeat(32)}))};
  const final=finalizeEu([built],name=>chunks[name.includes('part1')?0:1]);
- assert.deepEqual(final.acts[0].documents[0].htmlNormalization,['sensitive-skip','sensitive-skip']);
- assert.match(extractEuBody(final.outputs.get('01_part1.md')!),/\n  <div>/);
+ assert.deepEqual(final.acts[0].documents[0].htmlNormalization,['verified','sensitive-skip']);
+ assert.match(extractEuBody(final.outputs.get('01_part1.md')!),/\n<div>/);
+ assert.equal(extractEuBody(final.outputs.get('01_part2.md')!),'<pre>a  b</pre>');
 });
 test('parallel builds share dates and await a healthy sibling before returning failure',async t=>{
  const dir=temporary(t),gate=path.join(dir,'gate'),done=path.join(dir,'done'),good=path.join(dir,'good.mjs'),bad=path.join(dir,'bad.mjs');

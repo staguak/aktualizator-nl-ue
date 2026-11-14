@@ -15,6 +15,24 @@ spec.loader.exec_module(config)
 
 
 class PublicDistributionTests(unittest.TestCase):
+    def test_public_workflow_preserves_eight_cache_shards_and_state_before_releasing_lease(self):
+        workflow=yaml.safe_load((ROOT/'.github/workflows/public-corpus.yml').read_text())
+        events=workflow.get('on',workflow.get(True));self.assertNotIn('schedule',events)
+        job=workflow['jobs']['publish'];self.assertNotIn('concurrency',workflow);self.assertNotIn('concurrency',job)
+        steps=job['steps'];restores=[s for s in steps if s.get('uses','').startswith('actions/cache/restore@')]
+        saves=[s for s in steps if s.get('uses','').startswith('actions/cache/save@')]
+        self.assertEqual(len(restores),8);self.assertEqual(len(saves),8)
+        for i,step in enumerate(restores):
+            self.assertIn(f'blobs/{i}',step['with']['path']);self.assertIn('admission.outputs.accepted',step['if'])
+        commands=[s.get('run','') for s in steps]
+        retain=next(i for i,c in enumerate(commands) if 'public_github.py retain' in c)
+        release=next(i for i,c in enumerate(commands) if 'public_github.py release' in c)
+        self.assertLess(retain,release)
+        build=next(s for s in steps if 'src/github-build.ts' in s.get('run',''))
+        self.assertNotIn('GH_TOKEN',build.get('env',{}));self.assertNotIn('GOOGLE_DRIVE_OAUTH_JSON',str(workflow))
+        prepare=next(s for s in steps if 'public_github.py prepare' in s.get('run',''));self.assertIn('GH_TOKEN',prepare['env'])
+        self.assertEqual(job['permissions']['actions'],'write')
+
     def test_only_main_manual_workflow_can_access_drive_and_schedule_is_absent(self):
         workflow = yaml.safe_load((ROOT / '.github/workflows/updater.yml').read_text())
         events = workflow.get('on', workflow.get(True))

@@ -51,6 +51,27 @@ class NotificationApi:
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_full_audit_without_a_previous_release_needs_no_github_credential(self):
+        with patch.dict(os.environ,{'GH_TOKEN':'','GITHUB_REPOSITORY':'example/updater'}):
+            self.assertIsNone(public.restore_runtime(None,True))
+
+    def test_first_run_and_legacy_migration_restore_failed_checkpoints_without_active_good_release(self):
+        for previous in [None,{'profile':public.PROFILE}]:
+            with self.subTest(previous=previous),tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp);control=root/'control';control.mkdir();(control/'admission.json').write_text('{"accepted":true}')
+                event=root/'event.json';event.write_text('{}')
+                env={'GITHUB_EVENT_PATH':str(event),'GITHUB_EVENT_NAME':'workflow_dispatch','GITHUB_REF':'refs/heads/main','GITHUB_SHA':REV,'GITHUB_REPOSITORY':'example/updater'}
+                def restore(remote,target):
+                    if previous:
+                        for module in ['NL','UE']:(target/module).mkdir(parents=True)
+                    return '',previous
+                with patch.object(public,'APP',root),patch.object(public,'STATE',root/'state'),patch.object(public,'CONTROL',control),patch.dict(os.environ,env),\
+                     patch.object(public,'restore_previous',side_effect=restore),patch.object(public,'git',return_value=subprocess.CompletedProcess([],0,stdout=(REV+'\n').encode())),\
+                     patch.object(public,'configuration_digest',return_value=CONFIG),patch.object(public,'executable_digest',return_value=EXEC),patch.object(public,'fresh',return_value=False),\
+                     patch.object(public,'restore_runtime') as resume:
+                    public.prepare()
+                resume.assert_called_once()
+
     def test_full_audit_alone_bypasses_freshness_and_sets_unconditional_mode(self):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)

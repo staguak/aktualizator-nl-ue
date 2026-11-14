@@ -14,7 +14,9 @@
       "requiredVersions": [
         "32003L0088"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 2,
@@ -24,7 +26,9 @@
       "requiredVersions": [
         "32008L0104"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 3,
@@ -34,7 +38,9 @@
       "requiredVersions": [
         "32019L1152"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 4,
@@ -44,7 +50,9 @@
       "requiredVersions": [
         "32024L2831"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 5,
@@ -59,7 +67,9 @@
           "celex": "62023CJ0019",
           "include": "operative-part"
         }
-      ]
+      ],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 6,
@@ -69,7 +79,9 @@
       "requiredVersions": [
         "32023L0970"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 7,
@@ -79,7 +91,9 @@
       "requiredVersions": [
         "01997L0081-19980525"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 8,
@@ -89,7 +103,9 @@
       "requiredVersions": [
         "02006L0054-20260619"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 9,
@@ -99,7 +115,9 @@
       "requiredVersions": [
         "01998L0059-20151009"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 10,
@@ -109,7 +127,9 @@
       "requiredVersions": [
         "02008L0094-20151009"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 11,
@@ -119,7 +139,9 @@
       "requiredVersions": [
         "02011R0492-20210801"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 12,
@@ -129,7 +151,9 @@
       "requiredVersions": [
         "01989L0391-20081211"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 13,
@@ -139,7 +163,9 @@
       "requiredVersions": [
         "01991L0383-20070628"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 14,
@@ -149,7 +175,9 @@
       "requiredVersions": [
         "32000L0078"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 15,
@@ -160,7 +188,9 @@
         "02000L0043-20260619",
         "32000L0043"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 16,
@@ -170,7 +200,9 @@
       "requiredVersions": [
         "02002L0014-20151009"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 17,
@@ -180,7 +212,9 @@
       "requiredVersions": [
         "32014L0054"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 18,
@@ -190,7 +224,9 @@
       "requiredVersions": [
         "02001L0023-20151009"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 19,
@@ -200,7 +236,9 @@
       "requiredVersions": [
         "32019L1158"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 20,
@@ -210,7 +248,9 @@
       "requiredVersions": [
         "01992L0085-20190726"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 21,
@@ -220,7 +260,9 @@
       "requiredVersions": [
         "02009L0038-20151009"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 22,
@@ -230,7 +272,9 @@
       "requiredVersions": [
         "01989L0654-20190726"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 23,
@@ -240,7 +284,9 @@
       "requiredVersions": [
         "01990L0270-20190726"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 24,
@@ -250,7 +296,9 @@
       "requiredVersions": [
         "01989L0656-20191120"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 25,
@@ -260,7 +308,9 @@
       "requiredVersions": [
         "01990L0269-20190726"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 26,
@@ -270,7 +320,9 @@
       "requiredVersions": [
         "01992L0058-20190726"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 27,
@@ -280,7 +332,9 @@
       "requiredVersions": [
         "01998L0024-20240408"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 28,
@@ -290,7 +344,9 @@
       "requiredVersions": [
         "02000L0054-20200624"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 29,
@@ -300,7 +356,9 @@
       "requiredVersions": [
         "02002L0044-20190726"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 30,
@@ -310,7 +368,9 @@
       "requiredVersions": [
         "02003L0010-20190726"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 31,
@@ -320,7 +380,9 @@
       "requiredVersions": [
         "32009L0104"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 32,
@@ -330,7 +392,9 @@
       "requiredVersions": [
         "32013L0035"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 33,
@@ -340,7 +404,9 @@
       "requiredVersions": [
         "02006L0025-20190726"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 34,
@@ -350,7 +416,9 @@
       "requiredVersions": [
         "02009L0148-20231220"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 35,
@@ -360,7 +428,9 @@
       "requiredVersions": [
         "01999L0092-20070627"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 36,
@@ -370,7 +440,9 @@
       "requiredVersions": [
         "32017L0164"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 37,
@@ -380,7 +452,9 @@
       "requiredVersions": [
         "02009L0161-20180821"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 38,
@@ -390,7 +464,9 @@
       "requiredVersions": [
         "02000L0039-20210520"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 39,
@@ -400,7 +476,9 @@
       "requiredVersions": [
         "01991L0322-20180821"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 40,
@@ -410,7 +488,9 @@
       "requiredVersions": [
         "02019L1831-20191031"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 41,
@@ -420,7 +500,9 @@
       "requiredVersions": [
         "01994L0033-20190726"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 42,
@@ -430,7 +512,9 @@
       "requiredVersions": [
         "02004L0037-20240408"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 43,
@@ -440,7 +524,9 @@
       "requiredVersions": [
         "02019L1937-20241230"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 44,
@@ -450,7 +536,9 @@
       "requiredVersions": [
         "32014L0050"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 45,
@@ -460,7 +548,9 @@
       "requiredVersions": [
         "31998L0049"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 46,
@@ -470,7 +560,9 @@
       "requiredVersions": [
         "02016R0589-20190731"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 47,
@@ -480,7 +572,9 @@
       "requiredVersions": [
         "32024L1499"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 48,
@@ -490,7 +584,9 @@
       "requiredVersions": [
         "32024L1500"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 49,
@@ -500,7 +596,9 @@
       "requiredVersions": [
         "32008R0593"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 50,
@@ -510,7 +608,9 @@
       "requiredVersions": [
         "02012R1215-20150226"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 51,
@@ -520,7 +620,9 @@
       "requiredVersions": [
         "02004R0883-20190731"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 52,
@@ -530,7 +632,9 @@
       "requiredVersions": [
         "02009R0987-20180101"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 53,
@@ -541,7 +645,9 @@
         "02016L2341-20250117",
         "02016L2341-20240109"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 54,
@@ -551,7 +657,9 @@
       "requiredVersions": [
         "02016R0679-20160504"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 55,
@@ -562,7 +670,9 @@
         "02024R1689-20260727",
         "32024R1689"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 56,
@@ -573,7 +683,9 @@
         "02024L1760-20260318",
         "02024L1760-20250417"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 57,
@@ -583,7 +695,9 @@
       "requiredVersions": [
         "32024L1385"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 58,
@@ -593,7 +707,9 @@
       "requiredVersions": [
         "12012P/TXT"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 59,
@@ -603,7 +719,9 @@
       "requiredVersions": [
         "12016E/TXT"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 60,
@@ -613,7 +731,9 @@
       "requiredVersions": [
         "32025L2450"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 61,
@@ -623,7 +743,9 @@
       "requiredVersions": [
         "02004L0038-20110616"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 62,
@@ -633,7 +755,9 @@
       "requiredVersions": [
         "32026R1744"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 63,
@@ -643,7 +767,9 @@
       "requiredVersions": [
         "62021CJ0311"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 64,
@@ -653,7 +779,9 @@
       "requiredVersions": [
         "62020CJ0426"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 65,
@@ -663,14 +791,16 @@
       "requiredVersions": [
         "62022CJ0649"
       ],
-      "attachedDocuments": []
+      "attachedDocuments": [],
+      "retrievalScope": "full-act-and-case",
+      "outputProfile": "legal-structure-v1"
     }
   ],
   "policy": {
     "geography": "EU law only; national law remains NL only",
     "units": "full documents including preamble, annexes and footnotes",
     "versions": "required corpus editions + latest available English consolidation at/before rangeFrom + every later English consolidation; original text retained when needed as baseline or in fixed corpus",
-    "caseLaw": "three fixed full judgments + C-19/23 operative part; no open-ended case search",
+    "caseLaw": "Keep the fixed case-law hits and existing discovery criteria; retrieve whole documents and expand their formal CELLAR court dossiers, including joined cases; never expand through citations.",
     "legalDates": "Keep official date fields separately; consolidation date is documentary, not automatic applicability",
     "rangeTo": "Europe/Warsaw calendar day at run start"
   }

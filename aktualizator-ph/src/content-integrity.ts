@@ -3,6 +3,13 @@ import { load } from 'cheerio';
 
 export interface TextIntegrity { sha256: string; tokens: number }
 export interface EuIntegrity { text: TextIntegrity; images: TextIntegrity }
+export interface EuImageOccurrence {
+  index:number;source:string;target:string;sha256:string;size:number;contentType:string;
+}
+export interface EuImageProof extends Omit<EuImageOccurrence,'source'> {sourceSha256:string}
+export function compactEuImageProof(occurrences:EuImageOccurrence[]):EuImageProof[]{
+  return occurrences.map(({source,...occurrence})=>({...occurrence,sourceSha256:createHash('sha256').update(source).digest('hex')}));
+}
 
 // Ignore layout whitespace only. Case, punctuation, symbols and their order remain significant.
 export function fingerprintText(text: string): TextIntegrity {
@@ -31,6 +38,41 @@ export function assertEuIntegrity(expected: EuIntegrity, html: string): void {
   const actual = htmlIntegrity(html);
   assertIntegrity(expected?.text, actual.text);
   assertIntegrity(expected?.images, actual.images);
+}
+
+/** Keep the original text/reference checks and additionally verify an exact,
+ * complete sidecar index. Extracting images never changes Markdown references. */
+export function assertEuAssetIntegrity(expected:EuIntegrity,html:string,occurrences:EuImageOccurrence[],readAsset:(name:string)=>Uint8Array):void {
+  const $=load(html),images=$('body img').toArray(),seen=new Set<number>();
+  if(occurrences.length!==images.length)throw new Error('Extracted EU image index is incomplete.');
+  for(const occurrence of occurrences){
+    if(!Number.isSafeInteger(occurrence.index)||occurrence.index<0||occurrence.index>=images.length||seen.has(occurrence.index)||
+      typeof occurrence.source!=='string'||!occurrence.source||
+      !/^images\/[a-f0-9]{64}\.[a-z0-9]+$/.test(occurrence.target)||!/^image\/[a-z0-9.+-]+$/.test(occurrence.contentType)||
+      !/^[a-f0-9]{64}$/.test(occurrence.sha256)||!Number.isSafeInteger(occurrence.size)||occurrence.size<1||
+      !occurrence.target.startsWith('images/'+occurrence.sha256+'.'))throw new Error('Invalid extracted EU image occurrence.');
+    const image=images[occurrence.index];
+    if($(image).attr('src')!==occurrence.source)throw new Error('Original EU image reference mismatch.');
+    const bytes=readAsset(occurrence.target);
+    if(bytes.byteLength!==occurrence.size||createHash('sha256').update(bytes).digest('hex')!==occurrence.sha256)
+      throw new Error('Extracted EU image binary integrity mismatch.');
+    seen.add(occurrence.index);
+  }
+  assertEuIntegrity(expected,html);
+}
+/** Persist compact source-reference hashes, not another copy of Base64. The
+ * original retained markup is authoritative when replaying this proof. */
+export function assertEuAssetProof(originalHtml:string,derivedHtml:string,proof:EuImageProof[],readAsset:(name:string)=>Uint8Array):void{
+  if(originalHtml!==derivedHtml)throw new Error('Validated Markdown must remain unchanged during image extraction.');
+  const $=load(originalHtml),originals=$('body img').toArray();
+  const occurrences=proof.map(({sourceSha256,...occurrence})=>{
+    if(!Number.isSafeInteger(occurrence.index)||occurrence.index<0||occurrence.index>=originals.length||!/^[a-f0-9]{64}$/.test(sourceSha256))
+      throw new Error('Invalid compact EU image proof.');
+    const source=$(originals[occurrence.index]).attr('src')??'';
+    if(createHash('sha256').update(source).digest('hex')!==sourceSha256)throw new Error('EU image original reference proof mismatch.');
+    return {...occurrence,source};
+  });
+  assertEuAssetIntegrity(htmlIntegrity(originalHtml),derivedHtml,occurrences,readAsset);
 }
 
 export const NL_START = '<!-- NL source text -->';

@@ -1,7 +1,8 @@
+import type {EuLanguage} from './eu-language.js';
 import * as fs from 'node:fs';
 import {operationMetrics,registerProcessMetrics} from './operation-metrics.js';
 import * as path from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash,randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { finalizeEu, euIndex, euReport } from './eu-output.js';
 import { stableJson, readPreviousManifest } from './output.js';
@@ -14,7 +15,9 @@ import {safeFailureMessage} from './drive-retry.js';
 import { assertEuIntegrity } from './content-integrity.js';
 import type { EuIntegrity } from './content-integrity.js';
 import type { EuNavigation } from './eu-navigation.js';
-import { discoverEuDocuments, selectEuDocuments, createEuSourceLoader } from './eu-provider.js';
+import { discoverEuDocuments, discoverEuCaseDocuments, selectEuDocuments, createEuSourceLoader } from './eu-provider.js';
+import {assertEuCaseCoverage} from './eu-case-scope.js';
+import type {EuCaseCatalog} from './eu-case-scope.js';
 import { runPool } from './concurrency.js';
 import type { EuAct, EuDocument } from './eu-provider.js';
 import { completeBuiltOutput } from './publication-validation.js';
@@ -26,23 +29,29 @@ import {executionRevision} from './execution-revision.js';
 import {sourceAuditCheckpointTag} from './source-audit.js';
 import {assertWorkDirectory} from './work-directory.js';
 import {withOperationErrors,setErrorPhase,inErrorPhase} from './operation-errors.js';
+import {registerIncrementalPlan} from './incremental-plan.js';
+import {legalPartName} from './legal-structure.js';
+import type {LegalDraft} from './legal-structure.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const OUTPUT = path.join(ROOT, 'output-ue');
+const OUTPUT = path.join(process.env.LAW_PUBLIC_WORK_ROOT??ROOT, 'output-ue');
 const CHECKPOINT = path.join(ROOT, '.checkpoint-ue');
 const digest = (s: string, algo = 'sha256') => createHash(algo).update(s).digest('hex');
 interface SourceFile { name: string; md5: string; celex: string; part: number }
 interface CompletedAct {
+  retrievalScope?:'full-act-and-case';caseCatalog?:EuCaseCatalog;
   sourceArchive?: SourceArchive;
   order: number; title: string; celex: string; documents: (EuDocument & {
-    language:'EN';
+    language:EuLanguage;
     sourceUrl: string; sourceSha256: string; articleCount: number; textLength: number;
     integrity: EuIntegrity; navigation: EuNavigation; oversizedParts: number[];
+    legalDraft?:LegalDraft;
   })[]; files: SourceFile[];
   excludedDocuments: {celex: string; reason: string}[];
 }
 
 async function main(): Promise<void> {
+  if(process.env.LAW_PUBLIC_INCREMENTAL==='1')process.env.LAW_PUBLIC_OPERATION_ID??=randomUUID();
   for(const directory of [OUTPUT,CHECKPOINT])assertWorkDirectory(directory);
   await ensureXmlValidation();
   const raw = process.env.LAW_RELEASE_PHASE==='base'&&process.env.LAW_SCOPE_EU_JSON
@@ -51,14 +60,16 @@ async function main(): Promise<void> {
     source: unknown; policy: unknown; acts: EuAct[] };
   if (config.schemaVersion !== 1 || config.language !== 'EN' || !config.acts.length ||
     new Set(config.acts.map((a) => a.celex)).size !== config.acts.length ||
-    config.acts.some((a, i) => a.order !== i + 1 || a.include !== 'full-document')) {
+    config.acts.some((a, i) => a.order !== i + 1 || a.include !== 'full-document'||
+      a.retrievalScope!==undefined&&a.retrievalScope!=='full-act-and-case')) {
     throw new Error('Invalid EU scope configuration.');
   }
   const {rangeFrom,rangeTo,observedOn}=resolveRange(ROOT);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(rangeFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(rangeTo) || rangeFrom > rangeTo) {
     throw new Error('Invalid EU date range.');
   }
-  const key = digest('official-sources-wemi-v3' + raw + rangeFrom + rangeTo + observedOn + executionRevision(ROOT)+':source-audit:'+sourceAuditCheckpointTag());
+  const key = digest('official-sources-wemi-v3' + raw + rangeFrom + rangeTo + observedOn + executionRevision(ROOT)+':source-audit:'+sourceAuditCheckpointTag()+
+    (process.env.LAW_PUBLIC_INCREMENTAL==='1'?':operation:'+process.env.LAW_PUBLIC_OPERATION_ID:''));
   setErrorPhase('CHECKPOINT');
   fs.mkdirSync(CHECKPOINT, { recursive: true });
   const statePath = path.join(CHECKPOINT, 'state.json');
@@ -99,14 +110,27 @@ async function main(): Promise<void> {
     try {
     const discovered = await discoverEuDocuments(act,archive);
     stage='document selection';
-    const documents = selectEuDocuments(discovered, act, rangeFrom, rangeTo,'EN');
+    const selected = selectEuDocuments(discovered, act, rangeFrom, rangeTo,'preferred');
+    stage='formal case discovery';
+    const expanded=act.retrievalScope==='full-act-and-case'?await discoverEuCaseDocuments(selected,rangeTo,archive):undefined;
+    const documents=(expanded?.documents??selected).map(doc=>({...doc,...act.outputProfile?{outputProfile:act.outputProfile}:{}}));
     const result: CompletedAct = { order: act.order, title: act.title, celex: act.celex, documents: [], files: [],
+      ...(act.retrievalScope?{retrievalScope:act.retrievalScope}:{}),...(expanded?{caseCatalog:expanded.catalog}:{}),
       excludedDocuments: discovered.filter((d) => !documents.some((selected) => selected.celex === d.celex)).map((d) => ({
         celex: d.celex, reason: d.metadata.available_language?.length &&
-          !d.metadata.available_language.some((lang) => lang.endsWith('/ENG')) ?
-          'No English expression in official metadata; outside configured source language.' :
+          !d.metadata.available_language.some((lang) => /\/(?:ENG|POL|NLD|FRA)$/.test(lang)) ?
+          'No expression in supported language order EN, PL, NL, FR in official metadata.' :
           'Outside documentary date interval and not the required baseline version.',
       })) };
+    for(const member of expanded?.catalog.members??[]){
+      if(member.status==='NO_CELEX')throw new Error('A formal case member has no supported document identifier; case catalog retained for diagnosis.');
+      if(member.status!=='INCLUDED'){
+        const reason=member.status==='AFTER_RANGE'?'Case document lies after the run date.':'No case expression in EN, PL, NL, FR.';
+        if(!result.excludedDocuments.some(d=>d.celex===member.celex))result.excludedDocuments.push({celex:member.celex!,reason});
+        if(member.status==='NO_SUPPORTED_LANGUAGE')archive.warning(`Case document ${member.celex}: ${reason}`,{
+          classification:'HISTORY_INCOMPLETE',code:'CASE_DOCUMENT_LANGUAGE_UNAVAILABLE',documentId:act.celex});
+      }
+    }
     for (const doc of documents) {
       setErrorPhase('SOURCE_BUILD');
       stage=`source ${doc.celex}`;
@@ -119,11 +143,12 @@ async function main(): Promise<void> {
         if(!issues?.length)throw new Error('Current EU source warning lacks an explicit classification.');
         for(const issue of issues)archive.warning(warning,issue);
       }
-      const names = parsed.chunks.map((_chunk, i) =>
+      const prefix=`${String(act.order).padStart(2,'0')}_${doc.celex.replace(/[^A-Za-z0-9.-]/g,'_')}_${source.language??'EN'}`;
+      const names = parsed.chunks.map((_chunk, i) => parsed.legalDraft?legalPartName(prefix,parsed.legalDraft.chunks[i]):
         `${String(act.order).padStart(2, '0')}_${doc.celex.replace(/[^A-Za-z0-9.-]/g, '_')}__${String(i + 1).padStart(2, '0')}.md`);
       const resolved = {chunks:parsed.chunks,navigation:{sourceFragmentIssues:[] as string[]}};
-      assertEuIntegrity(parsed.integrity, resolved.chunks.join('\n'));
-      result.documents.push({ ...doc, language:'EN', sourceUrl: source.sourceUrl, sourceSha256: digest(source.html),
+      assertEuIntegrity(parsed.integrity, resolved.chunks.join(parsed.legalDraft?'':'\n'));
+      result.documents.push({ ...doc,...parsed.legalDraft?{legalDraft:parsed.legalDraft}:{}, language:source.language??'EN', sourceUrl: source.sourceUrl, sourceSha256: parsed.legalDraft?.sourceSha256??digest(source.html),
         articleCount: parsed.articleCount, textLength: resolved.chunks.reduce((n, chunk) => n + chunk.length, 0),
         integrity: parsed.integrity, navigation: resolved.navigation,
         oversizedParts: resolved.chunks.flatMap((chunk, i) => chunk.length > 80000 ? [i + 1] : []) });
@@ -135,13 +160,14 @@ async function main(): Promise<void> {
       }
     }
     setErrorPhase('CHECKPOINT');
+    assertEuCaseCoverage(result,act);
     stage='source archive and local checkpoint';
     const native=archive.build(sourceArchiveName(act.order,act.celex));
     result.sourceArchive=native.metadata;fs.writeFileSync(path.join(CHECKPOINT,native.metadata.name),native.bytes);
     if (!result.documents.length || !result.files.length) throw new Error(`Empty EU act: ${act.celex}`);
     return result;
     } catch(error) {
-      archive.preserveDiagnostic(stage==='CELLAR discovery'?'EU_DISCOVERY_FAILED':'EU_SOURCE_FAILED');
+      archive.preserveDiagnostic(['CELLAR discovery','formal case discovery'].includes(stage)?'EU_DISCOVERY_FAILED':'EU_SOURCE_FAILED');
       const reason=safeFailureMessage(error,'source operation failed');
       throw new Error(`EU act ${act.celex} [${stage}]: ${reason}`);
     }
@@ -163,13 +189,13 @@ async function main(): Promise<void> {
     throw new Error('EU checkpoint/output coverage is incomplete.');
   }
   const verifiedFiles=readEuCheckpointFiles(CHECKPOINT,completed,config.acts);
-  const previous=readPreviousManifest(OUTPUT);
+  const previous=readPreviousManifest(process.env.LAW_PUBLIC_WORK_ROOT?path.join(ROOT,'output-ue'):OUTPUT);
   const final=finalizeEu(completed,name=>verifiedFiles.get(name)!.toString('utf8'));
   fs.rmSync(OUTPUT,{recursive:true,force:true});fs.mkdirSync(OUTPUT,{recursive:true});
   for(const act of completed)fs.writeFileSync(path.join(OUTPUT,act.sourceArchive!.name),verifiedFiles.get(act.sourceArchive!.name)!);
   for(const file of final.files.values())fs.writeFileSync(path.join(OUTPUT,file.name),file.content);
   const manifest={schemaVersion:2,validationVersion:2,jurisdiction:'EU',generatedAt:process.env.LAW_GENERATED_AT ?? new Date().toISOString(),
-    rangeFrom,rangeTo,language:'EN',officialSources:{schemaVersion:1,model:'CELLAR',observedOn,originalBytes:true,view:'Markdown',...xmlValidationSummary()?{xmlValidation:xmlValidationSummary()}:{}},source:config.source,policy:config.policy,configSha256:digest(raw),normalization:final.normalization,acts:final.acts};
+    rangeFrom,rangeTo,language:'EN',languagePreference:['EN','PL','NL','FR'],officialSources:{schemaVersion:1,model:'CELLAR',observedOn,originalBytes:true,view:'Markdown',...xmlValidationSummary()?{xmlValidation:xmlValidationSummary()}:{}},source:config.source,policy:config.policy,configSha256:digest(raw),normalization:final.normalization,acts:final.acts};
   writeControlFile(OUTPUT,'EU','INDEX.md',euIndex(manifest));
   writeControlFile(OUTPUT,'EU','manifest.json',stableJson(manifest));
   setErrorPhase('OUTPUT_VALIDATION');
@@ -180,5 +206,6 @@ async function main(): Promise<void> {
 }
 
 registerProcessMetrics('EU');
+registerIncrementalPlan(ROOT,'EU');
 withOperationErrors('EU',ROOT,async()=>{try{await main();}finally{closeXmlValidation();}})
   .catch((error) => { console.error('EU corpus build failed:', safeFailureMessage(error,'unknown error')); process.exitCode=1; });

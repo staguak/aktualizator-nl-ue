@@ -35,12 +35,15 @@ jobs:
       - name: Install pinned dependencies
         run: |
           npm ci --no-audit --no-fund
-          python -m pip install --disable-pip-version-check --index-url https://pypi.org/simple -r scripts/xml-requirements.txt -r scripts/rdf-requirements.txt -r scripts/workflow-requirements.txt
+          python -m pip install --disable-pip-version-check --index-url https://pypi.org/simple -r scripts/xml-requirements.txt -r scripts/rdf-requirements.txt -r scripts/image-requirements.txt -r scripts/workflow-requirements.txt
       - run: npm run typecheck
       - run: npm run typecheck:tools
       - run: npm run parser:selftest
       - run: npm test
       - run: npm run test:xml
       - run: npm run test:evidence
+      - run: python3 -m unittest discover -s tests -p test_image_validation.py
+      - run: python3 -m unittest discover -s tests -p test_distribution.py
+      - run: python3 -m unittest discover -s tests -p test_official_audit.py
       - name: Verify public publication, admission, diagnostics and notification boundaries
         run: python3 -m unittest discover -s tests -p 'test_public_*.py'

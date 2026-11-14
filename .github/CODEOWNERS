@@ -1,0 +1,5 @@
+# Repository owner reviews changes to the publication and configuration paths.
+/.github/ @staguak
+/aktualizator-ph/config/ @staguak
+/aktualizator-ph/scripts/public_*.py @staguak
+/SECURITY.md @staguak

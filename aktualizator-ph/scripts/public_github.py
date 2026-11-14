@@ -1,7 +1,7 @@
 """Atomic publication of a bounded, public-only snapshot on the dane branch.
 
 Issue titles and bodies never become shell commands, paths or configuration.
-Only the publish step receives the short-lived GitHub token; builders do not.
+Trusted control steps may use the short-lived GitHub token; builders do not.
 """
 import argparse
 from datetime import datetime, timezone
@@ -15,6 +15,7 @@ import sys
 from zoneinfo import ZoneInfo
 from public_support import (PublicError, GitHubApi, authenticated_environment, executable_digest, git, parse_time, record_diagnostic)
 from public_admission import StateStore, acquire as acquire_lease, release as release_lease, request_time
+from public_releases import ReleaseStore, release_record, pack_runtime_state, restore_state, file_digest
 
 APP = Path(__file__).resolve().parents[1]
 STATE = APP / '.public-state'
@@ -23,8 +24,10 @@ STAGE = 'START'
 BRANCH = 'dane'
 REF = 'refs/heads/' + BRANCH
 PROFILE = 'public-nl-eu-corpus-v1'
+INDEX_PROFILE = 'public-nl-ue-index-v2'
 REQUEST_TITLE = '[Aktualizacja bazy]'
 MAX_FILE = 95_000_000
+MAX_RELEASE_ASSET = 2_147_483_648
 MAX_TOTAL = 500_000_000
 MAX_FILES = 10_000
 COOLDOWN_SECONDS = 3600
@@ -190,11 +193,36 @@ def inventory(directory):
 def validate_snapshot(directory):
     rows = inventory(directory)
     names = {row['name'] for row in rows}
+    value = json.loads((directory / 'publication.json').read_bytes())
+    if value.get('profile') == INDEX_PROFILE:
+        required = {'README.md', 'publication.json', 'VERIFICATION.json'}
+        if names != required or value.get('status') != 'PASS':
+            raise ValueError('Incomplete public release index')
+        if value.get('files') != [row for row in rows if row['name'] != 'publication.json']:
+            raise ValueError('Public release index checksum inventory mismatch')
+        for field, pattern in [('codeRevision', '[a-f0-9]{40}'), ('configurationSha256', '[a-f0-9]{64}'),
+                               ('executionSha256', '[a-f0-9]{64}')]:
+            if not re.fullmatch(pattern, value.get(field, '')):
+                raise ValueError('Public release index identity missing')
+        release = value.get('release', {})
+        if (type(release.get('id')) is not int or release['id'] < 1
+                or not re.fullmatch(r'data-[1-9][0-9]*-[1-9][0-9]*', release.get('tag', ''))
+                or not isinstance(release.get('assets'), list)
+                or not release['assets'] or not isinstance(value.get('counts'), dict)
+                or value.get('sourceAudit') not in {'conditional', 'unconditional'}
+                or json.loads((directory / 'VERIFICATION.json').read_bytes()).get('status') != 'PASS'):
+            raise ValueError('Public release index pointer invalid')
+        for entry in release['assets']:
+            if (not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*', entry.get('name', ''))
+                    or '..' in entry['name'] or type(entry.get('size')) is not int or entry['size'] < 0
+                    or not re.fullmatch('[a-f0-9]{64}', entry.get('sha256', ''))):
+                raise ValueError('Public release index asset invalid')
+        parse_time(value['publishedAt'])
+        return value
     required = {'README.md', 'publication.json', 'VERIFICATION.json'} | {
         module + '/' + name for module in ('NL', 'UE') for name in ('INDEX.md', 'REPORT.md', 'manifest.json')}
     if not required <= names:
         raise ValueError('Incomplete paired public snapshot')
-    value = json.loads((directory / 'publication.json').read_bytes())
     expected = [row for row in rows if row['name'] != 'publication.json']
     if value.get('profile') != PROFILE or value.get('status') != 'PASS' or value.get('files') != expected:
         raise ValueError('Public snapshot checksum inventory mismatch')
@@ -302,16 +330,131 @@ def prepare():
     rebuild = not fresh(previous, revision, configuration_digest(), now, requested_force, execution)
     state = dict(previousSha=sha, revision=revision, configSha256=configuration_digest(),
                  rangeTo=now.astimezone(ZoneInfo('Europe/Warsaw')).date().isoformat(), build=rebuild,
-                 executionSha256=execution, sourceAudit='unconditional' if full_audit else 'conditional')
+                 executionSha256=execution, sourceAudit='unconditional' if full_audit else 'conditional',
+                 previousKnown=True, activeReleaseId=previous.get('release', {}).get('id') if previous else None)
+    if previous:
+        (STATE / 'previous-publication.json').write_text(json.dumps(previous))
     (STATE / 'request.json').write_text(json.dumps(state))
-    if previous and rebuild:
-        for module, directory in [('NL', 'output'), ('UE', 'output-ue')]:
-            target = APP / directory
-            if target.exists():
-                raise ValueError('Build output must start empty')
-            shutil.copytree(STATE / 'prior' / module, target)
+    if rebuild:
+        if previous and previous.get('profile') != INDEX_PROFILE:
+            for module, directory in [('NL', 'output'), ('UE', 'output-ue')]:
+                target = APP / directory
+                if target.exists():
+                    raise ValueError('Build output must start empty')
+                shutil.copytree(STATE / 'prior' / module, target)
+        restore_runtime(previous if previous and previous.get('profile') == INDEX_PROFILE else None,full_audit)
     output(build=str(rebuild).lower(), range_to=state['rangeTo'], audit_mode=state['sourceAudit'])
     print('A new public build is required.' if rebuild else 'The current validated public corpus is still fresh.')
+
+
+def release_store():
+    return ReleaseStore(GitHubApi(repository(), os.environ.get('GH_TOKEN', '')))
+
+
+def restore_runtime(previous=None, full_audit=False):
+    """Use good outputs as comparison base, newest compatible checkpoints to resume."""
+    if full_audit and not previous:
+        return
+    store = release_store()
+    owner_run=os.environ.get('GITHUB_RUN_ID','');owner_attempt=os.environ.get('GITHUB_RUN_ATTEMPT','')
+    if not full_audit and re.fullmatch(r'[1-9][0-9]*',owner_run) and re.fullmatch(r'[1-9][0-9]*',owner_attempt):
+        store.recover_abandoned_drafts(owner_run,int(owner_attempt))
+    active = previous['release'] if previous else None
+    package = None
+    if active:
+        target = STATE / 'active-runtime'
+        store.restore(active['id'], target, expected_assets=active['assets'], asset_names=['runtime-state.zip'])
+        package = target / 'runtime-state.zip'
+        restore_state(package, APP, selected_names={'output', 'output-ue'})
+    if full_audit:
+        return
+    checkpoint = package
+    for release in store.recent_attempts():
+        candidate = release_record(release)
+        metadata = candidate.get('metadata', {})
+        if (metadata.get('configurationSha256') == configuration_digest()
+                and any(entry['name'] == 'runtime-state.zip' for entry in candidate['assets'])):
+            if active is None or release['id'] != active['id']:
+                other = STATE / 'attempt-runtime'
+                store.restore(release['id'], other, asset_names=['runtime-state.zip'])
+                checkpoint = other / 'runtime-state.zip'
+            break
+    # The module builders independently check context, bytes and schemas before
+    # accepting each checkpoint; a failed attempt is never trusted wholesale.
+    if checkpoint is None:
+        return
+    restore_state(checkpoint, APP, selected_names=set(), optional_names={'.checkpoint', '.checkpoint-ue', '.source-cache'})
+    if package is not None and not (APP / '.source-cache').exists():
+        restore_state(package, APP, selected_names=set(), optional_names={'.source-cache'})
+
+
+def validate_distribution(directory):
+    value = json.loads((directory / 'distribution.json').read_bytes())
+    if (value.get('profile') != 'public-distribution-v1' or value.get('status') != 'PASS'
+            or not isinstance(value.get('files'), list) or not value.get('counts')):
+        raise PublicError('DISTRIBUTION_INVALID', 'VALIDATE_DISTRIBUTION')
+    expected = {'NL-results.zip', 'UE-results.zip', 'NL-sources.zip', 'UE-sources.zip'}
+    files = value['files']
+    if {entry.get('name') for entry in files} != expected or len(files) != len(expected):
+        raise PublicError('DISTRIBUTION_INCOMPLETE', 'VALIDATE_DISTRIBUTION')
+    for entry in files:
+        path = directory / entry['name']
+        if path.is_symlink() or not path.is_file():
+            raise PublicError('DISTRIBUTION_FILE_UNSAFE', 'VALIDATE_DISTRIBUTION')
+        size, digest = file_digest(path)
+        if size != entry.get('bytes') or digest != entry.get('sha256'):
+            raise PublicError('DISTRIBUTION_CHANGED', 'VALIDATE_DISTRIBUTION')
+        if size >= MAX_RELEASE_ASSET:
+            raise PublicError('RELEASE_ASSET_LIMIT', 'VALIDATE_DISTRIBUTION')
+    return value
+
+
+def recent_attempt_rows(store):
+    return [{'runId': record['runId'], 'attempt': record['attempt'], 'status': record['status'],
+             'releaseId': release['id'], 'url': release['html_url']}
+            for release in store.recent_attempts()[:2] for record in [release_record(release)]]
+
+
+def create_release_index(destination, request, release, distribution, audit, attempts=None):
+    if destination.exists():
+        raise PublicError('INDEX_TARGET_EXISTS', 'PUBLISH_INDEX')
+    if audit.get('status') != 'PASS':
+        raise PublicError('INDEPENDENT_AUDIT_REQUIRED', 'PUBLISH_INDEX')
+    record = release_record(release)
+    if not record or release.get('draft') or record['status'] != 'PUBLISHED':
+        raise PublicError('RELEASE_NOT_CONFIRMED', 'PUBLISH_INDEX')
+    destination.mkdir(parents=True)
+    value = dict(profile=INDEX_PROFILE, status='PASS', publishedAt=datetime.now(timezone.utc).isoformat(),
+                 rangeFrom=distribution['rangeFrom'], rangeTo=distribution['rangeTo'],
+                 codeRevision=request['revision'], configurationSha256=request['configSha256'],
+                 executionSha256=request['executionSha256'], sourceAudit=request['sourceAudit'],
+                 counts=distribution['counts'], release={'id': release['id'], 'tag': release['tag_name'],
+                     'url': release['html_url'], 'assets': record['assets']}, attempts=attempts or [])
+    (destination / 'VERIFICATION.json').write_text(json.dumps(audit, ensure_ascii=False, indent=2) + '\n')
+    write_index_readme(destination, value)
+    value['files'] = inventory(destination)
+    (destination / 'publication.json').write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
+    validate_snapshot(destination)
+    return value
+
+
+def write_index_readme(destination, value):
+    release = value['release']
+    base = 'https://github.com/' + repository() + '/releases/download/' + release['tag'] + '/'
+    text = ('# Aktualna publiczna baza prawa NL i UE\n\n'
+            + f'Zakres: **{value["rangeFrom"]}–{value["rangeTo"]}**.\n\n'
+            + f'NL: {value["counts"]["NL"]} aktów; UE: {value["counts"]["UE"]} pozycji.\n\n'
+            + '[Otwórz wydanie z plikami](' + release['url'] + ')\n\n')
+    for name, label in [('NL-results.zip', 'NL — teksty i raporty'), ('UE-results.zip', 'UE — teksty i raporty'),
+                        ('NL-sources.zip', 'NL — wszystkie oryginalne źródła'), ('UE-sources.zip', 'UE — wszystkie oryginalne źródła')]:
+        text += '- [' + label + '](' + base + name + ')\n'
+    text += '\n[Manifest plików i SHA-256](publication.json) · [niezależny audyt](VERIFICATION.json).\n'
+    if value.get('attempts'):
+        text += '\n## Ostatnie uruchomienia\n\n'
+        for attempt in value['attempts']:
+            text += '- [' + attempt['runId'] + '/' + str(attempt['attempt']) + '](' + attempt['url'] + '): ' + attempt['status'] + '\n'
+    text += '\nIndeks wskazuje ostatnią poprawną bazę. Nieudane uruchomienia nie zastępują poprawnych danych.\n'
+    (destination / 'README.md').write_text(text)
 
 
 def create_snapshot(app, destination, revision, config_digest, now, execution=None, source_audit='conditional'):
@@ -404,20 +547,115 @@ def publish():
         return
     if request['configSha256'] != configuration_digest() or request['executionSha256'] != executable_digest(APP):
         raise PublicError('BUILD_INPUT_CHANGED', 'PUBLISH')
-    destination = STATE / 'snapshot'
-    value = create_snapshot(APP, destination, request['revision'], request['configSha256'], datetime.now(timezone.utc), request['executionSha256'], request['sourceAudit'])
-    if value['rangeTo'] != request['rangeTo']:
+    distribution_dir = STATE / 'distribution'
+    distribution = validate_distribution(distribution_dir)
+    if distribution['rangeTo'] != request['rangeTo']:
         raise PublicError('BUILD_RANGE_CHANGED', 'PUBLISH')
+    audit = json.loads((STATE / 'independent-audit.json').read_bytes())
+    if audit.get('status') != 'PASS':
+        raise PublicError('INDEPENDENT_AUDIT_REQUIRED', 'PUBLISH')
+    pack_runtime_state(APP, ['output', 'output-ue', '.checkpoint', '.checkpoint-ue', '.source-diagnostics'],
+               distribution_dir / 'runtime-state.zip')
+    run, attempt = run_identity()
+    releases = release_store()
+    metadata = {'configurationSha256': request['configSha256'], 'executionSha256': request['executionSha256'],
+                'rangeFrom': distribution['rangeFrom'], 'rangeTo': distribution['rangeTo']}
+    stage('STAGE_RELEASE')
+    release_value = releases.publish(releases.stage(distribution_dir, run, attempt, request['revision'], metadata=metadata))
+    write_control('release-attempt.json', {'id': release_value['id']})
+    destination = STATE / 'snapshot'
+    create_release_index(destination, request, release_value, distribution, audit, recent_attempt_rows(releases))
     sha = push_snapshot(destination, request['previousSha'], 'https://github.com/' + repository() + '.git',
                         authenticated_environment(os.environ.get('GH_TOKEN', '')),
                         record=lambda candidate: write_control('publication-attempt.json', {'sha': candidate}))
-    write_control('publication.json', {'status': 'PUBLISHED', 'sha': sha})
+    write_control('publication.json', {'status': 'PUBLISHED', 'sha': sha, 'releaseId': release_value['id'], 'url': release_value['html_url']})
     print('Validated public corpus published. Revision: ' + sha)
 
 
 def result_links(repo):
     base = 'https://github.com/' + repo
-    return base + '/tree/dane', base + '/archive/refs/heads/dane.zip'
+    return base + '/tree/dane', base + '/releases'
+
+
+def retain():
+    """Persist admitted attempts before garbage collection; lease remains held."""
+    stage('PERSIST_ATTEMPT')
+    admission = read_control('admission.json') or {}
+    if not admission.get('accepted'):
+        return
+    lease_sha, lease = state_store().read()
+    if lease_sha != admission['sha'] or lease.get('status') != 'RUNNING':
+        raise PublicError('LOCK_OWNERSHIP_CHANGED', 'RETAIN')
+    request = json.loads((STATE / 'request.json').read_bytes()) if (STATE / 'request.json').is_file() else None
+    result = read_control('result.json') or {'status': 'FAILED'}
+    publication = read_control('publication.json')
+    active_id = publication.get('releaseId') if publication else request.get('activeReleaseId') if request else None
+    releases = release_store()
+    run, attempt = run_identity()
+    def attempt_files(directory):
+        directory.mkdir(parents=True,exist_ok=True)
+        report_value={'profile':'public-attempt-v1','runId':run,'attempt':attempt,'status':result['status'],
+                      'activeReleaseId':active_id,'error':result.get('error')}
+        (directory/'attempt.json').write_text(json.dumps(report_value,indent=2)+'\n')
+        if result['status']!='REUSED' and not (directory/'runtime-state.zip').exists():
+            pack_runtime_state(APP,['output','output-ue','.checkpoint','.checkpoint-ue','.source-diagnostics'],directory/'runtime-state.zip')
+        return directory
+    existing = releases._get_tag('data-' + run + '-' + str(attempt))
+    if not existing:
+        attempt_dir = STATE / 'attempt-record'
+        attempt_files(attempt_dir)
+        metadata = {'activeReleaseId': active_id}
+        if request:
+            metadata.update(configurationSha256=request['configSha256'], executionSha256=request['executionSha256'])
+        releases.record_attempt(attempt_dir, run, attempt, os.environ['GITHUB_SHA'],
+                                'REUSED' if result['status'] == 'REUSED' else 'FAILED', metadata)
+    elif not release_record(existing):
+        raise PublicError('RELEASE_IDENTITY_CONFLICT', 'RETAIN')
+    elif existing.get('draft'):
+        # Reconcile only this admitted owner's draft. Unrelated interrupted
+        # drafts are not garbage-collected while their status is uncertain.
+        record=release_record(existing)
+        directory=STATE/'distribution' if record['status']=='PUBLISHED' and (STATE/'distribution').is_dir() else STATE/'attempt-record'
+        releases.publish(releases.reconcile_draft(existing,attempt_files(directory),
+                         'REUSED' if result['status']=='REUSED' else 'FAILED'))
+    stage('RETAIN_RELEASES')
+    recovered_drafts=releases.recover_abandoned_drafts(run,attempt)
+    if active_id is not None or request and request.get('previousKnown') is True:
+        retained = releases.retain(active_id, keep_attempts=2)
+    else:
+        # Preflight failures may not have established the active-data pointer.
+        # Preserve all data rather than guess which old success is disposable.
+        retained = {'retained': [], 'deleted': [], 'status': 'ACTIVE_POINTER_UNKNOWN'}
+    write_control('retention.json', retained)
+    if recovered_drafts:write_control('draft-recovery.json',{'recovered':recovered_drafts})
+    if active_id is not None:
+        update_attempt_index(releases, publication)
+    summary = os.environ.get('GITHUB_STEP_SUMMARY')
+    if summary:
+        with open(summary, 'a') as out:
+            out.write('\nMateriały uruchomień zapisane; retencja: dwa ostatnie przebiegi i chroniona poprawna baza.\n')
+
+
+def update_attempt_index(releases, publication):
+    """Record failed/REUSED history without changing the active good release."""
+    remote = 'https://github.com/' + repository() + '.git'
+    previous_sha, previous = restore_previous(remote, STATE / 'retention-prior')
+    if not previous or previous.get('profile') != INDEX_PROFILE:
+        return
+    expected_active = publication.get('releaseId') if publication else json.loads((STATE / 'request.json').read_bytes()).get('activeReleaseId')
+    if previous['release']['id'] != expected_active:
+        raise PublicError('ACTIVE_RELEASE_CHANGED', 'RETAIN')
+    attempts = recent_attempt_rows(releases)
+    if previous.get('attempts') == attempts:
+        return
+    target = STATE / 'retention-index'
+    target.mkdir()
+    previous['attempts'] = attempts
+    shutil.copyfile(STATE / 'retention-prior/VERIFICATION.json', target / 'VERIFICATION.json')
+    write_index_readme(target, previous)
+    previous['files'] = inventory(target)
+    (target / 'publication.json').write_text(json.dumps(previous, ensure_ascii=False, indent=2) + '\n')
+    push_snapshot(target, previous_sha, remote, authenticated_environment(os.environ.get('GH_TOKEN', '')))
 
 
 def find_comment(api, number, marker):
@@ -472,7 +710,7 @@ def finish_request():
         message = 'Nie udało się potwierdzić końcowego stanu publikacji. Sprawdź wynik uruchomienia; dane mogły zostać zapisane.'
     else:
         message = 'Aktualizacja nie powiodła się. Wcześniej opublikowana poprawna baza, jeśli istniała, pozostaje dostępna.'
-    body = marker + '\n' + message + '\n\nBaza: ' + data + '\n\nPobierz ZIP: ' + archive
+    body = marker + '\n' + message + '\n\nBaza: ' + data + '\n\nPobierz pliki z Releases: ' + archive
     admission = read_control('admission.json') or {}
     if admission.get('ownerRun'):
         body += '\n\nUruchomienie aktualizatora: https://github.com/' + repo + '/actions/runs/' + admission['ownerRun']
@@ -489,24 +727,26 @@ def finish_request():
 
 
 def cleanup():
-    for name in ('.public-state', '.public-control', '.checkpoint', '.checkpoint-ue', '.source-cache', '.source-diagnostics', 'output', 'output-ue'):
+    # Required cache/checkpoints/outputs were persisted before this step and
+    # also remain usable for local invocations. Only run-specific scratch goes.
+    for name in ('.public-state', '.public-control'):
         target = APP / name
         if target.is_symlink():
             target.unlink()
         elif target.exists():
             shutil.rmtree(target)
-    for name in ('public-build.log',):
+    for name in ('public-build.log', '.cache-signatures.json'):
         (APP / name).unlink(missing_ok=True)
-    print('Public build temporary outputs, checkpoints, sources, logs and Git work directories removed.')
+    print('Run scratch and logs removed; source cache, checkpoints and verified outputs preserved.')
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', choices=['acquire', 'prepare', 'publish', 'report', 'finish-request', 'release', 'cleanup'])
+    parser.add_argument('command', choices=['acquire', 'prepare', 'publish', 'report', 'finish-request', 'retain', 'release', 'cleanup'])
     command = parser.parse_args().command
     stage(command.replace('-', '_').upper())
     commands = {'acquire': acquire, 'prepare': prepare, 'publish': publish, 'report': report,
-                'finish-request': finish_request, 'release': release, 'cleanup': cleanup}
+                'finish-request': finish_request, 'retain': retain, 'release': release, 'cleanup': cleanup}
     try:
         commands[command]()
     except Exception as error:

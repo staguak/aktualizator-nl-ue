@@ -117,19 +117,20 @@ test('completed checkpoint files are read once and local modifications invalidat
 
 test('unidentified EUR-Lex HTML falls back to an independently indexed CELLAR item',async t=>{
   const {fetchEuText}=await import('./eu-provider.js');
-  const original=globalThis.fetch;t.after(()=>{globalThis.fetch=original;});let indexedReads=0,indexLookups=0;
+  const original=globalThis.fetch;t.after(()=>{globalThis.fetch=original;});let indexedReads=0,indexLookups=0,englishIndexLookups=0;
   const body='<html lang="en"><head><title>Official text</title></head><body><p>REGULATION</p><p>Article 1</p><p>'+ 'Official provision. '.repeat(50)+'</p></body></html>';
   const rows=[{work:{value:work},expression:{value:work+'.0001'},language:{value:'http://publications.europa.eu/resource/authority/language/ENG'},
     manifestation:{value:work+'.0001.03'},format:{value:'xhtml'},item:{value:item}}];
   globalThis.fetch=async input=>{
     const url=String(input);let text:string;
-    if(url.includes('/sparql?')){indexLookups++;text=JSON.stringify({results:{bindings:rows}});}
+    if(url.includes('/sparql?')){indexLookups++;const english=decodeURIComponent(url).includes('/ENG');if(english)englishIndexLookups++;
+      text=JSON.stringify({results:{bindings:english?rows:[]}});}
     else if(url===work)text='<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"/>';
     else {text=body;if(url===item)indexedReads++;}
     const response=new Response(text);Object.defineProperty(response,'url',{value:url});return response;
   };
   const source=await fetchEuText({celex:'32024L2831',include:'full-document',role:'original',metadata:{}});
-  assert.equal(indexedReads,1);assert.equal(indexLookups,1);assert.equal(source.sourceUrl,item);
+  assert.equal(indexedReads,1);assert.equal(englishIndexLookups,1);assert.equal(indexLookups,4);assert.equal(source.sourceUrl,item);
   assert(source.nativeSources?.some(s=>s.kind==='CELLAR-WEMI-index'));
 });
 

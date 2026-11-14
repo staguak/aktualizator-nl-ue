@@ -28,7 +28,7 @@ jobs:
     permissions:
       contents: write
       issues: write
-      actions: read
+      actions: write
     defaults:
       run:
         working-directory: aktualizator-ph
@@ -46,9 +46,106 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/public_github.py acquire
+      - name: Restore source cache shard 0
+        if: steps.admission.outputs.accepted == 'true'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            aktualizator-ph/.source-cache/http/0
+            aktualizator-ph/.source-cache/blobs/0
+            aktualizator-ph/.source-cache/derived/0
+            aktualizator-ph/.source-cache/models/0
+            aktualizator-ph/.source-cache/validated/0
+          key: nl-ue-source-v5-${{ runner.os }}-s0-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: nl-ue-source-v5-${{ runner.os }}-s0-
+      - name: Restore source cache shard 1
+        if: steps.admission.outputs.accepted == 'true'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            aktualizator-ph/.source-cache/http/1
+            aktualizator-ph/.source-cache/blobs/1
+            aktualizator-ph/.source-cache/derived/1
+            aktualizator-ph/.source-cache/models/1
+            aktualizator-ph/.source-cache/validated/1
+          key: nl-ue-source-v5-${{ runner.os }}-s1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: nl-ue-source-v5-${{ runner.os }}-s1-
+      - name: Restore source cache shard 2
+        if: steps.admission.outputs.accepted == 'true'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            aktualizator-ph/.source-cache/http/2
+            aktualizator-ph/.source-cache/blobs/2
+            aktualizator-ph/.source-cache/derived/2
+            aktualizator-ph/.source-cache/models/2
+            aktualizator-ph/.source-cache/validated/2
+          key: nl-ue-source-v5-${{ runner.os }}-s2-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: nl-ue-source-v5-${{ runner.os }}-s2-
+      - name: Restore source cache shard 3
+        if: steps.admission.outputs.accepted == 'true'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            aktualizator-ph/.source-cache/http/3
+            aktualizator-ph/.source-cache/blobs/3
+            aktualizator-ph/.source-cache/derived/3
+            aktualizator-ph/.source-cache/models/3
+            aktualizator-ph/.source-cache/validated/3
+          key: nl-ue-source-v5-${{ runner.os }}-s3-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: nl-ue-source-v5-${{ runner.os }}-s3-
+      - name: Restore source cache shard 4
+        if: steps.admission.outputs.accepted == 'true'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            aktualizator-ph/.source-cache/http/4
+            aktualizator-ph/.source-cache/blobs/4
+            aktualizator-ph/.source-cache/derived/4
+            aktualizator-ph/.source-cache/models/4
+            aktualizator-ph/.source-cache/validated/4
+          key: nl-ue-source-v5-${{ runner.os }}-s4-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: nl-ue-source-v5-${{ runner.os }}-s4-
+      - name: Restore source cache shard 5
+        if: steps.admission.outputs.accepted == 'true'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            aktualizator-ph/.source-cache/http/5
+            aktualizator-ph/.source-cache/blobs/5
+            aktualizator-ph/.source-cache/derived/5
+            aktualizator-ph/.source-cache/models/5
+            aktualizator-ph/.source-cache/validated/5
+          key: nl-ue-source-v5-${{ runner.os }}-s5-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: nl-ue-source-v5-${{ runner.os }}-s5-
+      - name: Restore source cache shard 6
+        if: steps.admission.outputs.accepted == 'true'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            aktualizator-ph/.source-cache/http/6
+            aktualizator-ph/.source-cache/blobs/6
+            aktualizator-ph/.source-cache/derived/6
+            aktualizator-ph/.source-cache/models/6
+            aktualizator-ph/.source-cache/validated/6
+          key: nl-ue-source-v5-${{ runner.os }}-s6-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: nl-ue-source-v5-${{ runner.os }}-s6-
+      - name: Restore source cache shard 7
+        if: steps.admission.outputs.accepted == 'true'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            aktualizator-ph/.source-cache/http/7
+            aktualizator-ph/.source-cache/blobs/7
+            aktualizator-ph/.source-cache/derived/7
+            aktualizator-ph/.source-cache/models/7
+            aktualizator-ph/.source-cache/validated/7
+          key: nl-ue-source-v5-${{ runner.os }}-s7-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: nl-ue-source-v5-${{ runner.os }}-s7-
       - name: Inspect the current public corpus and freeze this request
         id: request
         env:
+          GH_TOKEN: ${{ github.token }}
           INPUT_FORCE: ${{ inputs.force }}
           INPUT_FULL_SOURCE_AUDIT: ${{ inputs.full_source_audit }}
         run: python3 scripts/public_github.py prepare
@@ -61,7 +158,7 @@ jobs:
         if: steps.request.outputs.build == 'true'
         run: |
           npm ci --no-audit --no-fund
-          python -m pip install --disable-pip-version-check --index-url https://pypi.org/simple -r scripts/xml-requirements.txt -r scripts/rdf-requirements.txt
+          python -m pip install --disable-pip-version-check --index-url https://pypi.org/simple -r scripts/xml-requirements.txt -r scripts/rdf-requirements.txt -r scripts/image-requirements.txt
       - name: Build and independently verify the complete public corpus
         if: steps.request.outputs.build == 'true'
         env:
@@ -91,7 +188,127 @@ jobs:
         env:
           PUBLIC_PREPARE_OUTCOME: ${{ steps.request.outcome }}
         run: python3 scripts/public_github.py report
-      - name: Return the result to the public request
+      - name: Persist attempt and retain two attempts plus the active good base
+        if: always() && steps.admission.outputs.accepted == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/public_github.py retain
+      - name: Trim local source cache and compute shard signatures
+        id: cache_state
+        if: always() && steps.admission.outputs.accepted == 'true'
+        run: |
+          python3 scripts/public_cache.py local
+          python3 scripts/public_cache.py signatures > .cache-signatures.json
+          python3 -c 'import json,os; values=json.load(open(".cache-signatures.json")); out=open(os.environ["GITHUB_OUTPUT"],"a"); [print("shard"+key+"="+value,file=out) for key,value in values.items()]'
+      - name: Save source cache shard 0
+        if: always() && steps.admission.outputs.accepted == 'true' && steps.cache_state.outcome == 'success'
+        continue-on-error: true
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            aktualizator-ph/.source-cache/http/0
+            aktualizator-ph/.source-cache/blobs/0
+            aktualizator-ph/.source-cache/derived/0
+            aktualizator-ph/.source-cache/models/0
+            aktualizator-ph/.source-cache/validated/0
+          key: nl-ue-source-v5-${{ runner.os }}-s0-${{ steps.cache_state.outputs.shard0 }}
+      - name: Save source cache shard 1
+        if: always() && steps.admission.outputs.accepted == 'true' && steps.cache_state.outcome == 'success'
+        continue-on-error: true
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            aktualizator-ph/.source-cache/http/1
+            aktualizator-ph/.source-cache/blobs/1
+            aktualizator-ph/.source-cache/derived/1
+            aktualizator-ph/.source-cache/models/1
+            aktualizator-ph/.source-cache/validated/1
+          key: nl-ue-source-v5-${{ runner.os }}-s1-${{ steps.cache_state.outputs.shard1 }}
+      - name: Save source cache shard 2
+        if: always() && steps.admission.outputs.accepted == 'true' && steps.cache_state.outcome == 'success'
+        continue-on-error: true
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            aktualizator-ph/.source-cache/http/2
+            aktualizator-ph/.source-cache/blobs/2
+            aktualizator-ph/.source-cache/derived/2
+            aktualizator-ph/.source-cache/models/2
+            aktualizator-ph/.source-cache/validated/2
+          key: nl-ue-source-v5-${{ runner.os }}-s2-${{ steps.cache_state.outputs.shard2 }}
+      - name: Save source cache shard 3
+        if: always() && steps.admission.outputs.accepted == 'true' && steps.cache_state.outcome == 'success'
+        continue-on-error: true
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            aktualizator-ph/.source-cache/http/3
+            aktualizator-ph/.source-cache/blobs/3
+            aktualizator-ph/.source-cache/derived/3
+            aktualizator-ph/.source-cache/models/3
+            aktualizator-ph/.source-cache/validated/3
+          key: nl-ue-source-v5-${{ runner.os }}-s3-${{ steps.cache_state.outputs.shard3 }}
+      - name: Save source cache shard 4
+        if: always() && steps.admission.outputs.accepted == 'true' && steps.cache_state.outcome == 'success'
+        continue-on-error: true
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            aktualizator-ph/.source-cache/http/4
+            aktualizator-ph/.source-cache/blobs/4
+            aktualizator-ph/.source-cache/derived/4
+            aktualizator-ph/.source-cache/models/4
+            aktualizator-ph/.source-cache/validated/4
+          key: nl-ue-source-v5-${{ runner.os }}-s4-${{ steps.cache_state.outputs.shard4 }}
+      - name: Save source cache shard 5
+        if: always() && steps.admission.outputs.accepted == 'true' && steps.cache_state.outcome == 'success'
+        continue-on-error: true
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            aktualizator-ph/.source-cache/http/5
+            aktualizator-ph/.source-cache/blobs/5
+            aktualizator-ph/.source-cache/derived/5
+            aktualizator-ph/.source-cache/models/5
+            aktualizator-ph/.source-cache/validated/5
+          key: nl-ue-source-v5-${{ runner.os }}-s5-${{ steps.cache_state.outputs.shard5 }}
+      - name: Save source cache shard 6
+        if: always() && steps.admission.outputs.accepted == 'true' && steps.cache_state.outcome == 'success'
+        continue-on-error: true
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            aktualizator-ph/.source-cache/http/6
+            aktualizator-ph/.source-cache/blobs/6
+            aktualizator-ph/.source-cache/derived/6
+            aktualizator-ph/.source-cache/models/6
+            aktualizator-ph/.source-cache/validated/6
+          key: nl-ue-source-v5-${{ runner.os }}-s6-${{ steps.cache_state.outputs.shard6 }}
+      - name: Save source cache shard 7
+        if: always() && steps.admission.outputs.accepted == 'true' && steps.cache_state.outcome == 'success'
+        continue-on-error: true
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            aktualizator-ph/.source-cache/http/7
+            aktualizator-ph/.source-cache/blobs/7
+            aktualizator-ph/.source-cache/derived/7
+            aktualizator-ph/.source-cache/models/7
+            aktualizator-ph/.source-cache/validated/7
+          key: nl-ue-source-v5-${{ runner.os }}-s7-${{ steps.cache_state.outputs.shard7 }}
+      - name: Trim old owned GitHub cache entries after saving this attempt
+        if: always() && steps.admission.outputs.accepted == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/public_cache.py remote
+      - name: Refresh diagnostics after state and cache maintenance
+        # Refresh safe diagnostics after retention/cache maintenance too.
+        # Publication status and the active data pointer remain independent.
+        if: always() && steps.checkout.outcome == 'success'
+        env:
+          PUBLIC_PREPARE_OUTCOME: ${{ steps.request.outcome }}
+        run: python3 scripts/public_github.py report
+      - name: Notify the public request
         if: always() && steps.checkout.outcome == 'success' && github.event_name == 'issues'
         continue-on-error: true
         env:

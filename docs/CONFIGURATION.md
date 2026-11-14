@@ -9,8 +9,18 @@ Katalog konfiguracji zawiera dokładnie te pliki używane przez instalację:
 | `zakres-ue.json` | Akty UE przez CELEX, wymagane wersje i dokumenty powiązane |
 | `release-consumers.json` | Namespace i zaakceptowany kontrakt odczytu wydania |
 
-Pliki przykładowe zawierają niewielki zakres. `order` musi być kolejny od 1.
-Obsługiwana wersja językowa UE to **EN**. NL korzysta z oryginalnego tekstu NL.
+Publiczna konfiguracja zawiera 23 pozycje NL i 65 UE. `order` musi być kolejny od 1.
+UE wybiera **EN**, a dopiero przy braku reprezentacji angielskiej **PL → NL → FR**.
+Nie pobiera wszystkich wersji językowych tekstu. Format pomocniczy, np. Formex,
+może mieć inny język niż pełny XHTML; manifest zachowuje oba powiązania.
+NL korzysta z oryginalnego tekstu NL.
+
+`retrievalScope: full-act` w NL i `full-act-and-case` w UE rozszerzają pobranie
+na całe wybrane akty i dokumenty formalnie powiązanych spraw, zachowując selektory
+jako kryteria wyboru i kontroli. `outputProfile: legal-structure-v1` włącza podział
+według struktury prawnej, osobne wersje i manifest rekonstrukcji. Starsza konfiguracja
+bez tych pól zachowuje starszą ścieżkę. Limit 95 MB jest technicznym zabezpieczeniem
+Markdown; nie wyznacza granic artykułów ani celu liczby znaków.
 `mustIncludeArticles` wymusza obecność wskazanych artykułów; nie wyłączaj tej
 kontroli, aby ukryć brak źródła. Zmiana konfiguracji istniejącego korpusu podlega
 kontroli zgodności dziennika; przy innym korpusie wybierz nowy namespace.

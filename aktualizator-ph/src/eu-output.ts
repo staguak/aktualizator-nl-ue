@@ -8,11 +8,13 @@ import { normalizeOutput, outputChanges } from './output.js';
 import { pendingValidation, reportValidation } from './validation-result.js';
 import type { ValidationResult } from './validation-result.js';
 import {renderBuildReport} from './build-report.js';
+import {legalMarkdown,legalIndexRows} from './legal-structure.js';
+import {imageIndexRows} from './legal-images.js';
 export type { EuBuiltAct } from './eu-model.js';
 function publishedEuFile(file:EuFinalFile):EuPublishedFile {
   const {celex,part,sourceHash}=file.metadata;
   const base={...publishedMetadata(file),celex,part,sourceHash};
-  return file.kind==='reference' ? {...base,kind:'reference',canonicalFile:file.metadata.canonicalFile} : {...base,kind:'content'};
+  return file.kind==='reference' ? {...base,kind:'reference',canonicalFile:file.metadata.canonicalFile} : {...base,kind:'content',...file.metadata.layoutProfile?{layoutProfile:file.metadata.layoutProfile}:{}};
 }
 
 // Canonical selection, metadata and legal-body normalization precede rendering.
@@ -22,7 +24,7 @@ export function finalizeEu(acts: EuBuiltAct[], readBody:(name:string)=>string) {
   let afterBytes=0;
   for(const part of model.parts){
     const text=part.details.kind==='content'
-      ? euContentFromBody(part.title,part.celex,part.part,part.total,part.body,part.sourceUrl,part.language)
+      ? part.legalContext?legalMarkdown(part.title,part.legalContext,part.body,part.contextLabels!):euContentFromBody(part.title,part.celex,part.part,part.total,part.body,part.sourceUrl,part.language)
       : normalizeOutput(`# ${part.title}\n\nUE-REF · CELEX ${part.celex} · ${part.language??'NL'} · ${part.part}/${part.total}\n\nTreść: [${part.details.metadata.canonicalFile}](${part.details.metadata.canonicalFile})\n`);
     const file=finalFile(part.name,text,part.details);
     files.set(file.name,file);outputs.set(file.name,text);afterBytes+=file.size;
@@ -33,7 +35,7 @@ export function finalizeEu(acts: EuBuiltAct[], readBody:(name:string)=>string) {
 }
 export function euIndex(m:any):string {
   return normalizeOutput(['# Aktualizator UE — indeks','',`Zakres: ${m.rangeFrom} – ${m.rangeTo}; język ${m.language??'NL'}.`,'',
-    ...m.acts.flatMap((a:any)=>[`## ${a.order}. ${a.title}`,'',...a.files.map((f:any)=>`- [${f.celex}, część ${f.part}](${f.name})${f.kind==='reference'?` → [treść](${f.canonicalFile})`:''}`),...(a.sourceArchive?[`- [Oryginalne źródła CELLAR](${a.sourceArchive.name}) — ${a.sourceArchive.entryCount} zasobów; MD5 ${a.sourceArchive.md5}.`]:[]),''])].join('\n'));
+    ...m.acts.flatMap((a:any)=>[`## ${a.order}. ${a.title}`,'',...(a.documents??[]).flatMap((d:any)=>d.legalStructure?[`### ${d.celex} · ${d.language}`,...legalIndexRows(d.legalStructure),'']:[]),...a.files.map((f:any)=>`- [${f.celex}, część ${f.part}](${f.name})${f.kind==='reference'?` → [treść](${f.canonicalFile})`:''}`),...(a.sourceArchive?[`- [Oryginalne źródła CELLAR](${a.sourceArchive.distribution?.bundle??a.sourceArchive.name}) — ${a.sourceArchive.entryCount} zasobów; MD5 ${a.sourceArchive.md5}.${a.sourceArchive.distribution?' Katalog: '+a.sourceArchive.distribution.prefix+'.':''}`]:[]),'']),...imageIndexRows(m)].join('\n'));
 }
 export function euReport(m:any,previous:any,validation: ValidationResult = pendingValidation()):string {
   const files=m.acts.flatMap((a:any)=>a.files),docs=m.acts.flatMap((a:any)=>a.documents),n=m.normalization,statuses=docs.flatMap((d:any)=>d.htmlNormalization);

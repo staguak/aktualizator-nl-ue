@@ -1,7 +1,7 @@
 import {load} from 'cheerio';
 import type {CellarIndex} from './eu-provider.js';
 
-const celexPattern=/^(?:[03]\d{4}[LRD]\d{4}(?:\(\d{2}\))?(?:-\d{8})?|1\d{4}[A-Z]\/TXT|6\d{4}CJ\d{4})(?:R\(\d{2}\))?$/;
+import {celexPattern} from './eu-identifiers.js';
 function declaredCelex(value:string):string|undefined{
   const clean=value.trim().replace(/^CELEX:/i,'');
   if(celexPattern.test(clean))return clean;
@@ -14,10 +14,10 @@ function declaredCelex(value:string):string|undefined{
 export function assertEuSourceIdentity(html:string,sourceUrl:string,expected:string,index?:CellarIndex):void{
   const $=load(html),title=$('head title').text().replace(/\s+/g,' ').trim(),declared:string[]=[];
   // Consolidations name the original act and documentary layer separately.
-  const consolidation=title.match(/^Consolidated TEXT:\s*(3\d{4}[LRD]\d{4}(?:\(\d{2}\))?)\s*[—–-]\s*(?:EN|NL)\s*[—–-]\s*(\d{2})\.(\d{2})\.(\d{4})/i);
+  const consolidation=title.match(/^(?:Consolidated TEXT|Tekst skonsolidowany|Skonsolidowany tekst|Texte consolidé|Geconsolideerde tekst):\s*(3\d{4}[LRD]\d{4}(?:\(\d{2}\))?)\s*[—–-]\s*(?:EN|PL|NL|FR)\s*[—–-]\s*(\d{2})\.(\d{2})\.(\d{4})/i);
   if(consolidation)declared.push(`0${consolidation[1].slice(1)}-${consolidation[4]}${consolidation[3]}${consolidation[2]}`);
   else{
-    const id=declaredCelex(title.replace(/^EUR-Lex\s*-\s*/i,'').replace(/\s*-\s*(?:EN|NL)$/i,''));
+    const id=declaredCelex(title.replace(/^EUR-Lex\s*-\s*/i,'').replace(/\s*-\s*(?:EN|PL|NL|FR)$/i,''));
     if(id)declared.push(id);
   }
   $('head meta[name],head link[rel="canonical"]').each((_i,node)=>{

@@ -9,14 +9,14 @@ const fragment = (value: string): string => {
   try { return decodeURIComponent(value); } catch { throw new Error('Malformed EU fragment identifier.'); }
 };
 
-export function resolveEuNavigation(chunks: string[], names: string[], sourceUrl: string): {chunks: string[]; navigation: EuNavigation} {
+export function resolveEuNavigation(chunks: string[], names: string[], sourceUrl: string,fragmentMode=false): {chunks: string[]; navigation: EuNavigation} {
   if (chunks.length !== names.length || new Set(names).size !== names.length ||
       names.some((name) => !/^[A-Za-z0-9_.-]+\.md$/.test(name))) throw new Error('Invalid EU part names.');
   const targets = new Map<string, number>();
   chunks.forEach((chunk, i) => { for (const id of idsIn(chunk)) if (!targets.has(id)) targets.set(id, i); });
   const sourceFragmentIssues = new Set<string>();
   const resolved = chunks.map((chunk, i) => {
-    const $ = load(chunk);
+    const $ = load(chunk,{},!fragmentMode);
     $('a[href^="#"]').each((_j, e) => {
       const href = $(e).attr('href')!;
       if (href === '#') return;
@@ -27,7 +27,7 @@ export function resolveEuNavigation(chunks: string[], names: string[], sourceUrl
         $(e).attr('href', new URL(href, sourceUrl).href);
       } else if (target !== i) $(e).attr('href', names[target] + href);
     });
-    return $('body').html() ?? '';
+    return fragmentMode?$.root().html()??'':$('body').html() ?? '';
   });
   validateEuNavigation(resolved, names);
   return { chunks: resolved, navigation: {sourceFragmentIssues: [...sourceFragmentIssues].sort()} };

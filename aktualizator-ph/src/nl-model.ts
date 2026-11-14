@@ -12,9 +12,12 @@ export interface NlModel {
   states: NlVersion[];
   sourceStates: {index: number; key: string; validFrom: string | null; validTo: string | null; visibleFrom?:string|null; visibleTo?:string|null; toestandUrl?:string}[];
   selectedArticles: string[];
+  retrievalScope?: 'full-act';
+  requestedArticles?: string[];
   missingArticles: string[];
   missingStructures: string[];
   integrity: TextIntegrity;
+  legalVersions?:import('./legal-structure.js').LegalDraft[];
 }
 
 // Explicit BWB interval boundaries are inclusive. This helper compares
@@ -71,9 +74,10 @@ function selectedArticles(
   };
 }
 
-function indexProvisions(snapshot:VersionSnapshot):Map<string,ParsedProvision> {
+function indexProvisions(snapshot:VersionSnapshot,full=false):Map<string,ParsedProvision> {
   const index=new Map<string,ParsedProvision>();
-  for(const provision of snapshot.statute.provisions)for(const key of [provision.article,provision.provisionRef]){
+  for(const provision of snapshot.statute.provisions)for(const key of full?[provision.provisionRef]:[provision.article,provision.provisionRef]){
+    if(full&&index.has(key))throw new Error('Ambiguous full-act provision identity: '+key);
     // Preserve the first match of the original ordered linear search, even
     // when an article ID collides with another provision's full reference.
     if(!index.has(key))index.set(key,provision);
@@ -81,7 +85,7 @@ function indexProvisions(snapshot:VersionSnapshot):Map<string,ParsedProvision> {
   return index;
 }
 
-function windowedSnapshots(snapshots: VersionSnapshot[]): Array<{
+function windowedSnapshots(snapshots: VersionSnapshot[],full=false): Array<{
   snapshot: VersionSnapshot;
   stateIndex: number;
   validFrom: string | null;
@@ -99,7 +103,7 @@ function windowedSnapshots(snapshots: VersionSnapshot[]): Array<{
     const validFrom = snapshot.version.validFrom;
     const validTo = snapshot.version.validTo === '9999-12-31' ? null : snapshot.version.validTo;
 
-    return { snapshot, validFrom, validTo, stateIndex: index,provisions:indexProvisions(snapshot) };
+    return { snapshot, validFrom, validTo, stateIndex: index,provisions:indexProvisions(snapshot,full) };
   });
 }
 
@@ -162,21 +166,29 @@ function buildStatesForArticle(
 }
 
 export function buildNlModel(act: ScopeAct, snapshots: VersionSnapshot[], rangeFrom: string, rangeTo: string): NlModel {
-  const windows = windowedSnapshots(snapshots);
+  const full=act.retrievalScope==='full-act';
+  const windows = windowedSnapshots(snapshots,full);
   const resolved = selectedArticles(act, snapshots);
-  const articles = resolved.articles.map(articleId => ({articleId,
+  const targets=full?[...new Set(snapshots.flatMap(s=>s.statute.provisions.map(p=>p.provisionRef)))].sort(compareArticles):resolved.articles;
+  const candidates = targets.map(articleId => ({articleId,
     versions: buildStatesForArticle(articleId, windows, rangeFrom, rangeTo).map(state =>
       ({...state, contentHash: fingerprintText(state.content).sha256})),
   }));
+  const articles=full?candidates.filter(a=>a.versions.length):candidates;
   const present = new Set(articles.filter(a => a.versions.length).map(a => a.articleId));
+  const selectionWindows=full?windowedSnapshots(snapshots):windows;
+  const required=[...new Set([...act.mustIncludeArticles,...resolved.articles])];
   const states = articles.flatMap(a => a.versions);
+  if(act.outputProfile==='legal-structure-v1'&&snapshots.some(s=>!s.legalDraft))throw new Error('Missing complete structured NL version.');
   return {act, rangeFrom, rangeTo, articles, states,
+    ...(act.outputProfile==='legal-structure-v1'?{legalVersions:windows.map(w=>w.snapshot.legalDraft!)}:{}),
     sourceStates: windows.map(({snapshot}, index) => ({index, key: snapshot.version.key,
       validFrom: snapshot.version.validFrom,
       ...(snapshot.version.visibleFrom!==undefined?{visibleFrom:snapshot.version.visibleFrom,visibleTo:snapshot.version.visibleTo,toestandUrl:snapshot.version.toestandUrl}:{}),
       validTo: snapshot.version.validTo === '9999-12-31' ? null : snapshot.version.validTo})),
-    selectedArticles: resolved.articles,
-    missingArticles: [...new Set([...act.mustIncludeArticles, ...resolved.articles].filter(id => !present.has(id)))],
+    selectedArticles: full?articles.map(a=>a.articleId):resolved.articles,
+    ...(full?{retrievalScope:'full-act' as const,requestedArticles:resolved.articles}:{}),
+    missingArticles: required.filter(id=>full?!buildStatesForArticle(id,selectionWindows,rangeFrom,rangeTo).length:!present.has(id)),
     missingStructures: resolved.missingStructures,
     integrity: fingerprintText(states.map(state => state.content).join('\n')),
   };
