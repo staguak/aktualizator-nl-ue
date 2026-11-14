@@ -33,6 +33,31 @@ test('a complete NL version retains preamble, chapter, articles, points, annex, 
   assert.equal(article.parentId,chapter.id);
   const articleFiles=new Set(manifest.units.filter(u=>u.kind==='article').map(u=>u.locations[0].file));assert.equal(articleFiles.size,1);
 });
+test('official JCI and CELEX references resolve to official portals and retain the exact original identifier',()=>{
+  const xml='<toestand bwb-id="BWBR0000001"><wetgeving><artikel nr="1"><al>'+
+    '<extref doc="jci1.3:c:BWBR0005289&amp;artikel=214" reeks="BWB">Other article</extref> '+
+    '<extref doc="31995L0046" reeks="Celex">Richtlijn 95/46/EG</extref></al></artikel></wetgeving></toestand>';
+  const draft=parseNlLegalStructure(xml,context),$=load(draft.chunks.map(p=>p.body).join(''));
+  const jci=$('a[data-source-doc]').filter((_,node)=>$(node).attr('data-source-doc')?.startsWith('jci')??false);
+  assert.equal(jci.attr('href'),'https://wetten.overheid.nl/jci1.3:c:BWBR0005289&artikel=214');
+  assert.equal(jci.attr('data-source-doc'),'jci1.3:c:BWBR0005289&artikel=214');
+  const celex=$('a[data-source-reeks="Celex"]');assert.equal(new URL(celex.attr('href')!).searchParams.get('uri'),'CELEX:31995L0046');
+  assert.equal(celex.attr('data-source-doc'),'31995L0046');
+  assert.throws(()=>parseNlLegalStructure(xml.replace('jci1.3:c:BWBR0005289&amp;artikel=214','javascript:alert(1)'),context),/protocol/);
+  assert.throws(()=>parseNlLegalStructure(xml.replace('31995L0046','javascript:alert(1)'),context),/protocol/);
+  const absolute=parseNlLegalStructure(xml.replace('31995L0046','https://eur-lex.europa.eu/example'),context);
+  assert(load(absolute.chunks.map(p=>p.body).join(''))('a[href="https://eur-lex.europa.eu/example"]').length);
+});
+test('official nested BWB illustrations resolve the declared filename beside the original XML',()=>{
+  const xml='<toestand bwb-id="BWBR0000001"><wetgeving><artikel nr="1"><al>Formula:</al><plaatje><illustratie id="270482" breedte="307" hoogte="56" formaat="png" naam="270482.png"/></plaatje></artikel></wetgeving></toestand>';
+  const c={...context,sourceUrl:'https://repository.officiele-overheidspublicaties.nl/bwb/BWBR0000001/2025-01-01_0/xml/state.xml'};
+  const draft=parseNlLegalStructure(xml,c),$=load(draft.chunks.map(p=>p.body).join(''));
+  assert.equal($('img').length,1);
+  assert.equal($('img').attr('src'),new URL('270482.png',c.sourceUrl).href);
+  assert.equal($('img').attr('width'),'307');assert.equal($('img').attr('height'),'56');
+  assert.equal($('img').attr('data-source-naam'),'270482.png');assert.equal($('img').attr('data-source-formaat'),'png');
+  assert.throws(()=>parseNlLegalStructure(xml.replace('naam="270482.png"',''),c),/image has no source/);
+});
 test('CALS explicit column positions and occupied row spans retain the original header association',()=>{
   const table='<table><tgroup cols="2"><colspec colname="c1"/><colspec colname="c2"/><thead><row><entry>Required</entry><entry>Forbidden</entry></row></thead><tbody>'+
     '<row><entry colname="c2">Substance X</entry></row><row><entry colname="c1" morerows="1">Shared</entry><entry colname="c2">Y</entry></row>'+

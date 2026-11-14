@@ -1,11 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {load} from 'cheerio';
+import fs from 'node:fs';
 import {parseEuLegalStructure} from './eu-legal-structure.js';
 import {parseEuHtml} from './eu-parser.js';
 import {indexLegalDocument,validateLegalDocument,legalHash,legalIndexRows} from './legal-structure.js';
 
 const context={corpus:'EU' as const,documentId:'32024R0001',version:'32024R0001',language:'EN',sourceUrl:'https://publications.europa.eu/example.xhtml',sourceSha256:'a'.repeat(64)};
+test('official Polish corrigenda and inflected act names retain their full text',()=>{
+  const html=fs.readFileSync(new URL('./fixtures/32024L1499R02-pol.xhtml',import.meta.url),'utf8');
+  const provenance=JSON.parse(fs.readFileSync(new URL('./fixtures/32024L1499R02-pol.provenance.json',import.meta.url),'utf8'));
+  assert.equal(legalHash(html),provenance.sha256);
+  const c={...context,documentId:provenance.celex,version:provenance.celex,language:'PL',sourceUrl:provenance.url,sourceSha256:provenance.sha256};
+  assert(parseEuHtml(html,c.sourceUrl,'corrigendum','PL',c).textLength>5000);
+  for(const title of ['dyrektywy','rozporządzenia','decyzji','Karty']){
+    const source=`<html lang="pl"><body><p>Sprostowanie do ${title}.</p><p>${'Strona 1: zamiast starego tekstu powinno być nowe pełne brzmienie. '.repeat(3)}</p></body></html>`;
+    assert(parseEuHtml(source,c.sourceUrl,'corrigendum','PL',{...c,sourceSha256:legalHash(source)}).textLength>100);
+  }
+  assert.throws(()=>parseEuHtml('<body><p>Sprostowanie.</p><p>'+ 'Zwykła strona bez tekstu aktu. '.repeat(10)+'</p></body>',c.sourceUrl,'corrigendum','PL',c),/not a legal document/);
+});
 test('successive annexes stay siblings, complete articles stay together in their chapter, and the version reconstructs exactly',()=>{
   const html='<html lang="en"><head><title>Regulation</title></head><body><p>Regulation title</p><p>Whereas:</p><p>(1) Recital.</p>'+
     '<p>CHAPTER I</p><p class="oj-ti-art">Article 1</p><p>First paragraph.</p><p class="oj-ti-art">Article 2</p><p>'+ 'Legal content. '.repeat(55000)+'</p>'+

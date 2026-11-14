@@ -11,7 +11,7 @@ const kinds:Record<string,LegalKind>={wetgeving:'version',boek:'book',deel:'part
 const tags:Record<string,string|null>={wetgeving:null,'wet-besluit':null,wettekst:null,boek:null,deel:null,titeldeel:null,hoofdstuk:null,afdeling:null,paragraaf:null,
   'sub-paragraaf':null,subparagraaf:null,artikel:null,lid:null,li:null,onderdeel:null,bijlage:null,aanhef:null,wetsluiting:null,'regeling-sluiting':null,
   kop:'h2',intitule:'h1',citeertitel:'p',al:'p',tussenkop:'h3',label:'span',nr:'span',titel:'span',lidnr:'span','li.nr':'span',
-  nadruk:'strong',intref:'a',extref:'a',plaatje:'img',img:'img',noot:'aside',voetnoot:'aside',nootref:'a',table:'table',tabel:'table',
+  nadruk:'strong',intref:'a',extref:'a',plaatje:'img',illustratie:'img',img:'img',noot:'aside',voetnoot:'aside',nootref:'a',table:'table',tabel:'table',
   tgroup:null,thead:'thead',tbody:'tbody',tfoot:'tfoot',row:'tr',tr:'tr',entry:'td',td:'td',th:'th',colspec:'col',col:'col',
   lijst:'div',definitielijst:'dl',definitie:'dd',term:'dt',br:'br',sup:'sup',sub:'sub',pre:'pre',code:'code',redactie:'span',
   math:'math',mrow:'mrow',mi:'mi',mo:'mo',mn:'mn',msub:'msub',msup:'msup',mfrac:'mfrac'};
@@ -21,7 +21,7 @@ function label(node:LegalSourceNode,kind:LegalKind){
   const number=node.attributes.nr??node.children.find(n=>['lidnr','li.nr'].includes(n.tag))?.children.map(nodeText).join('');
   return (kop?nodeText(kop):number??(['intitule','citeertitel','kop'].includes(node.tag)?nodeText(node):kind)).replace(/\s+/g,' ').trim();
 }
-export const nlLegalRules:LegalTreeRules={kind:n=>kinds[n.tag],label,tag:n=>Object.hasOwn(tags,n.tag)?tags[n.tag]:vectorTags.has(n.tag)?n.tag:'span',skip,
+export const nlLegalRules:LegalTreeRules={kind:n=>kinds[n.tag],label,tag:n=>n.tag==='plaatje'&&n.children.some(c=>c.tag==='illustratie')?'figure':Object.hasOwn(tags,n.tag)?tags[n.tag]:vectorTags.has(n.tag)?n.tag:'span',skip,
   block:new Set(['wetgeving','wet-besluit','wettekst','boek','deel','titeldeel','hoofdstuk','afdeling','paragraaf','sub-paragraaf','subparagraaf','artikel','lid','li','onderdeel','bijlage','aanhef','wetsluiting','regeling-sluiting','intitule','citeertitel','kop','al','tussenkop','row','tr','entry','td','th','br','noot','voetnoot']),
   groupKinds:new Set(['book','part','title','chapter','section','annex','preamble','closing']),atomicKinds:new Set(['article','annex','table'])};
 export function parseNlLegalStructure(xml:string,context:LegalContext,maxBytes?:number):LegalDraft{
