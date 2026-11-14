@@ -20,7 +20,10 @@ na całe wybrane akty i dokumenty formalnie powiązanych spraw, zachowując sele
 jako kryteria wyboru i kontroli. `outputProfile: legal-structure-v1` włącza podział
 według struktury prawnej, osobne wersje i manifest rekonstrukcji. Starsza konfiguracja
 bez tych pól zachowuje starszą ścieżkę. Limit 95 MB jest technicznym zabezpieczeniem
-Markdown; nie wyznacza granic artykułów ani celu liczby znaków.
+Markdown i pojedynczych plików indeksów; nie wyznacza granic artykułów ani celu liczby znaków.
+Pełne indeksy wersji są przechowywane w `LEGAL_<SHA-256>.json`; `manifest.json`
+z profilem `legal-document-files-v1` zawiera odwołania z rozmiarem, SHA-256 i
+tożsamością aktu/wersji/języka. Nie zmienia to logicznych identyfikatorów jednostek.
 `mustIncludeArticles` wymusza obecność wskazanych artykułów; nie wyłączaj tej
 kontroli, aby ukryć brak źródła. Zmiana konfiguracji istniejącego korpusu podlega
 kontroli zgodności dziennika; przy innym korpusie wybierz nowy namespace.

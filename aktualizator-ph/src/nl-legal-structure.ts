@@ -33,7 +33,8 @@ export function parseNlLegalStructure(xml:string,context:LegalContext,maxBytes?:
     const kop=node.children.find(n=>n.tag==='kop'),number=node.attributes.nr??kop?.children.find(n=>n.tag==='nr')?.children.map(nodeText).join('');
     if(node.tag==='boek'&&number&&/^\d+$/.test(number))book=number;
     if(node.tag==='artikel'){
-      const ref=number??(/^ee?nig artikel$/i.test(kop?.children.find(n=>n.tag==='label')?.children.map(nodeText).join('')??'')?'enig':undefined);
+      const text=(kop?.children.find(n=>n.tag==='label')?.children.map(nodeText).join('')??'').trim();
+      const ref=number??(/^ee?nig artikel$/i.test(text)?'enig':/^artikel\s+(\d+(?:[.:]\d+)*[a-z]*|[ivxlcdm]+[a-z]?)$/i.exec(text)?.[1]);
       if(ref)node.reference=book?book+':'+ref:ref;
     }
     node.children.forEach(child=>references(child,book));

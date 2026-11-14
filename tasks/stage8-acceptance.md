@@ -24,3 +24,17 @@ Potwierdzone przyczyny i poprawki:
 Niezależny przegląd wykrył dodatkowe osłabienie odrzucania protokołów przy budowaniu adresu CELEX. Poprawkę ograniczono do samych identyfikatorów: `javascript:` pozostaje odrzucany, a istniejące adresy HTTPS pozostają niezmienione. Dodatkowy test odtworzył błąd przed poprawką i przeszedł po niej.
 
 To nie jest jeszcze pozytywny odbiór końcowy. Pozostają: wymagany CI, drugi pełny test publiczny oraz kontrola opublikowanych paczek/indeksu i raport końcowy. Każdy kolejny rzeczywisty błąd musi być wyjaśniony i naprawiony przed uznaniem etapu za ukończony.
+
+## Drugi pełny przebieg i poprawki końcowej struktury
+
+Run [43589320324](https://github.com/staguak/aktualizator-nl-ue/actions/runs/43589320324) na `8a0798d25782422af27a2ca763dd785b91c40bf1` potwierdził pobranie wszystkich 65 pozycji UE, ale zakończył się błędami struktury na późniejszym etapie. Zachowano poprzednią poprawną bazę, runtime FAILED o rozmiarze 252 029 697 bajtów, cztery ukończone akty NL i wszystkie 65 UE.
+
+Odtworzenie z oryginalnych źródeł i checkpointu wykazało:
+
+- NL `BWBR0007671`: ta sama naturalna sekcja może powrócić po grupie zagnieżdżonej. Dotychczasowy klucz fizycznej części był powtarzany. Dodano liczniki segmentów danej sekcji i kontynuacji technicznych; logiczne ID, kolejność i treść pozostają zachowane. Rzeczywisty akt po poprawce: 228 części, PASS.
+- UE `01997L0081-19980525`: serializacja HTML przez parser przenosiła kotwicę sprzed komórki tabeli poza zakres jej jednostki. Nawigacja profilu strukturalnego zmienia teraz wyłącznie konkretne atrybuty `href` według zweryfikowanych zakresów źródłowych, bez ponownej serializacji dokumentu. Test bajtów i manifestu oryginalnego XHTML odtworzył błąd przed poprawką i przeszedł po niej. Finalizacja całego checkpointu 65 UE po poprawce: 1358 plików, PASS.
+- Pomiar 68 kompletnych indeksów wersji NL dał 173 377 874 bajty nawet w zapisie kompaktowym, bez reszty manifestu. Metadane wersji zapisujemy więc w osobnych `LEGAL_<SHA-256>.json`, bez zmiany logicznego modelu. Główny manifest przechowuje wersjonowane odwołania z tożsamością, rozmiarem i SHA-256; czytnik weryfikuje i odtwarza cały model. Audyt Python, obrazki i kompletne paczki uwzględniają te pliki. Odczyt starszych manifestów z osadzonymi jednostkami pozostaje obsługiwany. Pliki pochodne mają limit 95 MB; oryginały RDF/XML nadal nie otrzymują arbitralnego limitu.
+
+Niezależny przegląd poprawek magazynowania indeksów, nawigacji i nazw części nie wykazał dalszych usterek. Testy integracyjne obejmują NL i UE, niezmienność Markdown, rekonstrukcję modelu, brakujący plik i podmieniony język/SHA oraz niedozwolone ścieżki/profil. Trwa odbiór pełnych zestawów i końcowy publiczny test.
+
+Pełne lokalne renderowanie wszystkich 23 NL ujawniło dodatkową różnicę źródłową: 221 wystąpień uchylonych artykułów w trzech aktach ma numer tylko w jawnej etykiecie `kop/label` (np. „Artikel 5.6:7” lub „Artikel 320b”), bez `nr` i `kop/nr`. Parser, indeks strukturalny i niezależny walidator otrzymały odczyt tego dokładnego oznaczenia; brak oznaczenia nadal zatrzymuje przyjęcie. Regresja sprawdza obecność wszystkich artykułów w modelu, indeksie i pokryciu źródłowym oraz odrzucenie nieznanej etykiety. Przegląd tej poprawki nie wykazał dalszych usterek.

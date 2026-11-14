@@ -150,6 +150,9 @@ function articleNumber(view: ElementView): string {
   const label = kop ? firstDirectText(kop.children, 'label') : '';
   if (/^ee?nig artikel$/i.test(label)) return 'enig';
 
+  const labelled = /^artikel\s+(\d+(?:[.:]\d+)*[a-z]*|[ivxlcdm]+[a-z]?)$/i.exec(label.trim());
+  if (labelled) return labelled[1];
+
   return '';
 }
 

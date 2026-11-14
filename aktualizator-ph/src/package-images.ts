@@ -1,3 +1,4 @@
+import {writeCorpusManifest} from './legal-manifest-files.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import {buildLegalImagePackage,IMAGE_INDEX,legalDocuments} from './legal-images.js';
@@ -30,7 +31,7 @@ export async function finalizePackageImages(dir:string,acts:ExpectedAct[],loader
   fs.writeFileSync(path.join(dir,IMAGE_INDEX),indexBytes,{flag:'wx'});
   manifest.imagePackage={profile:'legal-images-v1',index:fileMetadata(IMAGE_INDEX,indexBytes),assets:[...result.assets].map(([name,bytes])=>fileMetadata(name,bytes))};
   const jurisdiction=manifest.jurisdiction;
-  fs.writeFileSync(path.join(dir,'manifest.json'),stableJson(manifest));
+  writeCorpusManifest(dir,manifest);
   fs.writeFileSync(path.join(dir,'INDEX.md'),jurisdiction==='NL'?nlIndex(manifest):euIndex(manifest));
   completeBuiltOutput(dir,acts,r=>jurisdiction==='NL'?nlReport(manifest,null,r):euReport(manifest,null,r));
   for(const [name,file]of before.files)if(!['manifest.json','INDEX.md','REPORT.md'].includes(name)){

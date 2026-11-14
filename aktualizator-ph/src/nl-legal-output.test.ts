@@ -14,6 +14,8 @@ import {readNlCheckpointFiles} from './nl-checkpoint.js';
 import {stableJson,fileMetadata} from './output.js';
 import {extractLegalBody,indexLegalDocument,legalHash} from './legal-structure.js';
 import type {ScopeAct,VersionSnapshot,VersionRecord} from './types.js';
+import {writeCorpusManifest} from './legal-manifest-files.js';
+import {validateOutput} from './publication-validation.js';
 import {finalizePackageImages} from './package-images.js';
 
 function fixture(t:import('node:test').TestContext){
@@ -69,4 +71,21 @@ test('updating all generated hashes cannot hide a lost annex from the original-s
   const names=document.parts.map(p=>p.file),bodies=names.map(n=>extractLegalBody(fs.readFileSync(path.join(f.checkpoint,n),'utf8')));
   f.act.legalDocuments![0]=indexLegalDocument({...draft,sourceFragmentIssues:document.sourceFragmentIssues},names,bodies);
   assert.throws(()=>readNlCheckpointFiles(f.checkpoint,[f.act],{schemaVersion:2,source:{title:'Test',derivedAt:'2026-11-14'},acts:[f.scope]}),/original source|original/);
+});
+
+test('physical legal indexes keep version manifests separate without changing legal Markdown or source verification',async t=>{
+  const f=fixture(t),originals=new Map(f.act.files.map(r=>[r.name,fs.readFileSync(path.join(f.directory,r.name))]));
+  writeCorpusManifest(f.directory,f.manifest);
+  const disk=JSON.parse(fs.readFileSync(path.join(f.directory,'manifest.json'),'utf8'));
+  assert.equal(disk.legalDocumentStorage,'legal-document-files-v1');
+  const refs=disk.acts[0].legalDocuments;assert.equal(refs.length,2);
+  assert(refs.every((r:any)=>r.profile==='legal-document-reference-v1'&&r.size<95_000_000&&!r.units));
+  completeBuiltOutput(f.directory,[f.scope],r=>nlReport(f.manifest,null,r));
+  await finalizePackageImages(f.directory,[f.scope]);
+  assert(validateOutput(f.directory,[f.scope]).some(r=>r.name===refs[0].file));
+  for(const [name,bytes] of originals)assert.deepEqual(fs.readFileSync(path.join(f.directory,name)),bytes);
+  const target=path.join(f.directory,refs[0].file),bytes=fs.readFileSync(target);
+  fs.writeFileSync(target,Buffer.from(bytes.toString().replace('"language":"NL"','"language":"PL"')));
+  assert.throws(()=>validateOutput(f.directory,[f.scope]));
+  fs.writeFileSync(target,bytes);fs.unlinkSync(target);assert.throws(()=>validateOutput(f.directory,[f.scope]));
 });

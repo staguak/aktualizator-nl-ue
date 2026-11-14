@@ -38,11 +38,13 @@ export function planLegalChunks(body:string,groups:{start:number;key:string}[],s
   if(!body||!Number.isSafeInteger(maxBytes)||maxBytes<1||!groups.length||groups[0].start!==0||
     groups.some((g,i)=>!g.key||!Number.isInteger(g.start)||g.start<0||g.start>=body.length||i>0&&g.start<=groups[i-1].start))throw new Error('Invalid legal grouping.');
   const breaks=[...new Set(safeBreaks)].filter(n=>Number.isInteger(n)&&n>0&&n<body.length).sort((a,b)=>a-b);
-  const result:LegalChunk[]=[];
+  const result:LegalChunk[]=[],occurrences=new Map<string,number>();
   groups.forEach((group,index)=>{
+    const occurrence=(occurrences.get(group.key)??0)+1;occurrences.set(group.key,occurrence);
+    const key=occurrence===1?group.key:group.key+':segment:'+occurrence;
     const end=groups[index+1]?.start??body.length,text=body.slice(group.start,end);
-    if(Buffer.byteLength(text)<=maxBytes){result.push({key:group.key,body:text,technicalSplit:false});return;}
-    let start=group.start;
+    if(Buffer.byteLength(text)<=maxBytes){result.push({key,body:text,technicalSplit:false});return;}
+    let start=group.start,continuation=0;
     while(start<end){
       let cut=end;
       if(Buffer.byteLength(body.slice(start,end))>maxBytes){
@@ -54,7 +56,7 @@ export function planLegalChunks(body:string,groups:{start:number;key:string}[],s
         }
         if(cut===start)throw new Error('No safe internal legal boundary within the technical file limit.');
       }
-      result.push({key:group.key+':continuation:'+legalHash(body.slice(start,cut)).slice(0,24),body:body.slice(start,cut),technicalSplit:true});start=cut;
+      result.push({key:key+':continuation:'+(++continuation)+':'+legalHash(body.slice(start,cut)).slice(0,24),body:body.slice(start,cut),technicalSplit:true});start=cut;
     }
   });
   if(result.map(p=>p.body).join('')!==body)throw new Error('Legal partition lost content.');

@@ -8,6 +8,7 @@ import type {ScopeAct,VersionSnapshot} from './types.js';
 import type {EuAct} from './eu-provider.js';
 import {assertFullNlSourceCoverage} from './nl-retrieval-scope.js';
 import {nlActManifest} from './nl-output.js';
+import {parseNlLegalStructure} from './nl-legal-structure.js';
 import {parseBwbXml} from './bwb-parser.js';
 
 const act:ScopeAct & {retrievalScope:'full-act'}={order:1,title:'Whole act',bwbId:'BWBR0000001',
@@ -65,4 +66,18 @@ test('a configured EU operative-part hit becomes a full document while retaining
   });
   assert.equal(result.find(d=>d.celex==='62023CJ0019')?.include,'full-document');
   assert.equal((result.find(d=>d.celex==='62023CJ0019') as any)?.selectionInclude,'operative-part');
+});
+
+test('full NL coverage retains explicitly labelled repealed articles without a separate nr field',()=>{
+  const xml=`<toestand bwb-id="${act.bwbId}"><wetgeving><artikel nr="1"><al>Current article.</al></artikel>`+
+    '<artikel status="vervallen"><kop><label>Artikel 5.6:7</label></kop><al><redactie type="vervanging">Vervallen</redactie></al></artikel>'+
+    '<artikel status="vervallen"><kop><label>Artikel 320b</label></kop><al>Vervallen</al></artikel></wetgeving></toestand>';
+  const source=snapshot('new','2025-01-01',null,[]);source.statute=parseBwbXml(xml);
+  const configured={...act,include:{articles:['1']}},model=buildNlModel(configured,[source],'2025-01-01','2026-11-13');
+  assert.deepEqual(model.selectedArticles,['1','5.6:7','320b']);
+  const manifest=nlActManifest(renderNlModel(model),1),index={entries:[{name:'state.xml',kind:'BWB-Toestand',metadata:{version:source.version}}]};
+  assertFullNlSourceCoverage(manifest,index,{'state.xml':Buffer.from(xml)},'2025-01-01','2026-11-13');
+  const draft=parseNlLegalStructure(xml,{corpus:'NL',documentId:act.bwbId,version:'new',language:'NL',sourceUrl:source.version.toestandUrl,sourceSha256:'a'.repeat(64)});
+  assert.deepEqual(draft.units.filter(u=>u.kind==='article').map(u=>u.reference),['1','5.6:7','320b']);
+  assert.throws(()=>assertFullNlSourceCoverage(manifest,index,{'state.xml':Buffer.from(xml.replace('Artikel 320b','Unknown article'))},'2025-01-01','2026-11-13'),/Unidentified/);
 });
