@@ -7,9 +7,9 @@ import {indexLegalDocument,validateLegalDocument,legalHash,legalIndexRows} from 
 
 const context={corpus:'EU' as const,documentId:'32024R0001',version:'32024R0001',language:'EN',sourceUrl:'https://publications.europa.eu/example.xhtml',sourceSha256:'a'.repeat(64)};
 test('successive annexes stay siblings, complete articles stay together in their chapter, and the version reconstructs exactly',()=>{
-  const html='<html lang="en"><head><title>Regulation</title></head><body><p>Regulation title</p><p>Whereas:</p><p>(1) Recital.</p>'+ 
-    '<p>CHAPTER I</p><p class="oj-ti-art">Article 1</p><p>First paragraph.</p><p class="oj-ti-art">Article 2</p><p>'+ 'Legal content. '.repeat(55000)+'</p>'+ 
-    '<p>ANNEX I</p><p>First annex.</p><table><tr><td rowspan="2">Table.</td><td>A</td></tr><tr><td>B</td></tr></table>'+ 
+  const html='<html lang="en"><head><title>Regulation</title></head><body><p>Regulation title</p><p>Whereas:</p><p>(1) Recital.</p>'+
+    '<p>CHAPTER I</p><p class="oj-ti-art">Article 1</p><p>First paragraph.</p><p class="oj-ti-art">Article 2</p><p>'+ 'Legal content. '.repeat(55000)+'</p>'+
+    '<p>ANNEX I</p><p>First annex.</p><table><tr><td rowspan="2">Table.</td><td>A</td></tr><tr><td>B</td></tr></table>'+
     '<p>ANNEX II</p><p>Second annex.</p><p>ANNEX III</p><p>Third annex.</p></body></html>';
   const draft=parseEuLegalStructure(html,{...context,sourceSha256:legalHash(html)}),annexes=draft.units.filter(u=>u.kind==='annex');
   assert.equal(annexes.length,3);assert(annexes.every(u=>u.parentId===draft.units[0].id));
@@ -29,7 +29,7 @@ test('CSS whitespace selectors retain their containing elements and original pre
   }
 });
 test('older court numbered paragraphs are primary indexed units alongside modern table paragraphs',()=>{
-  const html='<body><p class="C01Pointnumerote"><a name="point1">1</a> First full court paragraph.</p>'+ 
+  const html='<body><p class="C01Pointnumerote"><a name="point1">1</a> First full court paragraph.</p>'+
     '<p class="C01Pointnumerote"><a name="point2">2</a> Second full court paragraph.</p></body>';
   const draft=parseEuLegalStructure(html,{...context,documentId:'62023CJ0019',version:'62023CJ0019'});
   assert.deepEqual(draft.units.filter(u=>u.reference).map(u=>u.reference),['1','2']);
@@ -41,13 +41,13 @@ test('ordered lists retain source numbering instead of silently renumbering lega
   assert.equal($('ol').attr('type'),'a');assert.equal($('ol').attr('start'),'3');assert($('ol').is('[reversed]'));assert.equal($('li').first().attr('value'),'5');
 });
 test('ELI article title and paragraph IDs do not create duplicate articles',()=>{
-  const html='<body><div class="eli-subdivision" id="art_1"><p>Artikel 1</p><div class="eli-title" id="art_1.tit_1"><p>Purpose</p></div><div id="art_1.par_1"><p>1. Full paragraph.</p></div></div>'+ 
+  const html='<body><div class="eli-subdivision" id="art_1"><p>Artikel 1</p><div class="eli-title" id="art_1.tit_1"><p>Purpose</p></div><div id="art_1.par_1"><p>1. Full paragraph.</p></div></div>'+
     '<div class="eli-subdivision" id="art_2"><p>Artikel 2</p><p>Other full article.</p></div></body>';
   const draft=parseEuLegalStructure(html,{...context,language:'NL'});
   assert.deepEqual(draft.units.filter(u=>u.kind==='article').map(u=>u.reference),['1','2']);
 });
 test('numbered court paragraphs include their whole table and quoted recitals do not become a case preamble',()=>{
-  const html='<body><p>Judgment</p><table><tr><td><p class="coj-count" id="point1">1.</p></td><td><p>First complete court paragraph.</p><p>(1) Quoted recital.</p></td></tr></table>'+ 
+  const html='<body><p>Judgment</p><table><tr><td><p class="coj-count" id="point1">1.</p></td><td><p>First complete court paragraph.</p><p>(1) Quoted recital.</p></td></tr></table>'+
     '<table><tr><td><p class="coj-count" id="point2">2.</p></td><td><p>Second complete court paragraph.</p></td></tr></table></body>';
   const draft=parseEuLegalStructure(html,{...context,documentId:'62023CJ0019',version:'62023CJ0019'});
   const points=draft.units.filter(u=>u.reference);assert.deepEqual(points.map(p=>p.reference),['1','2']);

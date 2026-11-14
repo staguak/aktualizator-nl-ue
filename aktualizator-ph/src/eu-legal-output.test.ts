@@ -21,8 +21,8 @@ function fixture(t:import('node:test').TestContext){
   const bodies=new Map<string,string>(),archive=new OfficialSources('EU',scope.celex,{from:'2024-01-01',to:'2026-11-14',observedOn:'2026-11-14'});
   const act:EuBuiltAct={order:1,title:scope.title,celex:scope.celex,documents:[],files:[],excludedDocuments:[]};
   for(const [i,celex] of ['32024R0001','02024R0001-20250101'].entries()){
-    const html='<html lang="en"><head><style>.preserved {white-space:pre-wrap}</style></head><body><p>Regulation</p><p>CHAPTER I</p>'+ 
-      '<p id="art1" class="oj-ti-art">Article 1</p><p class="preserved">  '+ 'Legal text. '.repeat(70)+'  </p><a href="#annex">See annex</a>'+ 
+    const html='<html lang="en"><head><style>.preserved {white-space:pre-wrap}</style></head><body><p>Regulation</p><p>CHAPTER I</p>'+
+      '<p id="art1" class="oj-ti-art">Article 1</p><p class="preserved">  '+ 'Legal text. '.repeat(70)+'  </p><a href="#annex">See annex</a>'+
       '<p id="annex">ANNEX I</p><table><tr><td>All annex content.</td></tr></table></body></html>';
     const url='https://publications.europa.eu/'+celex+'.xhtml',sourceSha256=hash(html);
     const parsed=parseEuHtml(html,url,'full-document','EN',{corpus:'EU',documentId:celex,version:celex,language:'EN',sourceUrl:url,sourceSha256});

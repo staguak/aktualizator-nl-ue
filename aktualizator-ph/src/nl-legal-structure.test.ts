@@ -34,8 +34,8 @@ test('a complete NL version retains preamble, chapter, articles, points, annex, 
   const articleFiles=new Set(manifest.units.filter(u=>u.kind==='article').map(u=>u.locations[0].file));assert.equal(articleFiles.size,1);
 });
 test('CALS explicit column positions and occupied row spans retain the original header association',()=>{
-  const table='<table><tgroup cols="2"><colspec colname="c1"/><colspec colname="c2"/><thead><row><entry>Required</entry><entry>Forbidden</entry></row></thead><tbody>'+ 
-    '<row><entry colname="c2">Substance X</entry></row><row><entry colname="c1" morerows="1">Shared</entry><entry colname="c2">Y</entry></row>'+ 
+  const table='<table><tgroup cols="2"><colspec colname="c1"/><colspec colname="c2"/><thead><row><entry>Required</entry><entry>Forbidden</entry></row></thead><tbody>'+
+    '<row><entry colname="c2">Substance X</entry></row><row><entry colname="c1" morerows="1">Shared</entry><entry colname="c2">Y</entry></row>'+
     '<row><entry colname="c2">Z</entry></row></tbody></tgroup></table>';
   const xml=`<toestand bwb-id="BWBR0000001"><wetgeving><bijlage>${table}</bijlage></wetgeving></toestand>`;
   const draft=parseNlLegalStructure(xml,context),$=load(draft.chunks.map(p=>p.body).join('')),rows=$('tbody tr');
