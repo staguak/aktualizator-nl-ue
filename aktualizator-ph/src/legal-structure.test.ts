@@ -46,3 +46,9 @@ test('missing, duplicated, reordered or misattributed units and altered ranges a
   const badRange=structuredClone(manifest);badRange.units[1].start++;
   assert.throws(()=>validateLegalDocument(badRange,()=>body),/index differs/);
 });
+
+test('a natural legal container revisited after a nested group receives distinct physical segment identities',()=>{
+  const chunks=planLegalChunks('firstnestedlast',[{start:0,key:'chapter-one'},{start:5,key:'annex'},{start:11,key:'chapter-one'}],[]);
+  assert.equal(chunks.map(c=>c.body).join(''),'firstnestedlast');
+  assert.equal(new Set(chunks.map(c=>legalPartName('NL_version',c))).size,3);
+});

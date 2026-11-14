@@ -1,3 +1,4 @@
+import {writeCorpusManifest} from './legal-manifest-files.js';
 import * as fs from 'node:fs';
 import {operationMetrics,registerProcessMetrics} from './operation-metrics.js';
 import * as path from 'node:path';
@@ -16,7 +17,7 @@ import {incrementalNlModel} from './incremental-model.js';
 import {registerIncrementalPlan} from './incremental-plan.js';
 import { nlActManifest, nlIndex, nlReport } from './nl-output.js';
 import type { NlActManifest } from './nl-output.js';
-import { stableJson, readPreviousManifest } from './output.js';
+import { readPreviousManifest } from './output.js';
 import { writeControlFile } from './final-file.js';
 import {safeFailureMessage} from './drive-retry.js';
 import {readNlCheckpointFiles,installCheckpointFiles} from './nl-checkpoint.js';
@@ -312,7 +313,7 @@ async function main(): Promise<void> {
   setErrorPhase('OUTPUT_WRITE');
   Object.assign(manifest.officialSources,xmlValidationSummary()?{xmlValidation:xmlValidationSummary()}:{});
   writeControlFile(OUTPUT_DIR,'NL','INDEX.md',nlIndex(manifest));
-  writeControlFile(OUTPUT_DIR,'NL','manifest.json',stableJson(manifest));
+  writeCorpusManifest(OUTPUT_DIR,manifest);
   setErrorPhase('OUTPUT_VALIDATION');
   completeBuiltOutput(OUTPUT_DIR,config.acts,result=>nlReport(manifest,previous,result));
   console.log(`NL COMPLETE: ${manifest.acts.length} acts, ${fs.readdirSync(OUTPUT_DIR).length} final files.`);

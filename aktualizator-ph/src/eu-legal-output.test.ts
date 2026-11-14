@@ -6,11 +6,12 @@ import path from 'node:path';
 import {parseEuHtml} from './eu-parser.js';
 import {finalizeEu,euIndex,euReport} from './eu-output.js';
 import {OfficialSources} from './official-sources.js';
-import {hash,stableJson} from './output.js';
+import {hash} from './output.js';
 import {completeBuiltOutput} from './publication-validation.js';
 import {extractLegalBody,validateLegalDocument} from './legal-structure.js';
 import {readEuCheckpointFiles} from './eu-checkpoint.js';
 import {htmlIntegrity} from './content-integrity.js';
+import {writeCorpusManifest} from './legal-manifest-files.js';
 import {finalizePackageImages} from './package-images.js';
 import type {EuBuiltAct} from './eu-model.js';
 import type {EuAct} from './eu-provider.js';
@@ -45,7 +46,7 @@ test('EU finalization preserves structural manifests through navigation, canonic
   const documents=final.acts[0].documents;
   assert.notEqual(documents[0].legalStructure!.units[0].id,documents[1].legalStructure!.units[0].id);
   for(const doc of documents){const result=validateLegalDocument(doc.legalStructure!,name=>extractLegalBody(final.outputs.get(name)!));assert(result.includes('  Legal text. '));}
-  fs.writeFileSync(path.join(f.dir,'manifest.json'),stableJson(manifest));fs.writeFileSync(path.join(f.dir,'INDEX.md'),euIndex(manifest));
+  writeCorpusManifest(f.dir,manifest);fs.writeFileSync(path.join(f.dir,'INDEX.md'),euIndex(manifest));
   completeBuiltOutput(f.dir,[f.scope],r=>euReport(manifest,null,r));
   assert.match(fs.readFileSync(path.join(f.dir,'REPORT.md'),'utf8'),/Walidacja: PASS/);
   await finalizePackageImages(f.dir,[f.scope]);

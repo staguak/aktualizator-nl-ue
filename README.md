@@ -93,6 +93,13 @@ Zbyt dużą jednostkę można dzielić tylko przy bezpiecznej granicy jej strukt
 Surowy RDF/XML nie ma programowego limitu wielkości. Pojedynczy zasób Releases
 musi mieścić się w limicie GitHub (poniżej 2 GiB); przekroczenie blokuje publikację.
 
+Maszynowy `manifest.json` wskazuje osobne indeksy poszczególnych wersji
+`LEGAL_<SHA-256>.json`. Każde odwołanie podaje akt, wersję, język, rozmiar i hash.
+Indeksy zawierają pełną hierarchię jednostek oraz zakresy rekonstrukcji; znajdują
+się w paczce wynikowej. Ten podział techniczny metadanych nie zmienia granic
+prawnych ani treści Markdown. Starsze manifesty z osadzonymi indeksami nadal
+można odczytywać.
+
 `IMAGE_INDEX.json` wiąże każde wystąpienie grafiki z jednostką i źródłem.
 Base64 pozostaje w zweryfikowanym Markdown, a obok zapisywane są oryginalne
 bajty obrazu w rozpoznanym formacie; program nie konwertuje wszystkiego do JPEG.

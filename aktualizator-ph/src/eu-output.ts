@@ -34,7 +34,7 @@ export function finalizeEu(acts: EuBuiltAct[], readBody:(name:string)=>string) {
   return {acts:model.acts,outputs,files,normalization:{...model.normalization,afterBytes,savedBytes:model.normalization.beforeBytes-afterBytes}};
 }
 export function euIndex(m:any):string {
-  return normalizeOutput(['# Aktualizator UE — indeks','',`Zakres: ${m.rangeFrom} – ${m.rangeTo}; język ${m.language??'NL'}.`,'',
+  return normalizeOutput(['# Aktualizator UE — indeks','',`Zakres: ${m.rangeFrom} – ${m.rangeTo}; język ${m.language??'NL'}.`,'','[Maszynowy indeks wersji i jednostek](manifest.json).','',
     ...m.acts.flatMap((a:any)=>[`## ${a.order}. ${a.title}`,'',...(a.documents??[]).flatMap((d:any)=>d.legalStructure?[`### ${d.celex} · ${d.language}`,...legalIndexRows(d.legalStructure),'']:[]),...a.files.map((f:any)=>`- [${f.celex}, część ${f.part}](${f.name})${f.kind==='reference'?` → [treść](${f.canonicalFile})`:''}`),...(a.sourceArchive?[`- [Oryginalne źródła CELLAR](${a.sourceArchive.distribution?.bundle??a.sourceArchive.name}) — ${a.sourceArchive.entryCount} zasobów; MD5 ${a.sourceArchive.md5}.${a.sourceArchive.distribution?' Katalog: '+a.sourceArchive.distribution.prefix+'.':''}`]:[]),'']),...imageIndexRows(m)].join('\n'));
 }
 export function euReport(m:any,previous:any,validation: ValidationResult = pendingValidation()):string {

@@ -1,3 +1,4 @@
+import {writeCorpusManifest} from './legal-manifest-files.js';
 import type {EuLanguage} from './eu-language.js';
 import * as fs from 'node:fs';
 import {operationMetrics,registerProcessMetrics} from './operation-metrics.js';
@@ -5,7 +6,7 @@ import * as path from 'node:path';
 import { createHash,randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { finalizeEu, euIndex, euReport } from './eu-output.js';
-import { stableJson, readPreviousManifest } from './output.js';
+import { readPreviousManifest } from './output.js';
 import { writeControlFile } from './final-file.js';
 import { OfficialSources, sourceArchiveName } from './official-sources.js';
 import type { SourceArchive } from './official-sources.js';
@@ -197,7 +198,7 @@ async function main(): Promise<void> {
   const manifest={schemaVersion:2,validationVersion:2,jurisdiction:'EU',generatedAt:process.env.LAW_GENERATED_AT ?? new Date().toISOString(),
     rangeFrom,rangeTo,language:'EN',languagePreference:['EN','PL','NL','FR'],officialSources:{schemaVersion:1,model:'CELLAR',observedOn,originalBytes:true,view:'Markdown',...xmlValidationSummary()?{xmlValidation:xmlValidationSummary()}:{}},source:config.source,policy:config.policy,configSha256:digest(raw),normalization:final.normalization,acts:final.acts};
   writeControlFile(OUTPUT,'EU','INDEX.md',euIndex(manifest));
-  writeControlFile(OUTPUT,'EU','manifest.json',stableJson(manifest));
+  writeCorpusManifest(OUTPUT,manifest);
   setErrorPhase('OUTPUT_VALIDATION');
   const files=completeBuiltOutput(OUTPUT,config.acts,result=>euReport(manifest,previous,result));
   console.log(`EU COMPLETE: ${completed.length} entries, ${files.length} final files, ${final.normalization.referenceCount} UE-REF.`);

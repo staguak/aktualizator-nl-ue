@@ -36,7 +36,7 @@ export function nlActManifest(rendered: RenderResult, discoveredVersions: number
     files: rendered.chunks.map(c => ({...publishedMetadata(c.file), articles:c.articles, articleCount:c.articleCount})), integrity:rendered.integrity};
 }
 export function nlIndex(manifest: {rangeFrom: string; rangeTo: string; acts: NlActManifest[];imagePackage?:unknown}): string {
-  return normalizeOutput(['# Aktualizator NL — indeks','',`Zakres: ${manifest.rangeFrom} – ${manifest.rangeTo}`,'',
+  return normalizeOutput(['# Aktualizator NL — indeks','',`Zakres: ${manifest.rangeFrom} – ${manifest.rangeTo}`,'','[Maszynowy indeks wersji i jednostek](manifest.json).','',
     ...manifest.acts.flatMap(a => [`## ${a.order}. ${a.title}`,'',`Artykuły: ${a.selectedArticles.join(', ')}.`,'',
       ...(a.legalDocuments?a.legalDocuments.flatMap(doc=>[`### Wersja ${doc.version}`,'',...legalIndexRows(doc),...doc.parts.map(p=>`- [Część strukturalna ${p.sequence}](${p.file})`),'']):a.files.map(f => `- [${f.name}](${f.name}) — art. ${f.articles.join(', ')}`)),
       ...(a.sourceArchive?[`- [Oryginalne źródła BWB](${a.sourceArchive.distribution?.bundle??a.sourceArchive.name}) — ${a.sourceArchive.entryCount} zasobów; MD5 ${a.sourceArchive.md5}.${a.sourceArchive.distribution?' Katalog: '+a.sourceArchive.distribution.prefix+'.':''}`]:[]),'']),...imageIndexRows(manifest)].join('\n'));

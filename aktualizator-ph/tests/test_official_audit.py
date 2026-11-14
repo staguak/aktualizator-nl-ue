@@ -53,3 +53,18 @@ class OfficialAudit(unittest.TestCase):
             manifest['acts'][0]['documents'][0]['language']='FR'
             (directory/'manifest.json').write_text(json.dumps(manifest))
             with self.assertRaises((AssertionError,KeyError)):audit.audit(directory,'EU')
+
+    def test_external_legal_version_indexes_are_audited_and_tampering_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=Path(tmp);self.fixture(directory,'PL')
+            manifest=json.loads((directory/'manifest.json').read_bytes())
+            doc=manifest['acts'][0]['documents'][0]
+            logical=dict(profile='legal-structure-v1',corpus='EU',documentId=doc['celex'],version=doc['celex'],language='PL',sourceSha256=doc['sourceSha256'])
+            raw=json.dumps(logical).encode();sha=hashlib.sha256(raw).hexdigest();name='LEGAL_'+sha+'.json'
+            (directory/name).write_bytes(raw)
+            doc['legalStructure']=dict(profile='legal-document-reference-v1',file=name,size=len(raw),sha256=sha,**{k:logical[k] for k in ['corpus','documentId','version','language','sourceSha256']})
+            manifest['legalDocumentStorage']='legal-document-files-v1'
+            (directory/'manifest.json').write_text(json.dumps(manifest))
+            self.assertEqual(audit.audit(directory,'EU')['acts'],1)
+            (directory/name).write_bytes(raw.replace(b'PL',b'FR'))
+            with self.assertRaises(AssertionError):audit.audit(directory,'EU')

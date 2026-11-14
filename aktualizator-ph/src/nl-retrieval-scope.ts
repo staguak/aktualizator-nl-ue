@@ -20,7 +20,8 @@ export function assertFullNlSourceCoverage(act:NlActManifest,index:any,items:Rec
       const article=$(node);
       if(article.parents('artikel,meta-data,bwb-inputbestand,bwb-wijzigingen,redactionele-correcties').length)return;
       const kop=article.children('kop');
-      const number=(article.attr('nr')||kop.children('nr').text()||(/^ee?nig artikel$/i.test(kop.children('label').text().trim())?'enig':'')).trim();
+      const label=kop.children('label').text().trim();
+      const number=(article.attr('nr')||kop.children('nr').text()||(/^ee?nig artikel$/i.test(label)?'enig':/^artikel\s+(\d+(?:[.:]\d+)*[a-z]*|[ivxlcdm]+[a-z]?)$/i.exec(label)?.[1]??'')).trim();
       if(!number)throw new Error('Unidentified article in full NL source.');
       const body=article.clone();body.children('kop,meta-data').remove();
       if(!body.text().trim())return;

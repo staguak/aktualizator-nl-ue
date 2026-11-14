@@ -3,6 +3,7 @@ import hashlib
 import io
 import json
 import os
+import re
 from pathlib import Path
 import zipfile
 import xml.etree.ElementTree as ET
@@ -16,11 +17,44 @@ def md5(data):
     return hashlib.md5(data).hexdigest()
 
 
-def audit(directory, jurisdiction):
+def load_manifest(directory):
     manifest = json.loads((directory / 'manifest.json').read_bytes())
+    files = set()
+    storage = manifest.get('legalDocumentStorage')
+    def resolve(ref):
+        if ref.get('profile') != 'legal-document-reference-v1':
+            assert storage is None, 'Mixed inline and external legal indexes'
+            return ref
+        assert storage == 'legal-document-files-v1'
+        assert re.fullmatch(r'LEGAL_[a-f0-9]{64}\.json', ref['file'])
+        assert ref['file'] == 'LEGAL_' + ref['sha256'] + '.json'
+        context = ('corpus', 'documentId', 'version', 'language', 'sourceSha256')
+        assert set(ref) == {'profile', 'file', 'size', 'sha256', *context}
+        path = directory / ref['file']
+        assert not path.is_symlink() and path.is_file()
+        raw = path.read_bytes()
+        assert 0 < len(raw) == ref['size'] <= 95_000_000
+        assert hashlib.sha256(raw).hexdigest() == ref['sha256']
+        document = json.loads(raw)
+        assert document['profile'] == 'legal-structure-v1'
+        assert all(document[key] == ref[key] for key in context)
+        files.add(ref['file'])
+        return document
+    for act in manifest['acts']:
+        if 'legalDocuments' in act:
+            act['legalDocuments'] = [resolve(doc) for doc in act['legalDocuments']]
+        for doc in act.get('documents', []):
+            if 'legalStructure' in doc:
+                doc['legalStructure'] = resolve(doc['legalStructure'])
+    assert storage is None or storage == 'legal-document-files-v1' and files
+    return manifest, files
+
+
+def audit(directory, jurisdiction):
+    manifest, legal_indexes = load_manifest(directory)
     assert manifest['jurisdiction'] == jurisdiction
     assert manifest['officialSources']['originalBytes'] is True
-    names = {'INDEX.md', 'REPORT.md', 'manifest.json'}
+    names = {'INDEX.md', 'REPORT.md', 'manifest.json'} | legal_indexes
     summary = dict(jurisdiction=jurisdiction, acts=len(manifest['acts']),
                    sourceFiles=0, sourceBytes=0, formexPackages=0,
                    formexLayers=0, xmlFiles=0, warnings=0,

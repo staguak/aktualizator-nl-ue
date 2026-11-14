@@ -1,3 +1,4 @@
+import {loadCorpusManifest} from './legal-manifest-files.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileMetadata, normalizeOutput, stableJson } from './output.js';
@@ -53,7 +54,8 @@ export function loadValidatedSnapshot(files:Map<string,Buffer>,expectedActs:Expe
 }
 function loadValidationContext(read:(name:string)=>Buffer,list:()=>string[],expectedActs:ExpectedAct[],auditMode?:SourceAuditMode):ValidationContext {
   const manifestBytes = read('manifest.json');
-  const manifest = JSON.parse(manifestBytes.toString('utf8'));
+  const physicalManifest = JSON.parse(manifestBytes.toString('utf8'));
+  const {manifest,files:legalIndexFiles}=loadCorpusManifest(physicalManifest,read);
   if (![1, 2].includes(manifest.schemaVersion) || !Array.isArray(manifest.acts) ||
       manifest.acts.length !== expectedActs.length || !expectedActs.length) {
     throw new Error('Incomplete manifest or unsupported schema.');
@@ -63,6 +65,7 @@ function loadValidationContext(read:(name:string)=>Buffer,list:()=>string[],expe
     throw new Error('Invalid final corpus jurisdiction/date range.');
   }
   const declared = new Map<string, {md5?: string; size?: number}>(CONTROL_FILES.map(name => [name, {}]));
+  for(const [name,file] of legalIndexFiles)declared.set(name,file);
   const seenActs = new Set<string>();
   for (const act of manifest.acts) {
     const key = `${act.order}:${act.bwbId ?? act.celex}`;
@@ -106,7 +109,7 @@ function loadValidationContext(read:(name:string)=>Buffer,list:()=>string[],expe
   for (const name of verificationOrder) {
     // An independent disk read verifies generated hashes; each file is read
     // only once in this validation, including the already loaded manifest.
-    const bytes = name === 'manifest.json' ? manifestBytes : read(name);
+    const bytes = name === 'manifest.json' ? manifestBytes : legalIndexFiles.get(name)?.bytes??read(name);
     const expected = declared.get(name)!;
     let verified:LoadedFile;
     if(safeArchiveName(name)){
@@ -145,11 +148,11 @@ function loadValidationContext(read:(name:string)=>Buffer,list:()=>string[],expe
     if(!Array.isArray(index.assets)||JSON.stringify(index.assets.map((a:any)=>a.name).sort())!==JSON.stringify(images.assets.map((a:any)=>a.name).sort()))throw new Error('Image asset inventory mismatch.');
     validateLegalImagePackage(legalDocuments(manifest),text,index,name=>{const file=files.get(name);if(!file)throw new Error('Missing image bytes.');return file.bytes;});
   }
-  if (manifest.schemaVersion === 2 && text('manifest.json') !== stableJson(manifest)) throw new Error('Noncanonical manifest serialization.');
+  if (manifest.schemaVersion === 2 && text('manifest.json') !== stableJson(physicalManifest)) throw new Error('Noncanonical manifest serialization.');
   return {manifest, expectedActs, files:new Map(names.map(name=>[name,files.get(name)!])), text,...manifest.officialSources?{sourceStructure:structure,sourceAvailability:availability}:{}};
 }
 export function verifyFileBytes(name: string, bytes: Buffer, strict = true,preserveLegalWhitespace=false): LoadedFile {
-  if (!bytes.length) throw new Error('Empty or corrupted output file.');
+  if (!bytes.length || bytes.length>95_000_000) throw new Error('Empty, oversized or corrupted output file.');
   const text = strict ? new TextDecoder('utf-8', {fatal: true}).decode(bytes) : bytes.toString('utf8');
   if (strict && (Buffer.compare(Buffer.from(text, 'utf8'), bytes) !== 0 || (preserveLegalWhitespace?!isLegalMarkdownEncoding(text):text !== normalizeOutput(text)))) {
     throw new Error('Invalid final UTF-8/LF/whitespace.');
