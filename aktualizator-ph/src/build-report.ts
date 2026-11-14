@@ -116,6 +116,8 @@ export function buildReport(manifest:any,previous:any,validation:ValidationResul
     reuse:{status:'MEASURED_BUILD_PHASE',
       sourceRevalidatedWithoutBody:measured.sourceNotModified,verifiedSourceCacheBytes:measured.sourceCacheReusedBytes,
       parserComputed:measured.parserComputed,verifiedParserCacheHits:measured.parserCacheHits,
+      modelsComputed:measured.modelComputed,verifiedModelCacheHits:measured.modelCacheHits,
+      xmlValidationsComputed:measured.xmlComputed,verifiedXmlCacheHits:measured.xmlCacheHits,
       actsBuilt:measured.actsBuilt,verifiedCheckpointActs:measured.actsCheckpointReused,
       physicalGenerationSharing:'NONE; schema1 writes separately owned files under each generation',
       scope:'One module process through report construction; excludes parent/sibling processes, later uploads and cleanup. Counts are measured reuse, not evidence of a complete source review.'},

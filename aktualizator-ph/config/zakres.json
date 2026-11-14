@@ -7,7 +7,8 @@
   "policy": {
     "rangeTo": "run-date",
     "baselineBeforeRange": true,
-    "failClosedOnMissingMigrationArticles": true
+    "failClosedOnMissingMigrationArticles": true,
+    "retrieval": "Full BWB acts for the existing selected versions; include/mustIncludeArticles remain selection and coverage evidence."
   },
   "acts": [
     {
@@ -134,7 +135,9 @@
         "691",
         "692",
         "692a"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 2,
@@ -175,7 +178,9 @@
         "11",
         "12",
         "12a"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 3,
@@ -226,7 +231,9 @@
         "17",
         "18b",
         "18c"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 4,
@@ -241,7 +248,9 @@
       "mustIncludeArticles": [
         "2a",
         "2b"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 5,
@@ -316,7 +325,9 @@
         "8:3a",
         "10:1",
         "10:7"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 6,
@@ -359,7 +370,9 @@
         "4.8:2",
         "4.9:1",
         "4.9:2"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 7,
@@ -410,7 +423,9 @@
         "29",
         "32",
         "33"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 8,
@@ -467,7 +482,9 @@
         "7.17b",
         "7.17c",
         "8.3"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 9,
@@ -574,7 +591,9 @@
         "6:7",
         "6:8",
         "6:9"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 10,
@@ -611,7 +630,9 @@
         "17",
         "18",
         "19"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 11,
@@ -640,7 +661,9 @@
         "8",
         "9",
         "10"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 12,
@@ -659,7 +682,9 @@
         "2",
         "17",
         "18"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 13,
@@ -674,7 +699,9 @@
       "mustIncludeArticles": [
         "89",
         "119"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 14,
@@ -697,7 +724,9 @@
         "317",
         "318",
         "319"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 15,
@@ -728,7 +757,9 @@
         "195",
         "195a",
         "283"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 16,
@@ -751,7 +782,9 @@
         "4",
         "5",
         "6"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 17,
@@ -776,7 +809,9 @@
         "5",
         "6",
         "7"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 18,
@@ -793,7 +828,9 @@
         "1",
         "2",
         "3"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 19,
@@ -820,7 +857,9 @@
         "6",
         "7",
         "8"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 20,
@@ -839,7 +878,9 @@
         "2",
         "3",
         "4"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 21,
@@ -854,7 +895,9 @@
       "mustIncludeArticles": [
         "20",
         "34"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 22,
@@ -867,7 +910,9 @@
       },
       "mustIncludeArticles": [
         "3.18"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     },
     {
       "order": 23,
@@ -886,7 +931,9 @@
         "11",
         "11c",
         "31a"
-      ]
+      ],
+      "retrievalScope": "full-act",
+      "outputProfile": "legal-structure-v1"
     }
   ]
 }

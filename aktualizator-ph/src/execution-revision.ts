@@ -9,7 +9,8 @@ export function executionRevision(root:string,env:NodeJS.ProcessEnv=process.env)
   if(env.LAW_UPDATER_REVISION)return env.LAW_UPDATER_REVISION;
   const files=fs.readdirSync(path.join(root,'src')).filter(name=>name.endsWith('.ts')&&
     !name.endsWith('.test.ts')&&!name.endsWith('.integration.ts')&&name!=='parser-selftest.ts').map(name=>'src/'+name);
-  files.push('package-lock.json','scripts/xml_validation.py','scripts/xml-requirements.txt','scripts/rdf-requirements.txt');
+  files.push('package-lock.json','scripts/xml-requirements.txt','scripts/rdf-requirements.txt',
+    ...fs.readdirSync(path.join(root,'scripts')).filter(name=>name.endsWith('.py')).map(name=>'scripts/'+name));
   const digest=createHash('sha256').update('local-execution-v1\0'+process.versions.node+'\0');
   for(const file of files.sort()){
     const target=path.join(root,file);if(!fs.lstatSync(target).isFile())throw new Error('Executable revision requires regular source files.');

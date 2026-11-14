@@ -1,7 +1,10 @@
 import {spawn} from 'node:child_process';
 import type {ChildProcessWithoutNullStreams} from 'node:child_process';
+import {cachedXmlReceipt,storeXmlReceipt} from './validation-cache.js';
+import {operationMetrics} from './operation-metrics.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {hash} from './release-store.js';
 import type {BinarySource} from './source-cache.js';
@@ -16,6 +19,7 @@ export interface XmlReceipt {
   schema?:string|null;schemaSha256?:string;root?:string;namespace?:string|null;
   schemaBundleSha256?:string;errors?:{line:number;column:number;code:string}[];error?:string;
   infrastructureReason?:XmlInfrastructureReason;
+  validationMode?:'STREAMING_FILE';
   rdfGraph?:{profile:string;status:string;identity:string;triples:number;facts:unknown[];multipleValues:unknown[];opaqueAssertions:number;scope:string;
     unrelatedCelexSubjects?:string[];opaqueUnrelatedCelexSubjects?:number};
 }
@@ -31,6 +35,35 @@ export class SourceXmlRejected extends Error {constructor(readonly receipt:XmlRe
 const root=fileURLToPath(new URL('../',import.meta.url)),maxBytes=64_000_000;
 let client:XmlClient|undefined;
 const accepted=new Map<string,XmlReceipt>(),rejected=new Set<string>();
+function sourceRoots():string[]{
+  const configured=process.env.LAW_XML_SOURCE_ROOT;
+  return configured?[path.resolve(configured)]:[path.join(root,'.source-cache'),path.join(root,'.public-state'),
+    ...(process.env.LAW_SOURCE_CACHE_DIR?[path.resolve(process.env.LAW_SOURCE_CACHE_DIR)]:[]),
+    ...(process.env.RUNNER_TEMP?[path.resolve(process.env.RUNNER_TEMP)]:[])];
+}
+function guardedSourcePath(file:string):string{
+  const resolved=path.resolve(file);
+  if(!sourceRoots().some(dir=>{const relative=path.relative(dir,resolved);return !!relative&&!relative.startsWith('..'+path.sep)&&relative!=='..'&&!path.isAbsolute(relative);}))
+    throw new Error('XML source file is outside the configured source directory.');
+  let current=resolved;
+  for(;;){if(fs.lstatSync(current).isSymbolicLink())throw new Error('Symlinked XML source file is forbidden.');
+    const parent=path.dirname(current);if(parent===current)break;current=parent;}
+  const stat=fs.lstatSync(resolved);
+  if(!stat.isFile()||!Number.isSafeInteger(stat.size)||stat.size<=0)throw new Error('XML source must be a nonempty regular file.');
+  return resolved;
+}
+async function hashSourceFile(file:string):Promise<{sha256:string;size:number}>{
+  const fd=fs.openSync(file,fs.constants.O_RDONLY|(fs.constants.O_NOFOLLOW??0));
+  const before=fs.fstatSync(fd),digest=createHash('sha256');let size=0;
+  try{
+    const stream=fs.createReadStream(file,{fd,autoClose:false,highWaterMark:256*1024});
+    for await(const chunk of stream){digest.update(chunk);size+=chunk.length;}
+  }finally{fs.closeSync(fd);}
+  const after=fs.statSync(file);
+  if(before.dev!==after.dev||before.ino!==after.ino||before.size!==size||after.size!==size||before.mtimeMs!==after.mtimeMs||before.ctimeMs!==after.ctimeMs)
+    throw new Error('XML source changed while reading its checksum.');
+  return {sha256:digest.digest('hex'),size};
+}
 export function xmlValidationEnabled():boolean{return process.env.LAW_XML_VALIDATION==='required'||!!process.env.LAW_RELEASE_CONTEXT;}
 export function xmlValidationSummary(){return xmlValidationEnabled()?{profile:XML_PROFILE,
   xsdValidated:[...accepted.values()].filter(r=>r.status==='PASS').length,
@@ -46,7 +79,8 @@ class XmlClient {
   private queue=new XmlValidationQueue(8);
   readonly ready:Promise<void>;
   constructor(){
-    this.child=spawn(process.env.LAW_XML_PYTHON??'python3',['-I','-u',path.join(root,'scripts/xml_validation.py'),'--serve'],
+    this.child=spawn(process.env.LAW_XML_PYTHON??'python3',['-I','-u',path.join(root,'scripts/xml_validation.py'),'--serve',
+      ...sourceRoots().flatMap(dir=>['--source-root',dir])],
       {stdio:['pipe','pipe','pipe'],env:{PATH:process.env.PATH,LANG:'C.UTF-8'}});
     // Pending request timers keep the parent alive. An idle helper must not
     // prevent a completed updater from exiting; parent exit always kills it.
@@ -89,6 +123,28 @@ class XmlClient {
     await this.ready;if(this.failed)throw this.failure??new XmlValidatorUnavailable();
     try{return await this.queue.run(()=>this.send(bytes,url,kind,identifier,sha256));}
     catch(error){throw error instanceof XmlQueueCapacityError?new XmlValidatorUnavailable('QUEUE_CAPACITY'):error;}
+  }
+  async validateFile(file:string,size:number,url:string,kind:XmlKind,identifier:string|undefined,sha256:string):Promise<XmlReceipt>{
+    await this.ready;if(this.failed)throw this.failure??new XmlValidatorUnavailable();
+    try{return await this.queue.run(()=>this.sendFile(file,size,url,kind,identifier,sha256));}
+    catch(error){throw error instanceof XmlQueueCapacityError?new XmlValidatorUnavailable('QUEUE_CAPACITY'):error;}
+  }
+  private sendFile(file:string,size:number,url:string,kind:XmlKind,identifier:string|undefined,sha256:string):Promise<XmlReceipt>{
+    if(this.failed)return Promise.reject(this.failure??new XmlValidatorUnavailable());
+    const id=++this.sequence,header=Buffer.from(JSON.stringify({id,mode:'file',path:file,size,sha256,url,kind,identifier})+'\n');
+    if(header.length>16_384)throw new Error('XML validation request header is too large.');
+    return new Promise((resolve,reject)=>{
+      // File validation includes whole-source hashes, schema passes and a disk
+      // RDF index. Keep a finite service budget scaled to bytes, not a size cap.
+      const budget=Math.max(10*60_000,Math.min(30*60_000,Math.ceil(size/1_048_576)*2500));
+      let serviceTimer:ReturnType<typeof setTimeout>|undefined;
+      const input=new XmlInputDeadline(()=>this.fail('FRAME_TRANSFER_TIMEOUT'));
+      this.pending.set(id,{resolve,reject,cancelDeadline:()=>{input.cancel();if(serviceTimer)clearTimeout(serviceTimer);}});
+      this.child.stdin.write(header,error=>{
+        if(error){this.fail('STREAM_IO');return;}
+        input.cancel();if(!this.failed&&this.pending.has(id))serviceTimer=setTimeout(()=>this.fail('REQUEST_TIMEOUT'),budget);
+      });
+    });
   }
   private send(bytes:Buffer,url:string,kind:XmlKind,identifier:string|undefined,sha256:string):Promise<XmlReceipt>{
     if(this.failed)return Promise.reject(this.failure??new XmlValidatorUnavailable());
@@ -140,6 +196,16 @@ export function preserveRejectedSource(source:BinarySource,kind:XmlKind,status:s
 }
 export async function validateSourceXml(source:BinarySource,kind:XmlKind,identifier?:string):Promise<XmlReceipt|undefined>{
   if(!xmlValidationEnabled())return;
+  if(source.filePath)return validateSourceXmlFile(source.filePath,source.url,kind,identifier,source.sha256);
+  if(process.env.LAW_PUBLIC_INCREMENTAL==='1'){
+    // Checkpoint/archive readers may still yield a Buffer. Spool its exact
+    // immutable bytes once so public RDF uses the same disk-backed validator.
+    const digest=hash(source.bytes),directory=path.join(sourceRoots()[0],'xml-originals');
+    fs.mkdirSync(directory,{recursive:true});const file=path.join(directory,digest+'.xml');
+    try{fs.writeFileSync(file,source.bytes,{flag:'wx'});}
+    catch(error){if((error as NodeJS.ErrnoException).code!=='EEXIST')throw error;}
+    return validateSourceXmlFile(file,source.url,kind,identifier,digest);
+  }
   if(!source.bytes.length||source.bytes.length>maxBytes)throw new Error('Invalid official XML payload size.');
   const digest=hash(source.bytes),key=JSON.stringify([digest,source.url,kind,identifier]);
   const known=accepted.get(key);if(known)return known;
@@ -160,4 +226,58 @@ export async function validateSourceXml(source:BinarySource,kind:XmlKind,identif
     rejected.add(key);preserveRejected(source,kind,receipt);throw new SourceXmlRejected(receipt);
   }
   accepted.set(key,receipt);return receipt;
+}
+
+async function preserveRejectedFile(file:string,url:string,kind:XmlKind,receipt:XmlReceipt):Promise<void>{
+  try{
+    const dir=process.env.LAW_XML_DIAGNOSTICS_DIR??path.join(root,'.source-diagnostics');
+    fs.mkdirSync(dir,{recursive:true});
+    const target=path.join(dir,receipt.sourceSha256+'.bin');
+    try{await fs.promises.copyFile(file,target,fs.constants.COPYFILE_EXCL);}
+    catch(error){if((error as NodeJS.ErrnoException).code!=='EEXIST')throw error;}
+    if(!fs.lstatSync(target).isFile()||fs.lstatSync(target).isSymbolicLink())throw new Error('Unsafe diagnostic source.');
+    const copy=await hashSourceFile(target);
+    if(copy.sha256!==receipt.sourceSha256||copy.size!==receipt.sourceBytes)throw new Error('Diagnostic source checksum mismatch.');
+    const record=Buffer.from(JSON.stringify({schemaVersion:1,url,sourceFile:path.basename(target),...receipt},null,2)+'\n');
+    const identity=hash(record),name=path.join(dir,`${receipt.sourceSha256}-${identity}.json`);
+    try{fs.writeFileSync(name,record,{flag:'wx'});}
+    catch(error){if((error as NodeJS.ErrnoException).code!=='EEXIST'||!fs.lstatSync(name).isFile()||!fs.readFileSync(name).equals(record))throw error;}
+  }catch{throw new XmlEvidenceUnavailable();}
+}
+
+/** Original source file, with no program-imposed byte/character ceiling.
+ * Both Node and the isolated helper verify its checksum; the helper checks it
+ * again after schema/RDF passes. Nothing is deserialized as one giant frame.
+ */
+export async function validateSourceXmlFile(filePath:string,url:string,kind:XmlKind,identifier?:string,expectedSha?:string):Promise<XmlReceipt|undefined>{
+  if(!xmlValidationEnabled())return;
+  const file=guardedSourcePath(filePath),source=await hashSourceFile(file);
+  if(expectedSha!==undefined&&(!/^[a-f0-9]{64}$/.test(expectedSha)||source.sha256!==expectedSha))throw new Error('XML source checksum differs from its download.');
+  const key=JSON.stringify(['file',source.sha256,url,kind,identifier]),known=accepted.get(key);
+  if(known)return known;
+  const dependencies={profile:XML_PROFILE,sourceSha256:source.sha256,sourceBytes:source.size,url,kind,identifier};
+  let receipt:XmlReceipt;
+  try{
+  await ensureXmlValidation();
+  const cached=cachedXmlReceipt(dependencies,r=>r?.profile===XML_PROFILE&&r.sourceSha256===source.sha256&&r.sourceBytes===source.size&&r.kind===kind&&
+    r.validationMode==='STREAMING_FILE'&&['PASS','NO_PINNED_SCHEMA'].includes(r.status)&&
+    (r.status!=='PASS'||!!r.schema&&!!r.schemaSha256&&/^[a-f0-9]{64}$/.test(r.schemaSha256))&&
+    (!kind.startsWith('CELLAR-RDF-')||r.rdfGraph?.status==='PASS'));
+  if(cached){operationMetrics.add('xmlCacheHits');accepted.set(key,cached);return cached;}
+  operationMetrics.add('xmlComputed');
+    receipt=await client!.validateFile(file,source.size,url,kind,identifier,source.sha256);
+    if(receipt.profile!==XML_PROFILE||receipt.sourceSha256!==source.sha256||receipt.sourceBytes!==source.size||receipt.kind!==kind||receipt.validationMode!=='STREAMING_FILE'||
+      receipt.status==='PASS'&&(!receipt.schema||!receipt.schemaSha256||!/^[a-f0-9]{64}$/.test(receipt.schemaSha256))||
+      ['PASS','NO_PINNED_SCHEMA'].includes(receipt.status)&&kind.startsWith('CELLAR-RDF-')&&receipt.rdfGraph?.status!=='PASS')
+      throw new XmlValidatorUnavailable('RECEIPT_MISMATCH');
+  }catch(error){
+    const failure:XmlReceipt={profile:XML_PROFILE,status:'VALIDATOR_FAILURE',sourceSha256:source.sha256,sourceBytes:source.size,kind,
+      validationMode:'STREAMING_FILE',infrastructureReason:error instanceof XmlValidatorUnavailable?error.reason:'UNAVAILABLE'};
+    await preserveRejectedFile(file,url,kind,failure);
+    throw error instanceof XmlValidationInfrastructureError?error:new XmlValidatorUnavailable();
+  }
+  if(!['PASS','NO_PINNED_SCHEMA'].includes(receipt.status)){
+    rejected.add(key);await preserveRejectedFile(file,url,kind,receipt);throw new SourceXmlRejected(receipt);
+  }
+  storeXmlReceipt(dependencies,receipt);accepted.set(key,receipt);return receipt;
 }

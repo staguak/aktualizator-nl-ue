@@ -1,0 +1,5 @@
+# CPython 3.12 Linux x86_64 wheel verified against PyPI metadata and downloaded bytes.
+--require-hashes
+--only-binary=:all:
+Pillow==13.0.0 \
+    --hash=sha256:42d63be3af4f9b951b199b0a9d23365d37ab14687e6d77b74940432c8515c4ca

@@ -41,6 +41,15 @@ def fixture(root, extra='current.md'):
 
 
 class PublicGitHubTests(unittest.TestCase):
+    def test_release_packages_use_release_asset_limit_instead_of_ordinary_git_file_limit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);files=[]
+            for name in ['NL-results.zip','UE-results.zip','NL-sources.zip','UE-sources.zip']:
+                raw=b'package bytes';(root/name).write_bytes(raw)
+                files.append(dict(name=name,bytes=len(raw),sha256=hashlib.sha256(raw).hexdigest()))
+            (root/'distribution.json').write_text(json.dumps(dict(profile='public-distribution-v1',status='PASS',counts={'NL':1,'UE':1},files=files)))
+            with patch.object(public,'MAX_FILE',1):self.assertEqual(public.validate_distribution(root)['status'],'PASS')
+
     def test_snapshot_has_one_complete_pair_and_detects_modified_or_extra_bytes(self):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
@@ -126,19 +135,28 @@ class PublicGitHubTests(unittest.TestCase):
                 public.push_snapshot(third, old, str(remote))
             self.assertEqual(public.git(remote, 'rev-parse', 'dane').stdout.decode().strip(), current)
 
-    def test_cleanup_removes_only_its_own_temporary_files(self):
+    def test_cleanup_preserves_cache_checkpoints_and_outputs_but_removes_run_scratch(self):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
             app = fixture(root / 'app')
             outside = root / 'outside'
             outside.mkdir()
             (outside / 'keep').write_text('must survive')
-            (app / '.source-cache').symlink_to(outside, target_is_directory=True)
+            (app / '.public-control').symlink_to(outside, target_is_directory=True)
+            for directory in ('.source-cache', '.checkpoint', '.checkpoint-ue'):
+                (app / directory).mkdir()
+                (app / directory / 'keep').write_text('required for next run')
+            (app / '.public-state').mkdir(exist_ok=True)
+            (app / '.public-state' / 'scratch').write_text('temporary')
             (app / 'source.ts').write_text('code survives')
             with patch.object(public, 'APP', app):
                 public.cleanup()
             self.assertFalse((app / '.public-state').exists())
-            self.assertFalse((app / 'output').exists())
+            self.assertTrue((app / 'output').exists())
+            self.assertTrue((app / 'output-ue').exists())
+            self.assertFalse((app / '.public-control').exists())
+            for directory in ('.source-cache', '.checkpoint', '.checkpoint-ue'):
+                self.assertEqual((app / directory / 'keep').read_text(), 'required for next run')
             self.assertTrue((outside / 'keep').exists())
             self.assertTrue((app / 'source.ts').exists())
 

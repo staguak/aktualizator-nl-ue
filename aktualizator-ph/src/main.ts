@@ -1,9 +1,9 @@
 import * as fs from 'node:fs';
 import {operationMetrics,registerProcessMetrics} from './operation-metrics.js';
 import * as path from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash,randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import {parseNlSource,parsedCacheStats} from './parsed-source-cache.js';
+import {parseNlSource,parseNlLegalSource,parsedCacheStats} from './parsed-source-cache.js';
 import {executionRevision} from './execution-revision.js';
 import {sourceAuditCheckpointTag} from './source-audit.js';
 import {assertWorkDirectory} from './work-directory.js';
@@ -12,7 +12,8 @@ import { OfficialSources } from './official-sources.js';
 import { resolveRange, configFile } from './run-config.js';
 import { persistCompletedAct, recordCheckpointResume } from './durable-checkpoint.js';
 import { renderNlModel } from './render.js';
-import { buildNlModel } from './nl-model.js';
+import {incrementalNlModel} from './incremental-model.js';
+import {registerIncrementalPlan} from './incremental-plan.js';
 import { nlActManifest, nlIndex, nlReport } from './nl-output.js';
 import type { NlActManifest } from './nl-output.js';
 import { stableJson, readPreviousManifest } from './output.js';
@@ -30,7 +31,7 @@ const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, '..');
 let RUN_RANGE:ReturnType<typeof resolveRange>;
 const CONFIG_PATH = configFile(ROOT, 'zakres.json');
-const OUTPUT_DIR = path.join(ROOT, 'output');
+const OUTPUT_DIR = path.join(process.env.LAW_PUBLIC_WORK_ROOT??ROOT, 'output');
 const CHECKPOINT_DIR = path.join(ROOT, '.checkpoint');
 const CHECKPOINT_OUTPUT_DIR = path.join(CHECKPOINT_DIR, 'output');
 const CHECKPOINT_STATE_PATH = path.join(CHECKPOINT_DIR, 'state.json');
@@ -172,11 +173,12 @@ function saveCheckpoint(
 }
 
 async function fetchSnapshots(
-  bwbId: string,
+  act: ScopeConfig['acts'][number],
   versions: VersionRecord[],
   archive: OfficialSources,
 ): Promise<VersionSnapshot[]> {
   const snapshots: VersionSnapshot[] = [];
+  const bwbId=act.bwbId;
 
   for (const version of versions) {
     process.stdout.write(`  ${version.key} ... `);
@@ -192,7 +194,10 @@ async function fetchSnapshots(
       throw new Error(`No provisions parsed for ${bwbId} at ${version.key}`);
     }
 
-    snapshots.push({ version, statute });
+    const sourceSha256=source.sha256??createHash('sha256').update(source.bytes).digest('hex');
+    const legalDraft=act.outputProfile==='legal-structure-v1'?parseNlLegalSource(source,{corpus:'NL',documentId:bwbId,version:version.key,language:'NL',
+      sourceUrl:source.url,sourceSha256,metadata:{sourceState:version}}):undefined;
+    snapshots.push({ version, statute,sourceSha256,...legalDraft?{legalDraft}:{}});
     console.log(`${statute.provisions.length} articles`);
   }
 
@@ -221,8 +226,8 @@ async function buildAct(
   );
 
   setErrorPhase('SOURCE_BUILD');
-  const snapshots = await fetchSnapshots(act.bwbId, selected, archive);
-  const model = buildNlModel(act, snapshots, rangeFrom, rangeTo);
+  const snapshots = await fetchSnapshots(act, selected, archive);
+  const model = incrementalNlModel(ROOT,act, snapshots, rangeFrom, rangeTo);
 
   if (
     model.missingArticles.length > 0 ||
@@ -251,6 +256,7 @@ function cleanOutput(): void {
 
 async function main(): Promise<void> {
   RUN_RANGE=resolveRange(ROOT);
+  if(process.env.LAW_PUBLIC_INCREMENTAL==='1')process.env.LAW_PUBLIC_OPERATION_ID??=randomUUID();
   for(const directory of [OUTPUT_DIR,CHECKPOINT_DIR,CHECKPOINT_OUTPUT_DIR])assertWorkDirectory(directory);
   await ensureXmlValidation();
   const { config, configSha256 } = readConfig();
@@ -262,9 +268,10 @@ async function main(): Promise<void> {
   if (rangeFrom > rangeTo) throw new Error('rangeFrom is after rangeTo');
 
   setErrorPhase('CHECKPOINT');
-  const previous = readPreviousManifest(OUTPUT_DIR);
+  const previous = readPreviousManifest(process.env.LAW_PUBLIC_WORK_ROOT?path.join(ROOT,'output'):OUTPUT_DIR);
   cleanOutput();
-  const revision = 'official-sources-v2:' + today() + ':' + executionRevision(ROOT)+':source-audit:'+sourceAuditCheckpointTag();
+  const revision = 'official-sources-v2:' + today() + ':' + executionRevision(ROOT)+':source-audit:'+sourceAuditCheckpointTag()+
+    (process.env.LAW_PUBLIC_INCREMENTAL==='1'?':operation:'+process.env.LAW_PUBLIC_OPERATION_ID:'');
   const checkpoint = await loadCheckpoint(
     config,
     rangeFrom,
@@ -281,7 +288,8 @@ async function main(): Promise<void> {
   const manifest = {
     schemaVersion: 2, validationVersion: 2, jurisdiction: 'NL', configSha256,
     generatedAt: process.env.LAW_GENERATED_AT ?? new Date().toISOString(), rangeFrom, rangeTo,
-    source: config.source, normalization: {encoding:'UTF-8',newlines:'LF',finalNewline:1,targetMaxFileSize:50_000},
+    source: config.source, normalization: {encoding:'UTF-8',newlines:'LF',finalNewline:1,
+      ...config.acts.some(a=>a.outputProfile==='legal-structure-v1')?{outputProfile:'legal-structure-v1',boundaries:'Source structure; separate versions; technical size protection only'}:{targetMaxFileSize:50_000}},
     officialSources:{schemaVersion:1,model:'BWB',protocol:'SRU-2.0',observedOn:today(),originalBytes:true,view:'Markdown'},
     acts: [] as NlActManifest[],
   };
@@ -313,6 +321,7 @@ async function main(): Promise<void> {
 }
 
 registerProcessMetrics('NL');
+registerIncrementalPlan(ROOT,'NL');
 withOperationErrors('NL',ROOT,async()=>{try{await main();}finally{closeXmlValidation();}}).catch((error) => {
   console.error(safeFailureMessage(error,'NL corpus build failed.'));
   process.exitCode=1;

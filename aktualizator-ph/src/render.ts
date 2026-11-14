@@ -7,9 +7,12 @@ import type { NlModel } from './nl-model.js';
 import { planNlParts } from './nl-plan.js';
 import { renderNlPart } from './nl-format.js';
 import { finalFile } from './final-file.js';
+import {renderNlLegalModel} from './nl-legal-output.js';
+import type {LegalManifest} from './legal-structure.js';
 
-export interface RenderResult extends NlModel { chunks: RenderedChunk[] }
+export interface RenderResult extends NlModel { chunks: RenderedChunk[];legalDocuments?:LegalManifest[] }
 export function renderNlModel(model: NlModel): RenderResult {
+  if(model.act.outputProfile==='legal-structure-v1')return renderNlLegalModel(model);
   const chunks = planNlParts(model).map(part => {
     const content = renderNlPart(model, part.articles);
     const file = finalFile(part.name, content, {jurisdiction: 'NL', kind: 'content', metadata: {articles: part.articles}});

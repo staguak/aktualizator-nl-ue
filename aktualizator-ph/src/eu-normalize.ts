@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { load } from 'cheerio';
 import { assertEuIntegrity, htmlIntegrity } from './content-integrity.js';
 import { hash, normalizeOutput, stableJson } from './output.js';
+import type {EuLanguage} from './eu-language.js';
 
 export const LANGUAGE_BASE = 'http://publications.europa.eu/resource/authority/language/';
 const DEFAULTS: Record<string, {key:string; value:string[]}> = {
@@ -68,39 +69,74 @@ export function equivalentHtml(before:string,after:string): boolean {
   try {assert.deepEqual(htmlSignature(before),htmlSignature(after));return before.replace(/\s/gu,'')===after.replace(/\s/gu,'');}catch{return false;}
 }
 export function hasSensitiveEuBody(body:string):boolean {
-  return /<(?:pre|code|textarea|script|style)\b/i.test(body)||/^[ \t]*(?:`{3,}|~{3,})/m.test(body);
+  return /<(?:pre|code|textarea|script|style)\b/i.test(body)||/\bwhite-space\s*:/i.test(body)||/\bxml:space\s*=\s*["']preserve["']/i.test(body)||/^[ \t]*(?:`{3,}|~{3,})/m.test(body);
 }
+/** Remove indentation at real block-tag boundaries, never inside attributes or
+ * protected whitespace. Source offsets avoid reserializing unrelated markup. */
 export function normalizeEuBody(body:string): {body:string; status:'unchanged'|'verified'|'sensitive-skip'|'fallback'} {
-  if(hasSensitiveEuBody(body))return {body,status:'sensitive-skip'};
-  const candidate=body.replace(/^[ \t]+(?=<(?:\/?)(?:table|thead|tbody|tfoot|tr|td|th|colgroup|col|p|div|figure|figcaption)(?:\s|\/?>))/gm,'');
-  if(candidate===body)return {body,status:'unchanged'};
+  const $=load(body,{sourceCodeLocationInfo:true},false),protectedRanges:[number,number][]=[];
+  const boundaries=new Set<number>(),blocks=new Set(['table','thead','tbody','tfoot','tr','td','th','colgroup','col','p','div','figure','figcaption']);
+  const protect=(node:any)=>{const loc=node.sourceCodeLocation;if(loc)protectedRanges.push([loc.startOffset,loc.endOffset]);};
+  $('pre,code,textarea,script,style,[style],[xml\\:space]').each((_i,node)=>{
+    const tag=node.tagName.toLowerCase();
+    if(['pre','code','textarea','script','style'].includes(tag)||/\bwhite-space\s*:/i.test($(node).attr('style')??'')||$(node).attr('xml:space')==='preserve')protect(node);
+  });
+  // Ordinary stylesheet selectors are handled locally. An unresolvable rule
+  // containing white-space makes optimization uncertain, so retain the body.
+  let uncertainCss=false;
+  $('style').each((_i,node)=>{
+    const css=$(node).text();if(!/\bwhite-space\s*:/i.test(css))return;
+    let matched=false;
+    for(const rule of css.matchAll(/([^{}]+)\{([^{}]*)\}/g))if(/\bwhite-space\s*:/i.test(rule[2])){
+      matched=true;try{$(rule[1].trim()).each((_j,selected)=>protect(selected));}catch{uncertainCss=true;}
+    }
+    if(!matched)uncertainCss=true;
+  });
+  if(uncertainCss)return {body,status:'sensitive-skip'};
+  let fence:{character:string;length:number;start:number}|undefined;
+  for(const line of body.matchAll(/^.*(?:\n|$)/gm)){
+    if(!line[0])continue;const match=/^[ \t]*(`{3,}|~{3,})/.exec(line[0]);
+    if(!match)continue;
+    if(!fence)fence={character:match[1][0],length:match[1].length,start:line.index!};
+    else if(match[1][0]===fence.character&&match[1].length>=fence.length){protectedRanges.push([fence.start,line.index!+line[0].length]);fence=undefined;}
+  }
+  if(fence)protectedRanges.push([fence.start,body.length]);
+  $('*').each((_i,node)=>{
+    if(!('tagName' in node)||!blocks.has(node.tagName.toLowerCase()))return;
+    const loc=(node as any).sourceCodeLocation;
+    if(loc?.startTag)boundaries.add(loc.startTag.startOffset);
+    if(loc?.endTag)boundaries.add(loc.endTag.startOffset);
+  });
+  const candidate=body.replace(/^[ \t]+(?=<(?:\/?)(?:table|thead|tbody|tfoot|tr|td|th|colgroup|col|p|div|figure|figcaption)(?:\s|\/?>))/gm,(indent,offset:number)=>
+    boundaries.has(offset+indent.length)&&!protectedRanges.some(([start,end])=>offset>=start&&offset<end)?'':indent);
+  if(candidate===body)return {body,status:protectedRanges.length?'sensitive-skip':'unchanged'};
   return equivalentHtml(body,candidate)?{body:candidate,status:'verified'}:{body,status:'fallback'};
 }
 export function legalBodyHash(body:string): string {return hash(body);}
 export const EU_START='<!-- EU legal body -->';
 export const EU_END='<!-- /EU legal body -->';
-export function euHeader(title:string,celex:string,part:number,total:number,sourceUrl:string,language:'NL'|'EN'='NL'):string {
+export function euHeader(title:string,celex:string,part:number,total:number,sourceUrl:string,language:EuLanguage='NL'):string {
   // Keep the URL and consolidation disclaimer usable without the manifest.
   const status=celex.startsWith('0')?' · konsolidacja dokumentacyjna':'';
   return normalizeOutput(`# ${title}\n\nCELEX ${celex} · ${language} · ${part}/${total}${status} · [źródło](${sourceUrl})\n`);
 }
-export function euLayoutBytes(title:string,celex:string,part:number,total:number,sourceUrl:string,language:'NL'|'EN'='NL'):number {
+export function euLayoutBytes(title:string,celex:string,part:number,total:number,sourceUrl:string,language:EuLanguage='NL'):number {
   return Buffer.byteLength(`${euHeader(title,celex,part,total,sourceUrl,language)}\n${EU_START}\n\n${EU_END}\n`);
 }
-export function euContent(title:string,celex:string,part:number,total:number,body:string,sourceUrl:string,language:'NL'|'EN'='NL'): string {
+export function euContent(title:string,celex:string,part:number,total:number,body:string,sourceUrl:string,language:EuLanguage='NL'): string {
   return euContentFromBody(title,celex,part,total,normalizeFinalEuBody(body),sourceUrl,language);
 }
 export function normalizeFinalEuBody(body:string): string {
-  const text=normalizeOutput(body).replace(/\n$/,'');
+  const text=normalizeEuBody(body.replace(/\r\n?/g,'\n')).body;
   if(body.includes(EU_START)||body.includes(EU_END))throw new Error('Reserved EU boundary marker in source.');
   if(hasSensitiveEuBody(body)&&!equivalentHtml(body,text))throw new Error('Cannot normalize sensitive legal whitespace safely.');
-  // Common LF/trailing-space normalization is distinct from conservative HTML indentation.
+  // Legal whitespace is not the generated-control-file trailing-space policy.
   assert.deepEqual(htmlSignature(body).tags,htmlSignature(text).tags);
   assertEuIntegrity(htmlIntegrity(body),text);
   if(body.replace(/\s/gu,'')!==text.replace(/\s/gu,''))throw new Error('Final layout normalization changed EU source bytes.');
   return text;
 }
-export function euContentFromBody(title:string,celex:string,part:number,total:number,body:string,sourceUrl:string,language:'NL'|'EN'='NL'): string {
+export function euContentFromBody(title:string,celex:string,part:number,total:number,body:string,sourceUrl:string,language:EuLanguage='NL'): string {
   return `${euHeader(title,celex,part,total,sourceUrl,language)}\n${EU_START}\n${body}\n${EU_END}\n`;
 }
 export function extractEuBody(content:string): string {

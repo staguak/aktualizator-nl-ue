@@ -9,6 +9,8 @@ import type { ValidationContext } from './validation-context.js';
 import { parseNlFinal } from './nl-final-parser.js';
 export { parseNlFinal } from './nl-final-parser.js';
 import { isCalendarDate as date } from './calendar.js';
+import {assertEuCaseCoverage} from './eu-case-scope.js';
+import {validateLegalDocument,extractLegalBody} from './legal-structure.js';
 export function validateV2(context:ValidationContext):void {
   const m = context.manifest, expectedActs = context.expectedActs;
   if(m.validationVersion!==2)throw new Error('Missing final validation v2.');
@@ -19,9 +21,17 @@ export function validateV2(context:ValidationContext):void {
       if(!Array.isArray(act.selectedArticles)||!Array.isArray(act.articles)||!Array.isArray(act.sourceStates)||
         !Number.isInteger(act.fetchedStates)||act.fetchedStates!==act.sourceStates.length)throw new Error('Incomplete NL v2 structure.');
       if(expected?.include)assert.deepEqual(act.selectors,expected.include);
-      if(typeof expected?.include !== 'string' && expected?.include?.articles?.some((id:string)=>!act.selectedArticles.includes(id))||expected?.mustIncludeArticles?.some((id:string)=>!act.selectedArticles.includes(id)))throw new Error('NL selector coverage incomplete.');
+      const full=expected?.retrievalScope==='full-act';
+      if(full&&(act.retrievalScope!=='full-act'||!Array.isArray(act.requestedArticles)))throw new Error('NL retrieval scope differs from configuration.');
+      if(expected?.outputProfile==='legal-structure-v1'&&!act.legalDocuments?.length)throw new Error('NL output lacks the configured legal structure.');
+      const covers=(id:string)=>act.selectedArticles.some((selected:string)=>selected===id||full&&selected.endsWith(':'+id));
+      if(typeof expected?.include !== 'string' && expected?.include?.articles?.some(id=>!covers(id))||expected?.mustIncludeArticles?.some(id=>!covers(id)))throw new Error('NL selector coverage incomplete.');
       act.sourceStates.forEach((s:any,i:number)=>{if(s.index!==i||typeof s.key!=='string'||!date(s.validFrom)||
         s.validTo!==null&&(!date(s.validTo)||s.validTo<s.validFrom||s.validTo==='9999-12-31'))throw new Error('Invalid NL source-state catalog.');});
+      if(act.legalDocuments){
+        for(const document of act.legalDocuments)validateLegalDocument(document,name=>extractLegalBody(context.text(name)));
+        continue;
+      }
       assertIntegrity(act.integrity,nlOutputIntegrity(act.files.map((f:any)=>context.text(f.name))));
       const reconstructed:any[]=[];
       for(const file of act.files){
@@ -74,22 +84,28 @@ export function validateV2(context:ValidationContext):void {
       }
       if(file.kind!=='content'||file.canonicalFile!==undefined)throw new Error('Invalid EU file kind.');
       const cached=canonicalBodies.get(file.name);if(cached)return cached;
-      const body=extractEuBody(context.text(file.name));
+      const body=file.layoutProfile==='legal-structure-v1'?extractLegalBody(context.text(file.name)):extractEuBody(context.text(file.name));
       if(legalBodyHash(body)!==file.sourceHash)throw new Error('EU body hash mismatch.');
       const result={name:file.name,body};canonicalBodies.set(file.name,result);return result;
     };
     for(const act of m.acts){
       const expected=expectedActs.find(a=>a.order===act.order);
       if(!act.documents?.length||new Set(act.documents.map((d:any)=>d.celex)).size!==act.documents.length)throw new Error('Invalid EU documents.');
+      assertEuCaseCoverage(act,expected);
       for(const id of [...expected?.requiredVersions??[],...expected?.attachedDocuments?.map((d:any)=>d.celex)??[]])if(!act.documents.some((d:any)=>d.celex===id))throw new Error('Missing EU required document.');
       if(act.files.some((f:any)=>!act.documents.some((d:any)=>d.celex===f.celex)))throw new Error('Unexpected EU document file.');
       for(const doc of act.documents){
+        if(expected?.outputProfile==='legal-structure-v1'&&!doc.legalStructure)throw new Error('EU output lacks configured legal structure.');
         if(metadataHash(expandMetadata(doc.metadata,doc.celex,m.normalization))!==doc.metadataHash)throw new Error('EU metadata reconstruction mismatch.');
         const files=act.files.filter((f:any)=>f.celex===doc.celex).sort((a:any,b:any)=>a.part-b.part);
         if(!files.length||files.some((f:any,i:number)=>f.part!==i+1)||!doc.htmlNormalization?.length||doc.htmlNormalization.length!==files.length)throw new Error('Incomplete EU document parts.');
         const resolved=files.map(content);
-        if(!/^[a-f0-9]{64}$/.test(doc.sourceSha256)||! /^[a-f0-9]{64}$/.test(doc.inputBodyHash)||doc.sourceHash!==legalBodyHash(resolved.map((r:any)=>r.body).join('\n\n')))throw new Error('EU document body/source hash mismatch.');
-        assertEuIntegrity(doc.integrity,resolved.map((r:any)=>r.body).join('\n'));
+        if(!/^[a-f0-9]{64}$/.test(doc.sourceSha256)||! /^[a-f0-9]{64}$/.test(doc.inputBodyHash)||doc.sourceHash!==legalBodyHash(resolved.map((r:any)=>r.body).join(doc.legalStructure?'':'\n\n')))throw new Error('EU document body/source hash mismatch.');
+        assertEuIntegrity(doc.integrity,resolved.map((r:any)=>r.body).join(doc.legalStructure?'':'\n'));
+        if(doc.legalStructure){
+          assert.deepEqual(doc.legalStructure.parts.map((p:any)=>p.file),resolved.map((r:any)=>r.name));
+          validateLegalDocument(doc.legalStructure,(name:string)=>extractLegalBody(context.text(name)));
+        }
         if(doc.textLength!==resolved.reduce((n:number,r:any)=>n+r.body.length,0))throw new Error('EU legal body length mismatch.');
         validateEuNavigation(resolved.map((r:any)=>r.body),resolved.map((r:any)=>r.name));
       }

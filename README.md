@@ -5,7 +5,7 @@ Każdy może czytać i pobierać opublikowane pliki oraz kopiować kod. Zwykły 
 nie ma prawa zapisu do tego repozytorium. Poprawki można zaproponować przez pull request.
 
 **[Otwórz aktualną bazę](https://github.com/staguak/aktualizator-nl-ue/tree/dane)** ·
-**[Pobierz ZIP](https://github.com/staguak/aktualizator-nl-ue/archive/refs/heads/dane.zip)** ·
+**[Pobierz pliki z Releases](https://github.com/staguak/aktualizator-nl-ue/releases)** ·
 **[Zamów aktualizację](https://github.com/staguak/aktualizator-nl-ue/issues/new?template=refresh-public-corpus.yml)**
 
 Baza pojawia się po pierwszym udanym uruchomieniu workflow **Publiczna baza NL i UE**.
@@ -14,8 +14,11 @@ Nie zakładaj aktualności wyłącznie na podstawie zielonego testu kodu: sprawd
 
 ## Odczyt i uruchamianie
 
-* **Każdy, również bez konta GitHub**, może otworzyć gałąź `dane` lub pobrać ZIP.
-  Foldery `NL/` i `UE/` zawierają teksty, indeksy, raporty i oryginalne źródła.
+* **Każdy, również bez konta GitHub**, może otworzyć indeks na gałęzi `dane` i pobrać pliki z Releases.
+  `NL-results.zip` i `UE-results.zip` zawierają Markdown, indeksy, raporty i grafiki;
+  `NL-sources.zip` i `UE-sources.zip` — po jednej wspólnej paczce wszystkich oryginałów.
+  Źródła są rozłożone w katalogach aktów; `BUNDLE_INDEX.json` opisuje ich kompletność.
+  Pobierz obie paczki wybranego korpusu, aby mieć treść i źródła. ZIP samej gałęzi `dane` zawiera tylko indeks.
 * **Każdy zalogowany użytkownik** może zamówić odświeżenie formularzem zgłoszenia
   powyżej. Zachowaj tytuł `[Aktualizacja bazy]`. Nie wpisuj sekretów ani danych osobowych.
   Gdy aktualizator jest wolny, bot poda wynik i linki. Gdy już pracuje, prośba
@@ -45,7 +48,8 @@ Wszyscy korzystają z tej samej opublikowanej bazy. **Harmonogram nie jest ustaw
 ## Zapis danych i sprzątanie
 
 Program pobiera źródła i buduje oba moduły na tymczasowym runnerze GitHub. Po kontroli
-kompletności, treści, ZIP/XML i hashy publikuje **jeden spójny zestaw na gałęzi `dane`**.
+kompletności, treści, obrazów, ZIP/XML i hashy publikuje **spójny zestaw w Releases**,
+a na gałęzi `dane` zapisuje mały indeks z linkami i sumami kontrolnymi.
 Cały wskaźnik gałęzi zmienia się atomowo, z kontrolą poprzedniej rewizji. Błąd budowania
 lub równoległa zmiana magazynu nie usuwa ostatniego poprawnego zestawu.
 
@@ -54,13 +58,25 @@ snapshot, usuwa zbędne pliki poprzedniej wersji i nie zachowuje łańcucha star
 tej gałęzi. Historyczne teksty przepisów potrzebne dla wybranego zakresu są nadal
 częścią materiału urzędowego; nie są zbędnymi plikami technicznymi.
 
-Końcowe kroki `always()` zapisują bezpieczne podsumowanie wyniku, zwalniają blokadę
-i usuwają lokalne wyniki, checkpointy, cache źródeł, logi budowania oraz tymczasowe repozytoria. Runner jest następnie usuwany przez GitHub. Nie tworzymy
-GitHub Artifacts ani trwałego cache Actions. Logi statusów i informacje o zadaniach
-pozostają widoczne na GitHub zgodnie z jego zasadami przechowywania. W razie błędu
-podsumowanie zawiera kod przyczyny, etap i bezpieczne wskazanie miejsca w kodzie.
-Błąd powiadomienia bota jest ostrzeżeniem i nie zmienia potwierdzonego wyniku publikacji.
-Powiadomienia mają ograniczone ponawianie i znacznik zapobiegający dublowaniu komentarzy.
+Końcowe kroki zapisują raport i stan próby, zachowują dwa ostatnie uruchomienia
+(także nieudane) oraz chronioną aktywną poprawną bazę, jeżeli jest starsza.
+Podczas nowej próby dostępne są dwa poprzednie zestawy i budowany nowy; po
+zakończeniu starsze materiały techniczne są usuwane. Historia prawa potrzebna
+w aktualnej bazie pozostaje częścią treści. Checkpointy i cache mogą zostać
+odtworzone przy następnym uruchomieniu. Nieudana próba nie zastępuje poprawnej bazy.
+
+Źródła mają cache HTTP, parserów, modeli i walidacji, przechowywany w ośmiu częściach
+GitHub Actions. Odpowiedź 304 pozwala wykorzystać wcześniejsze bajty; zmiana SHA
+wymaga przetworzenia. Po przekroczeniu 7 GB program usuwa najstarsze pliki
+cache do najwyżej 4 GB; podobnie ogranicza własne stare wpisy cache GitHub.
+GitHub może spakować lub usunąć cache według własnych zasad. Archiwa poprzedniej
+bazy umożliwiają odtworzenie źródeł po utracie cache. Plik runtime w Releases
+służy do wznowienia i przechowuje również potrzebne obliczone wyniki.
+
+Nie tworzymy GitHub Artifacts. Sprzątanie usuwa katalog roboczy bieżącej próby
+i logi; zachowuje cache, checkpointy i zweryfikowane wyniki. Logi statusów Actions
+pozostają zgodnie z zasadami GitHub. Bezpieczny raport podaje kod i etap błędu;
+błąd powiadomienia nie zmienia potwierdzonej publikacji.
 
 Mała gałąź `updater-state` przechowuje jeden plik `state.json` i jeden commit: aktualny
 stan RUNNING/IDLE, identyfikator uruchomienia oraz okno czasu ostatniej operacji. To
@@ -70,8 +86,16 @@ odzyskać wyłącznie po potwierdzeniu zakończenia tamtej próby. Aktywna bloka
 przejmowana przez timeout lub upływ czasu. Nie edytuj tego pliku ręcznie.
 
 Usunięcie starej historii z gałęzi nie gwarantuje natychmiastowego zmniejszenia zajętości
-repo na serwerze: nieosiągalne obiekty usuwa GitHub. Program odrzuca pojedynczy plik
-większy niż 95 MB lub zestaw większy niż 500 MB, zamiast opublikować niepełne dane.
+repo na serwerze: nieosiągalne obiekty usuwa GitHub. Markdown ma pomocniczy limit techniczny 95 MB. Podział wynika z rozdziałów,
+sekcji, artykułów i innych jednostek prawnych; nie z celu znakowego. Manifest
+pozwala odtworzyć całą wersję i odnaleźć jednostki. Nie ma osobnego eksportu artykułów.
+Zbyt dużą jednostkę można dzielić tylko przy bezpiecznej granicy jej struktury.
+Surowy RDF/XML nie ma programowego limitu wielkości. Pojedynczy zasób Releases
+musi mieścić się w limicie GitHub (poniżej 2 GiB); przekroczenie blokuje publikację.
+
+`IMAGE_INDEX.json` wiąże każde wystąpienie grafiki z jednostką i źródłem.
+Base64 pozostaje w zweryfikowanym Markdown, a obok zapisywane są oryginalne
+bajty obrazu w rozpoznanym formacie; program nie konwertuje wszystkiego do JPEG.
 
 ## Ochrona kodu i poświadczenia
 
@@ -107,12 +131,13 @@ cd aktualizator-ph
 npm ci
 python3.12 -m venv .venv
 . .venv/bin/activate
-python -m pip install -r scripts/xml-requirements.txt -r scripts/rdf-requirements.txt
+python -m pip install -r scripts/xml-requirements.txt -r scripts/rdf-requirements.txt -r scripts/image-requirements.txt
 LAW_XML_VALIDATION=required node --import tsx src/github-build.ts
 ```
 
 Nie przekazuj temu procesowi OAuth, tokenów GitHub ani prywatnej konfiguracji.
-Lokalnie wynik pozostanie w `output/` oraz `output-ue/`. Automatyczne publikowanie
+Lokalnie wynik pozostanie w `output/` oraz `output-ue/`, a gotowe paczki
+w `.public-state/distribution/`. Automatyczne publikowanie
 na GitHub wykonuje przygotowany workflow z kontrolą kontekstu i sprzątaniem.
 
 ## Weryfikacja i koszty

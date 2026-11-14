@@ -30,7 +30,7 @@ export function sourceAvailability(index:any):SourceAvailability{
   if(index.sourceIssues.some((i:SourceIssue)=>i.documentId!==undefined&&!documents.has(i.documentId)))throw new Error('Source issue document identity mismatch.');
   return {identifier:index.identifier,profile:index.sourceIssueProfile,issues:index.sourceIssues,legacyWarnings:[],
     hasOfficialTextFallback:index.sourceIssues.some((i:SourceIssue)=>i.representation==='Formex'&&['SOURCE_UNAVAILABLE','REPRESENTATION_REJECTED'].includes(i.classification)&&
-      index.entries.some((e:any)=>e.kind==='CELLAR-XHTML'&&e.metadata?.celex===i.documentId&&e.metadata?.language==='EN'))};
+      index.entries.some((e:any)=>e.kind==='CELLAR-XHTML'&&e.metadata?.celex===i.documentId&&['EN','PL','NL','FR'].includes(e.metadata?.language)))};
 }
 
 /** Stable observations, including old typed archives, without rewriting them.

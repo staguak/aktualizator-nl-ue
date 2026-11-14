@@ -2,9 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {safeCacheDirectory} from './cache-directory.js';
 
-export type PublicBuildStage='CONFIGURATION'|'MODULE_BUILD'|'OUTPUT_VALIDATION'|'INDEPENDENT_AUDIT'|'FREEZE';
+export type PublicBuildStage='CONFIGURATION'|'MODULE_BUILD'|'OUTPUT_VALIDATION'|'INDEPENDENT_AUDIT'|'FREEZE'|'DISTRIBUTION';
 export class PublicBuildError extends Error {
-  constructor(readonly code:'PRIVATE_CREDENTIALS_FORBIDDEN'|'BUILD_ARGUMENT_INVALID'|'AUDIT_TIMEOUT'|'AUDIT_FAILED'|'AUDIT_OUTPUT_INVALID',
+  constructor(readonly code:'PRIVATE_CREDENTIALS_FORBIDDEN'|'BUILD_ARGUMENT_INVALID'|'AUDIT_TIMEOUT'|'AUDIT_FAILED'|'AUDIT_OUTPUT_INVALID'|'DISTRIBUTION_FAILED',
     readonly auditLine?:number){super(code);}
 }
 export function independentAuditError(stderr:string,timedOut=false):PublicBuildError{

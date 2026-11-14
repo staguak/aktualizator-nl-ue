@@ -9,6 +9,9 @@ export interface ScopeAct {
   bwbId: string;
   include: ScopeInclude;
   mustIncludeArticles: string[];
+  /** Search selectors stay unchanged; expand retrieved content when enabled. */
+  retrievalScope?: 'full-act';
+  outputProfile?:'legal-structure-v1';
 }
 
 export interface ScopeConfig {
@@ -59,6 +62,8 @@ export interface ParsedStatute {
 }
 
 export interface VersionSnapshot {
+  sourceSha256?:string;
+  legalDraft?:import('./legal-structure.js').LegalDraft;
   version: VersionRecord;
   statute: ParsedStatute;
 }

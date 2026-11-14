@@ -1,6 +1,7 @@
 import {zipSync} from 'fflate';
 import {XMLParser,XMLValidator} from 'fast-xml-parser';
 import {createHash} from 'node:crypto';
+import {fileDigests} from './source-cache.js';
 import type {BinarySource} from './source-cache.js';
 import type {FileMetadata} from './final-file.js';
 import {fileMetadata,stableJson,stableCompactJson} from './output.js';
@@ -9,6 +10,8 @@ import type {UnitSnapshot} from './unit-observations.js';
 import {encodeUnitMetadata,decodeUnitMetadata} from './unit-encoding.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
 import {validateSourceIssues,sourceAvailability} from './source-availability.js';
 import type {SourceIssue} from './source-availability.js';
 import {safeCacheDirectory} from './cache-directory.js';
@@ -17,8 +20,8 @@ import type {SourceReportEvidence} from './source-report-evidence.js';
 import {isDeepStrictEqual} from 'node:util';
 import {zipInventory,decodeZipPayloads} from './zip-integrity.js';
 
-export interface SourceArchive extends FileMetadata {entryCount:number;warnings:string[];model:'BWB'|'CELLAR';catalogFormat?:'canonical-compact-json-v1';sourceIssueProfile?:'source-issues-v1';reportEvidence?:SourceReportEvidence;diagnosticOnly?:true}
-interface SourceEntry {name:string;size:number;md5:string;sha256?:string;requestedUrl:string;url:string;contentType:string;kind:string;metadata:unknown;httpObservation?:BinarySource['observation']}
+export interface SourceArchive extends FileMetadata {entryCount:number;warnings:string[];model:'BWB'|'CELLAR';catalogFormat?:'canonical-compact-json-v1';sourceIssueProfile?:'source-issues-v1';reportEvidence?:SourceReportEvidence;diagnosticOnly?:true;distribution?:{bundle:string;prefix:string}}
+interface SourceEntry {name:string;size:number;md5:string;sha256?:string;requestedUrl:string;url:string;contentType:string;kind:string;metadata:unknown;httpObservation?:BinarySource['observation'];cacheHint?:BinarySource['cacheHint']}
 const checksum=(b:Uint8Array)=>createHash('md5').update(b).digest('hex');
 const safePath=(n:string)=>/^[A-Za-z0-9_.\/-]+$/.test(n)&&!n.split('/').some(p=>!p||p==='.'||p==='..');
 export const safeArchiveName=(n:unknown):n is string=>typeof n==='string'&&/^\d+_[A-Za-z0-9_.-]+\.sources\.zip$/.test(n);
@@ -32,20 +35,22 @@ export function xmlObject(bytes:Uint8Array):any {
   return new XMLParser({ignoreAttributes:false,attributeNamePrefix:'@_',removeNSPrefix:true,parseTagValue:false,parseAttributeValue:false}).parse(xml);
 }
 export class OfficialSources {
-  private entries=new Map<string,{entry:SourceEntry;bytes:Buffer}>();
+  private entries=new Map<string,{entry:SourceEntry;bytes?:Buffer;filePath?:string}>();
   private discovery:Record<string,unknown>|undefined;
   readonly warnings:string[]=[];
   private sourceIssues:SourceIssue[]=[];
   private unclassifiedWarnings=new Set<string>();
   constructor(readonly jurisdiction:'NL'|'EU',readonly identifier:string,readonly range:{from:string;to:string;observedOn:string}){}
   add(name:string,source:BinarySource,requestedUrl:string,kind:string,metadata:unknown=null):void {
-    if(!safePath(name)||name==='manifest.json'||!source.bytes.length)throw new Error('Unsafe official source entry.');
-    const entry:SourceEntry={name,size:source.bytes.length,md5:checksum(source.bytes),sha256:createHash('sha256').update(source.bytes).digest('hex'),requestedUrl,url:source.url,contentType:source.contentType,kind,metadata,
-      ...source.observation?{httpObservation:source.observation}:{}};
+    const native=source.filePath?{...fileDigests(source.filePath),filePath:source.filePath}:{bytes:source.bytes,size:source.bytes.length,md5:checksum(source.bytes),sha256:createHash('sha256').update(source.bytes).digest('hex')};
+    if(source.sha256!==undefined&&source.sha256!==native.sha256)throw new Error('Original source checksum differs from downloaded bytes.');
+    if(!safePath(name)||name==='manifest.json'||!native.size)throw new Error('Unsafe official source entry.');
+    const entry:SourceEntry={name,size:native.size,md5:native.md5,sha256:native.sha256,requestedUrl,url:source.url,contentType:source.contentType,kind,metadata,
+      ...source.observation?{httpObservation:source.observation}:{},...source.cacheHint?{cacheHint:source.cacheHint}:{}};
     const old=this.entries.get(name);
     if(old&&old.entry.md5!==entry.md5)throw new Error('Official source changed within one build.');
     if(old&&stableJson(old.entry)!==stableJson(entry))throw new Error('Conflicting source observations require distinct archive entries.');
-    this.entries.set(name,{entry,bytes:source.bytes});
+    this.entries.set(name,{entry,...'filePath' in native?{filePath:native.filePath}:{bytes:native.bytes}});
   }
   warning(message:string,issue?:Omit<SourceIssue,'message'>):void {
     if(!issue){if(!this.warnings.includes(message))this.warnings.push(message);this.unclassifiedWarnings.add(message);return;}
@@ -114,9 +119,21 @@ export class OfficialSources {
     // become 1979 west of UTC and is then rejected. Fix the local wall date;
     // this changes no downloaded source bytes or nested official ZIP archive.
     const mtime=new Date(1980,0,1,0,0,0);
-    for(const e of entries)data[e.entry.name]=[e.bytes,{mtime}];
+    for(const e of entries)if(e.bytes)data[e.entry.name]=[e.bytes,{mtime}];
     data['manifest.json']=[Buffer.from(histories.length?stableCompactJson(document):stableJson(document)),{mtime}];
-    const bytes=Buffer.from(zipSync(data,{level:6}));
+    let bytes:Buffer;
+    if(entries.some(e=>e.filePath)){
+      const parent=process.env.LAW_SOURCE_CACHE_DIR??path.join(process.cwd(),'.source-cache');fs.mkdirSync(parent,{recursive:true});
+      const temp=fs.mkdtempSync(path.join(parent,'zip-work-'));
+      try{
+        const catalog=path.join(temp,'manifest.json');fs.writeFileSync(catalog,data['manifest.json'][0]);
+        const files=entries.map((e,i)=>{if(e.filePath)return {name:e.entry.name,path:path.resolve(e.filePath),size:e.entry.size,sha256:e.entry.sha256};const file=path.join(temp,'input-'+i);fs.writeFileSync(file,e.bytes!);return {name:e.entry.name,path:path.resolve(file),size:e.entry.size,sha256:e.entry.sha256};});
+        const recipe=path.join(temp,'recipe.json'),target=path.join(temp,'source.zip');fs.writeFileSync(recipe,JSON.stringify({files,catalog:path.resolve(catalog),target:path.resolve(target)}));
+        const root=fileURLToPath(new URL('../',import.meta.url));
+        const result=spawnSync(process.env.LAW_XML_PYTHON??'python3',[path.join(root,'scripts/build_source_zip.py'),recipe],{stdio:['ignore','pipe','pipe'],encoding:'utf8',timeout:600_000,maxBuffer:65536});
+        if(result.error||result.status!==0)throw new Error(`Streaming original-source archive creation failed (${result.status??'signal'}, ${(result.error as NodeJS.ErrnoException|undefined)?.code??'helper'}).`);bytes=fs.readFileSync(target);
+      }finally{fs.rmSync(temp,{recursive:true,force:true});}
+    }else bytes=Buffer.from(zipSync(data,{level:6}));
     return {bytes,metadata:{...fileMetadata(name,bytes),entryCount:entries.length,warnings:document.warnings,model:this.jurisdiction==='NL'?'BWB':'CELLAR',
       ...options.diagnosticOnly?{diagnosticOnly:true as const}:{reportEvidence:sourceReportEvidence({...document,entries:entries.map(x=>x.entry)})},
       ...this.unclassifiedWarnings.size?{}:{sourceIssueProfile:'source-issues-v1' as const},...document.catalogFormat?{catalogFormat:document.catalogFormat}:{}}};
@@ -126,7 +143,7 @@ export function unpackOfficialZip(bytes:Uint8Array):Record<string,Uint8Array> {
   const inventory=zipInventory(bytes);
   let total=0;
   for(const [name,entry] of inventory)
-    if(!safePath(name)||entry.size>64_000_000||(total+=entry.size)>256_000_000)throw new Error('Unsafe or oversized official ZIP.');
+    if(!safePath(name)||process.env.LAW_PUBLIC_INCREMENTAL!=='1'&&(entry.size>64_000_000||(total+=entry.size)>256_000_000))throw new Error('Unsafe or oversized official ZIP.');
   return decodeZipPayloads(bytes,inventory);
 }
 export function loadSourceArchive(bytes:Buffer,expected:SourceArchive,jurisdiction:string,identifier:string):{index:any;items:Record<string,Uint8Array>} {

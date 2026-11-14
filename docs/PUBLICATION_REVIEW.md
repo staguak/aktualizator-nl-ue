@@ -1,3 +1,12 @@
+# Aktualizacja 2026-11-14
+
+Poniższy dokument zachowuje historyczny przegląd pierwotnej publikacji.
+Obecna implementacja dodaje podział strukturalny, IMAGE_INDEX, aktualizację
+przyrostową oraz paczki Releases z małym indeksem na `dane`. Cache i checkpointy
+są zachowywane; obowiązuje retencja dwóch ostatnich prób i chronionej aktywnej bazy.
+Stan bieżącej weryfikacji i ograniczenia: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
+Nie ustawiono harmonogramu. Odbiór lokalny nie zastępuje końcowego testu publicznego.
+
 # Kontrola dystrybucji publicznej — 13.11.2026
 
 Kontrola dotyczy wybranego drzewa tej dystrybucji. Nie jest audytem ani

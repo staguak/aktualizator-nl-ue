@@ -5,7 +5,7 @@ import {safeCacheDirectory} from './cache-directory.js';
 import {sourceAuditMode,sourceAuditIdentity} from './source-audit.js';
 
 const names=['sourceRequests','sourceReceivedEntityBytes','sourceNotModified','sourceCacheReusedBytes','sourceRetries',
-  'parserComputed','parserCacheHits','actsBuilt','actsCheckpointReused','driveRetries',
+  'parserComputed','parserCacheHits','modelComputed','modelCacheHits','xmlComputed','xmlCacheHits','actsBuilt','actsCheckpointReused','driveRetries',
   'driveUploadAttempts','driveSubmittedBytes','driveUploadedFiles','driveReusedFiles','driveReusedBytes'] as const;
 type Counter=typeof names[number];
 export class OperationMetrics {

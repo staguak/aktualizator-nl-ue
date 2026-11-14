@@ -4,25 +4,26 @@ import {randomUUID} from 'node:crypto';
 import {hash,encode} from './release-store.js';
 import {safeCacheDirectory} from './cache-directory.js';
 import {operationMetrics} from './operation-metrics.js';
+import {sourceCacheShard} from './source-cache.js';
 
 // Only deterministic parser results are cached. Discovery, HTTP validation,
 // source identity, legal selection, models and publication are never skipped.
 export class DerivedCache {
   readonly stats={hits:0,computed:0};
-  constructor(private dir:string|undefined,private maxBytes=128_000_000){}
+  constructor(private dir:string|undefined,private maxBytes=128_000_000,private category:'parser'|'model'='parser'){}
   value<T>(dependencies:Record<string,unknown>,compute:()=>T,validate:(value:unknown)=>value is T):T{
-    const key=hash(encode(dependencies)),file=this.dir&&safeCacheDirectory(this.dir)?path.join(this.dir,key+'.json'):undefined;
+    const key=hash(encode(dependencies)),file=this.dir&&safeCacheDirectory(this.dir)?path.join(this.dir,...process.env.LAW_CACHE_SHARDS==='8'?[sourceCacheShard(key),key+'.json']:[key+'.json']):undefined;
     if(file)try{
       const stat=fs.lstatSync(file);
       if(stat.isFile()&&stat.size<=this.maxBytes){
         const saved=JSON.parse(fs.readFileSync(file,'utf8'));
         if(saved.schemaVersion===1&&saved.key===key&&hash(encode(saved.dependencies))===key&&
           saved.valueSha256===hash(encode(saved.value))&&validate(saved.value)){
-          this.stats.hits++;operationMetrics.add('parserCacheHits');return saved.value;
+          this.stats.hits++;operationMetrics.add(this.category==='model'?'modelCacheHits':'parserCacheHits');return saved.value;
         }
       }
     }catch{/* An absent/corrupt optimization cache must recompute, never certify freshness. */}
-    this.stats.computed++;operationMetrics.add('parserComputed');const value=compute();
+    this.stats.computed++;operationMetrics.add(this.category==='model'?'modelComputed':'parserComputed');const value=compute();
     if(!validate(value))throw new Error('Invalid derived parser output.');
     if(file&&safeCacheDirectory(path.dirname(file))){
       const bytes=encode({schemaVersion:1,key,dependencies,value,valueSha256:hash(encode(value))});

@@ -1,5 +1,6 @@
 """Pinned, offline XML/XSD validation. Never rewrites official source bytes."""
 import argparse
+import os
 import sys
 import re
 import hashlib
@@ -8,12 +9,19 @@ import json
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit, unquote
 import zipfile
+import importlib.util
 from lxml import etree
 import rdflib
 import pyparsing
 from rdflib import Graph, URIRef, Literal, BNode
 from rdflib.exceptions import ParserError
 from xml.sax import SAXParseException
+
+# Isolated Python (-I) deliberately excludes the script directory from sys.path.
+# Load only this exact repository-owned companion, never an ambient module.
+_file_spec = importlib.util.spec_from_file_location('updater_xml_file_validation', Path(__file__).with_name('xml_file_validation.py'))
+_file_validation = importlib.util.module_from_spec(_file_spec)
+_file_spec.loader.exec_module(_file_validation)
 
 XSI = '{http://www.w3.org/2001/XMLSchema-instance}'
 CATALOG_SHA256 = '5a3292345fb2c9771ef088a9852bac247c2c63f4514222a897225b13e7b3879d'
@@ -307,7 +315,7 @@ def check_runtime():
         raise ValueError('Pinned XML/RDF runtime unavailable')
 
 
-def serve(directory):
+def serve(directory, source_roots=()):
     check_runtime()
     schemas = PinnedSchemas(directory)
     print(json.dumps(dict(type='ready', profile=PROFILE, lxml='6.1.3', rdf='7.6.0', schemas=31)), flush=True)
@@ -319,20 +327,34 @@ def serve(directory):
             raise ValueError('Invalid XML validation request header')
         request = json.loads(header)
         size, request_id = request.get('size'), request.get('id')
-        if type(size) is not int or not 0 < size <= MAX_XML_BYTES or type(request_id) is not int:
+        file_mode = request.get('mode') == 'file'
+        if type(size) is not int or size <= 0 or (not file_mode and size > MAX_XML_BYTES) or type(request_id) is not int:
             raise ValueError('Invalid XML validation request')
-        raw = sys.stdin.buffer.read(size)
-        actual_sha256 = hashlib.sha256(raw).hexdigest()
-        if len(raw) != size or actual_sha256 != request.get('sha256'):
-            raise ValueError('Truncated or modified XML validation payload')
+        if not re.fullmatch('[a-f0-9]{64}', request.get('sha256', '')):
+            raise ValueError('Invalid XML validation checksum')
         try:
-            result = validate_required(schemas, raw, request['url'], request['kind'], request.get('identifier'), actual_sha256)
+            if file_mode:
+                with _file_validation.open_source_file(request.get('path'), source_roots) as source:
+                    if os.fstat(source.fileno()).st_size != size:
+                        raise ValueError('Original source size mismatch')
+                    result = _file_validation.validate_file_stream(
+                        schemas, source, request['url'], request['kind'], request.get('identifier'), request['sha256'],
+                        assert_source_identity, DenyExternal, schema_matches_kind, RejectedRdf,
+                        PROFILE, RDF_PROFILE, MAX_RDF_FACTS)
+            else:
+                raw = sys.stdin.buffer.read(size)
+                actual_sha256 = hashlib.sha256(raw).hexdigest()
+                if len(raw) != size or actual_sha256 != request.get('sha256'):
+                    raise ValueError('Truncated or modified XML validation payload')
+                result = validate_required(schemas, raw, request['url'], request['kind'], request.get('identifier'), actual_sha256)
         except (ValueError, etree.LxmlError) as error:
             # Codes and locations suffice for diagnostics; never echo source text
             # or provider URLs containing arbitrary error/request information.
             result = dict(status='RDF_REJECTED' if isinstance(error, RejectedRdf) else 'XML_REJECTED', profile=PROFILE,
                           sourceSha256=request['sha256'], sourceBytes=size, kind=request['kind'],
                           error=type(error).__name__)
+            if file_mode:
+                result['validationMode'] = 'STREAMING_FILE'
         print(json.dumps(dict(id=request_id, result=result)), flush=True)
 
 
@@ -340,11 +362,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--serve', action='store_true')
     parser.add_argument('--schemas', type=Path, default=Path(__file__).resolve().parents[1] / 'docs/schema-research')
+    parser.add_argument('--source-root', type=Path, action='append', default=[])
     args = parser.parse_args()
     if not args.serve:
         parser.error('--serve is required')
     try:
-        serve(args.schemas)
+        serve(args.schemas, args.source_root)
     except Exception:
         print(json.dumps(dict(type='fatal', code='XML_VALIDATOR_UNAVAILABLE')), flush=True)
         raise SystemExit(1)

@@ -1,5 +1,15 @@
 # Bezpieczeństwo
 
+Publiczny wariant nie otrzymuje sekretów Drive. Kod źródeł uruchamia się bez tokenu
+GitHub; token jest dostępny osobno dla kontroli dopuszczenia, odtwarzania,
+publikacji, retencji i powiadomień. Zmiany plików sterujących wskazują właściciela
+w CODEOWNERS; faktyczne wymagania zatwierdzania zależą od aktywnych reguł GitHub.
+
+Nie ustawiono harmonogramu aktualizatora ani automatycznych aktualizacji zależności.
+Przed wydaniem należy sprawdzić przypięte wersje oraz hashe Action i pakietów.
+Dekoder obrazów Pillow 13.0.0 jest przypięty hashem koła; grafiki są weryfikowane
+w osobnym procesie z limitem czasu i bez odziedziczonych sekretów.
+
 Nie umieszczaj tokenów, plików OAuth ani prywatnych raportów w issues, PR,
 commitach lub publicznych załącznikach Actions. W zgłoszeniu opisz objaw i wersję,
 bez sekretów i danych osobowych. Podatność zgłoś przez zakładkę Security,
