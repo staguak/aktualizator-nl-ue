@@ -1,0 +1,13 @@
+{
+  "profile": "public-updater-admission-v1",
+  "repository": "staguak/aktualizator-nl-ue",
+  "status": "IDLE",
+  "runId": "43589320324",
+  "attempt": 1,
+  "revision": "8a0798d25782422af27a2ca763dd785b91c40bf1",
+  "nonce": "1c51ecec2d0e43818fb4cea3cf9c88b9",
+  "requestedAt": "2026-11-14T11:17:34+00:00",
+  "startedAt": "2026-11-14T11:17:41.168474+00:00",
+  "finishedAt": "2026-11-14T11:27:54.715803+00:00",
+  "lastResult": "FAILED"
+}
