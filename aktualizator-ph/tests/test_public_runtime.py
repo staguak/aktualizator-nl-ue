@@ -51,6 +51,10 @@ class NotificationApi:
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_full_audit_without_a_previous_release_needs_no_github_credential(self):
+        with patch.dict(os.environ,{'GH_TOKEN':'','GITHUB_REPOSITORY':'example/updater'}):
+            self.assertIsNone(public.restore_runtime(None,True))
+
     def test_first_run_and_legacy_migration_restore_failed_checkpoints_without_active_good_release(self):
         for previous in [None,{'profile':public.PROFILE}]:
             with self.subTest(previous=previous),tempfile.TemporaryDirectory() as tmp:

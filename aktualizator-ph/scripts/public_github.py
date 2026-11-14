@@ -353,6 +353,8 @@ def release_store():
 
 def restore_runtime(previous=None, full_audit=False):
     """Use good outputs as comparison base, newest compatible checkpoints to resume."""
+    if full_audit and not previous:
+        return
     store = release_store()
     owner_run=os.environ.get('GITHUB_RUN_ID','');owner_attempt=os.environ.get('GITHUB_RUN_ATTEMPT','')
     if not full_audit and re.fullmatch(r'[1-9][0-9]*',owner_run) and re.fullmatch(r'[1-9][0-9]*',owner_attempt):

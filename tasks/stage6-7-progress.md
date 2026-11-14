@@ -11,3 +11,7 @@
 - Ograniczenia przeglądu: nie potwierdzono jeszcze rzeczywistych uprawnień/Actions cache ani wielogigabajtowej wydajności. Pozostaje końcowy test publiczny.
 
 Wykorzystane instrukcje: EngineeringSuite ci-cd-and-automation, Superpowers requesting-code-review/verification-before-completion, Awesome Maintainer Defense audit-repository-workflows. Przy tych mutacjach obowiązuje wcześniejsze upoważnienie użytkownika do kolejnych zatwierdzonych etapów; nie włączono nowego harmonogramu ani nie zmieniono prywatnego repo.
+
+## Próba CI
+
+Pierwszy verify na GitHub przeszedł Node/typy/XML, ale wykrył brak izolacji od obecności tokenu w pustym przywracaniu pełnego audytu. restore_runtime(None, full_audit=True) nie potrzebuje klienta API; dodano wczesny powrót i test z pustym GH_TOKEN. Nie dodano sekretu do CI. Lokalna reprodukcja RED, poprawiony zestaw publicznych testów z usuniętymi tokenami PASS. Końcowy verify ponowiony.
