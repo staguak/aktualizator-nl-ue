@@ -7,7 +7,7 @@ import type {EuLanguage} from './eu-language.js';
 import {parseEuLegalStructure} from './eu-legal-structure.js';
 import type {LegalContext,LegalDraft} from './legal-structure.js';
 
-const documentWords:Record<EuLanguage,RegExp>={EN:/article|treaty|judgment|directive|regulation|charter|decision/i,NL:/artikel|verdrag|arrest|richtlijn|verordening|handvest|besluit/i,PL:/artykuł|traktat|wyrok|dyrektywa|rozporządzenie|karta|decyzja/i,FR:/article|traité|arrêt|directive|règlement|charte|décision/i};
+const documentWords:Record<EuLanguage,RegExp>={EN:/article|treaty|judgment|directive|regulation|charter|decision/i,NL:/artikel|verdrag|arrest|richtlijn|verordening|handvest|besluit/i,PL:/artykuł|traktat|wyrok|dyrektyw|rozporządz|kart[ayęą]|karcie|decyzj/i,FR:/article|traité|arrêt|directive|règlement|charte|décision/i};
 const correctionWords:Record<EuLanguage,RegExp>={EN:/corrigendum|corrigenda/i,NL:/rectificatie|rectificaties/i,PL:/sprostowanie|sprostowania/i,FR:/rectificatif|rectificatifs/i};
 const operativeIntro:Record<EuLanguage,RegExp>={EN:/^On those grounds,? the Court .*hereby(?: rules)?:$/i,NL:/^Het Hof .*verklaart:$/i,PL:/^Z (?:powyższych|tych) względów.*Trybunał.*(?:orzeka|stanowi).*:?$/i,FR:/^Par ces motifs,? la Cour.*(?:déclare|dit|arrête|statue).*:?$/i};
 

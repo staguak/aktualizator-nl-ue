@@ -109,8 +109,21 @@ export function renderLegalTree(root:LegalSourceNode,context:LegalContext,rules:
       if(node.attributes['xml:space']==='preserve')attrs.style=(attrs.style??'')+';white-space:pre-wrap';
       if(node.tag==='nadruk'&&!/\b(?:vet|bold)\b/i.test(node.attributes.type??''))tag='em';
       if(node.attributes.morerows&&/^\d+$/.test(node.attributes.morerows))attrs.rowspan=String(Number(node.attributes.morerows)+1);
-      const link=tag==='a'?(node.attributes.href??node.attributes.doc??node.attributes.ref):vectorTags.has(tag)?node.attributes.href??node.attributes['xlink:href']:undefined;
-      const src=tag==='img'?(node.attributes.src??node.attributes.url):undefined;
+      let link=tag==='a'?(node.attributes.href??node.attributes.doc??node.attributes.ref):vectorTags.has(tag)?node.attributes.href??node.attributes['xlink:href']:undefined;
+      if(node.tag==='extref'){
+        if(node.attributes.doc)attrs['data-source-doc']=node.attributes.doc;
+        if(node.attributes.reeks)attrs['data-source-reeks']=node.attributes.reeks;
+      }
+      if(link&&context.corpus==='NL'&&/^jci\d+(?:\.\d+)?:/i.test(link))link='https://wetten.overheid.nl/'+link;
+      else if(link&&context.corpus==='NL'&&node.tag==='extref'&&node.attributes.reeks?.toLowerCase()==='celex'&&/^[0-9][A-Za-z0-9_()./-]*$/.test(link)){
+        const target=new URL('https://eur-lex.europa.eu/legal-content/'+context.language+'/TXT/');target.searchParams.set('uri','CELEX:'+link);link=target.href;
+      }
+      const src=tag==='img'?(node.attributes.src??node.attributes.url??(context.corpus==='NL'&&node.tag==='illustratie'?node.attributes.naam:undefined)):undefined;
+      if(context.corpus==='NL'&&node.tag==='illustratie'){
+        if(node.attributes.breedte)attrs.width=node.attributes.breedte;
+        if(node.attributes.hoogte)attrs.height=node.attributes.hoogte;
+        for(const [name,value] of Object.entries(node.attributes))attrs['data-source-'+name.replace(/[^a-z0-9-]/gi,'-')]=value;
+      }
       if(link){
         if(link.startsWith('#'))attrs.href=link;
         else {const url=new URL(link,context.sourceUrl);if(!['http:','https:','mailto:'].includes(url.protocol)&&!(tag==='image'&&/^data:image\//i.test(link)))throw new Error('Unsupported legal hyperlink protocol.');attrs.href=url.href;}
@@ -138,7 +151,7 @@ export function renderLegalTree(root:LegalSourceNode,context:LegalContext,rules:
   assertIntegrity(expected,htmlIntegrity(body).text);
   const originalImages:string[]=[];
   const images=(node:LegalSourceNode)=>{if(rules.skip.has(node.tag))return;if(rules.tag(node)==='img'){
-    const src=node.attributes.src??node.attributes.url;if(!src)throw new Error('Original image has no source.');originalImages.push(new URL(src,context.sourceUrl).href);
+    const src=node.attributes.src??node.attributes.url??(context.corpus==='NL'&&node.tag==='illustratie'?node.attributes.naam:undefined);if(!src)throw new Error('Original image has no source.');originalImages.push(new URL(src,context.sourceUrl).href);
   }node.children.forEach(images);};images(root);
   assertIntegrity(fingerprintText(JSON.stringify(originalImages)),htmlIntegrity(body).images);
   const chunks=planLegalChunks(body,groups,breaks,maxBytes);
