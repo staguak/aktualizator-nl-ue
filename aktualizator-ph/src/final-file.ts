@@ -9,6 +9,7 @@ export type FinalFileDetails =
   | {jurisdiction: 'NL'; kind: 'content'; metadata: {articles: string[];layoutProfile?:'legal-structure-v1'}}
   | {jurisdiction: 'EU'; kind: 'content'; metadata: {celex: string; part: number; sourceHash: string;layoutProfile?:'legal-structure-v1'}}
   | {jurisdiction: 'EU'; kind: 'reference'; metadata: {celex: string; part: number; sourceHash: string; canonicalFile: string}}
+  | {jurisdiction: 'EU'; kind: 'unavailable'; metadata: {celex:string;part:number;sourceHash:string}}
   | {jurisdiction: 'NL' | 'EU'; kind: 'control'; metadata: {role: ControlName}};
 export type FinalFile = FileMetadata & FinalFileDetails & {content: Buffer};
 export type NlFinalFile = Extract<FinalFile, {jurisdiction: 'NL'}>;

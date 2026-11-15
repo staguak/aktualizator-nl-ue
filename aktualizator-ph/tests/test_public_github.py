@@ -41,6 +41,29 @@ def fixture(root, extra='current.md'):
 
 
 class PublicGitHubTests(unittest.TestCase):
+    def test_partial_attempt_cannot_replace_the_protected_complete_database(self):
+        for distribution,audit in [
+            ({'completeness':{'UE':{'status':'PARTIAL'}}},{'status':'PASS'}),
+            ({},{'status':'PASS','results':[{'completeness':'PARTIAL'}]}),
+            ({'completeness':{'NL':{'status':'COMPLETE','unavailableImages':1}}},{'status':'PASS'}),
+            ({},{'status':'PASS','results':[{'missingDocuments':1}]}),
+            ({},{'status':'PASS','results':[{'incompleteCatalogs':1}]}),
+        ]:
+            with self.assertRaisesRegex(public.PublicError,'OUTPUT_INCOMPLETE'):
+                public.require_complete_publication(distribution,audit)
+        public.require_complete_publication({'completeness':{'NL':{'status':'COMPLETE'},'UE':{'status':'COMPLETE'}}},{'status':'PASS','results':[{'completeness':'COMPLETE','unavailableImages':0}]})
+
+    def test_partial_public_data_is_labelled_with_document_and_graphic_gaps(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(public,'repository',return_value='example/updater'):
+            directory=Path(tmp)
+            value=dict(rangeFrom='2025-01-01',rangeTo='2026-11-15',counts={'NL':23,'UE':65},
+                       release={'tag':'example','url':'https://github.com/example/updater/releases/tag/example'},
+                       completeness={'UE':dict(status='PARTIAL',missingDocuments=2,unavailableImages=1)})
+            public.write_index_readme(directory,value)
+            text=(directory/'README.md').read_text()
+            self.assertIn('Dane niepełne',text)
+            self.assertIn('niedostępne dokumenty 2; grafiki 1',text)
+
     def test_release_packages_use_release_asset_limit_instead_of_ordinary_git_file_limit(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);files=[]

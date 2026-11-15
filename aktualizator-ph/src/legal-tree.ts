@@ -14,7 +14,7 @@ export interface LegalTreeRules {
   atomicKinds:Set<LegalKind>;
   protectedClasses?:Set<string>;
 }
-export const vectorTags=new Set(['svg','g','path','rect','circle','ellipse','line','polyline','polygon','text','tspan','defs','use','symbol','clipPath','mask','linearGradient','radialGradient','stop','pattern','marker','filter','feGaussianBlur','image',
+export const vectorTags=new Set(['svg','g','path','rect','circle','ellipse','line','polyline','polygon','text','tspan','defs','use','symbol','clipPath','mask','linearGradient','radialGradient','stop','pattern','marker','filter','feGaussianBlur','feImage','image',
   'math','mrow','mi','mo','mn','msub','msup','mfrac','msqrt','mroot','mtext','mtable','mtr','mtd','semantics','annotation']);
 export function sourceTree(source:string,xml:boolean):LegalSourceNode[]{
   if(source.includes('<!-- legal-unit:')||source.includes('<!-- /legal-unit:')||source.includes(LEGAL_START)||source.includes(LEGAL_END))throw new Error('Reserved legal markers in original source.');

@@ -6,7 +6,7 @@ import { OfficialSources, xmlObject, formexInfo } from './official-sources.js';
 import { shareInFlight } from './concurrency.js';
 import {assertEuSourceIdentity} from './eu-source-identity.js';
 import {documentDate} from './eu-dates.js';
-import {retrySource} from './source-cache.js';
+import {retrySource,SourceHttpError,transientSourceError,sourceInfrastructureFailure} from './source-cache.js';
 import {validateSourceXml,validateSourceXmlFile,preserveRejectedSource,XmlValidationInfrastructureError} from './xml-validation.js';
 import type {XmlKind,XmlReceipt} from './xml-validation.js';
 import {validateFormexXml} from './xml-archive-validation.js';
@@ -31,6 +31,8 @@ export interface EuDocument {
   outputProfile?:'legal-structure-v1';
   caseMemberships?:CaseMembership[];
 }
+export const EU_DISCOVERY_FALLBACK_ROLE='configured-source-index-unavailable';
+const retrievalInfrastructureFailure=(error:unknown)=>error instanceof XmlValidationInfrastructureError||sourceInfrastructureFailure(error);
 const CDM = 'http://publications.europa.eu/ontology/cdm#';
 const RELATIONS = [
   'resource_legal_amends_resource_legal', 'legislation_secondary_modifies_legislation_secondary',
@@ -38,7 +40,15 @@ const RELATIONS = [
   'case-law_annuls_resource_legal',
 ];
 export async function discoverEuCaseDocuments(selected:EuDocument[],to:string,archive?:OfficialSources,fetcher:typeof request=request){
-  return expandEuCaseScope(selected,to,fetcher,(source,url)=>archive?.add('case-discovery.json',source,url,'CELLAR-case-catalog'));
+  try{return await expandEuCaseScope(selected,to,fetcher,(source,url)=>archive?.add('case-discovery.json',source,url,'CELLAR-case-catalog'));}
+  catch(error){
+    if(!(error instanceof SourceHttpError)&&!transientSourceError(error))throw error;
+    const id=archive?.identifier??selected.find(d=>d.celex.startsWith('6'))!.celex,url='https://publications.europa.eu/webapi/rdf/sparql';
+    const record={profile:'eu-discovery-unavailable-v1',celex:id,reason:'CASE_REQUEST_FAILED',...error instanceof SourceHttpError?{httpStatus:error.status}:{}};
+    archive?.add('case-discovery-unavailable.json',{bytes:Buffer.from(JSON.stringify(record)),url,contentType:'application/json'},url,'CELLAR-case-discovery-unavailable',{celex:id});
+    archive?.warning(`Case catalog unavailable for ${id}; selected documents are still processed, complete dossier coverage is not asserted.`,{classification:'SOURCE_UNAVAILABLE',code:'CASE_DISCOVERY_UNAVAILABLE',documentId:id});
+    return undefined;
+  }
 }
 
 async function request(url: string, headers: Record<string, string>): Promise<SourceResponse> {
@@ -72,11 +82,21 @@ SELECT DISTINCT ?id ?p ?v ?relation WHERE {
   const url = new URL('https://publications.europa.eu/webapi/rdf/sparql');
   url.searchParams.set('query', query);
   url.searchParams.set('format', 'application/sparql-results+json');
-  const discovery = await fetcher(url.href, { Accept: 'application/sparql-results+json' });
+  const fallback=(reason:string,rowCount:number|null,status?:number):EuDocument[]=>{
+    const record={profile:'eu-discovery-unavailable-v1',celex:act.celex,reason,rowCount,...status?{httpStatus:status}:{}};
+    archive?.add('discovery-unavailable.json',{bytes:Buffer.from(JSON.stringify(record)),url:url.href,contentType:'application/json'},url.href,'CELLAR-discovery-unavailable',{celex:act.celex});
+    archive?.warning(`Source catalog unavailable for ${act.celex}; configured documents still tried in EN, PL, NL, FR.`,{classification:'SOURCE_UNAVAILABLE',code:'DISCOVERY_UNAVAILABLE',documentId:act.celex});
+    archive?.completeDiscovery({protocol:'CELLAR-SPARQL',rowCount,limit:10000,unavailable:true,scope:'Configured identifiers only; connected history/case catalog is incomplete.'});
+    return [...new Set([act.celex,...act.requiredVersions,...extras])].map(celex=>{checkCelex(celex);return {celex,metadata:{},role:EU_DISCOVERY_FALLBACK_ROLE,include:'full-document'};});
+  };
+  let discovery:SourceResponse;
+  try{discovery=await fetcher(url.href, { Accept: 'application/sparql-results+json' });}
+  catch(error){if(!(error instanceof SourceHttpError)&&!transientSourceError(error))throw error;return fallback('REQUEST_FAILED',null,error instanceof SourceHttpError?error.status:undefined);}
   archive?.add('discovery.json',discovery,url.href,'CELLAR-SPARQL');
-  const result = JSON.parse(discovery.text);
+  let result;try{result=JSON.parse(discovery.text);}catch{return fallback('INVALID_CATALOG',null);}
   const rows = result.results?.bindings;
-  if (!Array.isArray(rows) || rows.length >= 10000) throw new Error('Incomplete EU discovery response.');
+  if (!Array.isArray(rows) || rows.length >= 10000) return fallback('INCOMPLETE_CATALOG',Array.isArray(rows)?rows.length:null);
+  if(!rows.length)return fallback('EMPTY_CATALOG',0);
   const documents = new Map<string, EuDocument>();
   for (const row of rows) {
     const id = row.id?.value;
@@ -102,7 +122,6 @@ SELECT DISTINCT ?id ?p ?v ?relation WHERE {
     if(act.retrievalScope==='full-act-and-case')doc.selectionInclude=extra.include;
     documents.set(extra.celex, doc);
   }
-  if (!rows.length) throw new Error(`EU version index returned no metadata for ${act.celex}.`);
   archive?.completeDiscovery({protocol:'CELLAR-SPARQL',rowCount:rows.length,limit:10000,
     scope:'Configured CELEX family, relations and required pins; completed bounded query.'});
   for (const doc of documents.values()) for (const values of Object.values(doc.metadata)) values.sort();
@@ -117,12 +136,13 @@ export function selectEuDocuments(documents: EuDocument[], act: EuAct, from: str
       throw new Error(`Invalid or ambiguous documentary date for EU source: ${d.celex}`);
     return value??undefined;
   };
-  const hasRequestedLanguage = (d: EuDocument) => language==='preferred'?preferredEuLanguages(d.metadata.available_language).length>0:
+  const hasRequestedLanguage = (d: EuDocument) => language==='preferred'?true:
     !d.metadata.available_language?.length||d.metadata.available_language.some(uri=>uri.endsWith('/'+languageCode(language)));
   const consolidated = documents.filter((d) => d.celex.startsWith('0') && hasRequestedLanguage(d) && date(d)! <= to);
   const baseline = consolidated.filter((d) => date(d)! <= from).sort((a,b) => date(b)!.localeCompare(date(a)!))[0];
   const selected = documents.filter((d) => {
     const versionDate = date(d);
+    if(d.role===EU_DISCOVERY_FALLBACK_ROLE){if(versionDate&&versionDate>to)throw new Error(`Configured EU source lies after run date: ${d.celex}`);return true;}
     if (required.has(d.celex)) {
       if(!hasRequestedLanguage(d))throw new Error(`Required EU source has no ${language} expression: ${d.celex}`);
       if (versionDate && versionDate > to) throw new Error(`Required EU source lies after run date: ${d.celex}`);
@@ -187,14 +207,23 @@ export function createEuSourceLoader(fetcher:(doc:EuDocument)=>Promise<EuSource>
   return doc=>{const key=JSON.stringify([doc.celex,doc.include,doc.outputProfile]);if(!documents.has(key))documents.set(key,doc);return load(key);};
 }
 class EuLanguageUnavailable extends Error {}
+export class EuDocumentUnavailable extends Error {
+  constructor(readonly attempts:{language:EuLanguage;reason:string}[]){super('No complete document in '+attempts.map(a=>a.language).join(', ')+'.');}
+}
 export class EuExpressionUnavailable extends Error {
   constructor(readonly language:EuLanguage,readonly source:SourceResponse,readonly requestedUrl:string){super(`No ${languageCode(language)} expressions in CELLAR representation index.`);}
 }
 export async function fetchEuText(doc: EuDocument, language:EuLanguage='EN',fetcher:typeof request=request,binaryFetcher:typeof fetchBinarySource=fetchBinarySource): Promise<EuSource> {
   // Explicit legacy NL callers retain their requested scope; the public EN path
   // alone enables the approved EN→PL→NL→FR fallback.
-  const languages=language==='EN'?preferredEuLanguages(doc.metadata.available_language):[language];
-  const result=(await firstEuLanguage(languages,lang=>fetchEuTextLanguage(doc,lang,fetcher,binaryFetcher,language==='EN'?EU_LANGUAGE_ORDER:[language]),error=>error instanceof EuLanguageUnavailable)).value;
+  const languages=language==='EN'?EU_LANGUAGE_ORDER:[language];
+  let result:EuSource|undefined;const attempts:{language:EuLanguage;reason:string}[]=[];
+  for(const lang of languages){
+    try{result=await fetchEuTextLanguage(doc,lang,fetcher,binaryFetcher,language==='EN'?EU_LANGUAGE_ORDER:[language]);break;}
+    catch(error){if(retrievalInfrastructureFailure(error))throw error;
+      attempts.push({language:lang,reason:error instanceof Error&&/^Source HTTP \d+$/.test(error.message)?error.message:'No complete validated official representation.'});}
+  }
+  if(!result)throw new EuDocumentUnavailable(attempts);
   if(language==='EN'&&result.language!=='EN'){
     const message=`${doc.celex} text: no complete English representation was available; ${result.language} official text retained.`;
     result.nativeWarnings?.push(message);result.nativeIssues?.push({code:'TEXT_LANGUAGE_FALLBACK',classification:'NOT_OBSERVED',representation:'XHTML',documentId:doc.celex,message});
@@ -219,7 +248,7 @@ async function fetchEuTextLanguage(doc:EuDocument,language:EuLanguage,fetcher:ty
       const response = await fetcher(url, { Accept: 'application/xhtml+xml,text/html;q=0.9', 'Accept-Language': languageAccept(language) });
       const parsed=parseEuSource(response, doc.include, language,doc.outputProfile?doc.celex:undefined);
       return await nativeEuSource(doc,response,url,parsed,language,undefined,getIndex,fetcher,binaryFetcher,formexLanguages);
-    } catch (error) { if(error instanceof XmlValidationInfrastructureError)throw error;last = error; failures.push(String(error)); }
+    } catch (error) { if(retrievalInfrastructureFailure(error))throw error;last = error; failures.push(String(error)); }
   }
   // Resolve the official language-specific streams, also retaining this index
   // for metadata/Formex retrieval rather than repeating a second discovery.
@@ -231,11 +260,11 @@ async function fetchEuTextLanguage(doc:EuDocument,language:EuLanguage,fetcher:ty
         const source = await fetcher(item, { Accept: 'application/xhtml+xml,text/html;q=0.9' });
         const parsed=parseEuSource(source, doc.include, language,doc.outputProfile?doc.celex:undefined);
         return await nativeEuSource(doc,source,item,parsed,language,index,getIndex,fetcher,binaryFetcher,formexLanguages);
-      } catch (error) { if(error instanceof XmlValidationInfrastructureError)throw error;last = error; }
+      } catch (error) { if(retrievalInfrastructureFailure(error))throw error;last = error; }
     }
-  } catch (error) { if(error instanceof XmlValidationInfrastructureError)throw error;last = error; }
+  } catch (error) { if(retrievalInfrastructureFailure(error))throw error;last = error; }
   if(indexSeen?.rows.some(row=>['xhtml','html','html_simplified','xhtml_simplified'].includes(row.format)))
-    throw new Error(`Indexed ${language} legal text could not be retrieved or validated for ${doc.celex}; language fallback cannot conceal this failure.`);
+    throw new EuLanguageUnavailable(`Indexed ${language} legal text could not be retrieved or validated for ${doc.celex}.`);
   if(indexError&&!(indexError instanceof EuExpressionUnavailable))throw indexError;
   throw new EuLanguageUnavailable(`Unable to retrieve complete ${language} EU source ${doc.celex}: ${failures.join('; ')}; stream: ${String(last)}`);
 }
@@ -260,7 +289,7 @@ export async function fetchRdfNotice(base:string,fetcher:typeof request=request,
       if(!xmlObject(source.bytes).RDF)throw new Error('Expected a CELLAR RDF tree notice.');
     },identifier);
     return {source,kind:'CELLAR-RDF-tree',...xmlValidation?{xmlValidation}:{}};
-  }catch(error){if(error instanceof XmlValidationInfrastructureError)throw error;treeError=error;}
+  }catch(error){if(retrievalInfrastructureFailure(error))throw error;treeError=error;}
   let branchError:unknown;
   try{
     const source=await fetcher(base,{Accept:'application/xml;notice=branch','Accept-Language':languageAccept(language)});
@@ -272,7 +301,7 @@ export async function fetchRdfNotice(base:string,fetcher:typeof request=request,
     if(notice?.['@_type']!=='branch'||!notice.WORK||!notice.EXPRESSION||!values.length||values.some(v=>!accepted.includes(v)))throw new Error('Expected a CELLAR XML branch in the requested language.');
     });
     return {source,kind:'CELLAR-XML-branch',...xmlValidation?{xmlValidation}:{},warning:`Full RDF tree unavailable: ${treeError instanceof Error?treeError.message:'retrieval failed'}; ${language} XML branch retained (work, expression and manifestations).`};
-  }catch(error){if(error instanceof XmlValidationInfrastructureError)throw error;branchError=error;}
+  }catch(error){if(retrievalInfrastructureFailure(error))throw error;branchError=error;}
   const source=await rdfSource({Accept:'application/rdf+xml;notice=non-inferred'});
   const xmlValidation=await checkedNotice(source,'CELLAR-RDF-object',()=>{
     if(!xmlObject(source.bytes).RDF)throw new Error('Expected a CELLAR RDF object notice.');
@@ -304,7 +333,7 @@ async function nativeEuSource(doc:EuDocument,html:SourceResponse,requestedUrl:st
   try{
     index??=await indexLoader();base=index.work;
     nativeSources.push({name:prefix+'.formats.json',source:index.source,requestedUrl:index.requestedUrl,kind:'CELLAR-WEMI-index',metadata:{celex:doc.celex,language,work:index.work,rows:index.rows}});
-  }catch(error){warn('WEMI_INDEX_UNAVAILABLE','METADATA_INCOMPLETE','WEMI',`${doc.celex} format index unavailable: ${error instanceof Error?error.message:'retrieval failed'}; availability cannot be determined.`);}
+  }catch(error){if(retrievalInfrastructureFailure(error))throw error;warn('WEMI_INDEX_UNAVAILABLE','METADATA_INCOMPLETE','WEMI',`${doc.celex} format index unavailable: ${error instanceof Error?error.message:'retrieval failed'}; availability cannot be determined.`);}
   assertEuSourceIdentity(html.text,html.url,doc.celex,index);
   // A metadata notice is independent of XHTML; requesting XHTML never implies
   // automatic RDFa enrichment.
@@ -312,7 +341,7 @@ async function nativeEuSource(doc:EuDocument,html:SourceResponse,requestedUrl:st
     const rdf=await fetchRdfNotice(base,fetcher,language,doc.celex);
     nativeSources.push({name:prefix+(rdf.kind==='CELLAR-XML-branch'?'.notice.xml':'.rdf.xml'),source:rdf.source,requestedUrl:base,kind:rdf.kind,metadata:{celex:doc.celex,language,...rdf.xmlValidation?{xmlValidation:rdf.xmlValidation}:{}}});
     if(rdf.warning)warn('RDF_NOTICE_FALLBACK','METADATA_INCOMPLETE','RDF',`${doc.celex} RDF notice: ${rdf.warning}`);
-  }catch(error){if(error instanceof XmlValidationInfrastructureError)throw error;warn('RDF_NOTICE_UNAVAILABLE','METADATA_INCOMPLETE','RDF',`${doc.celex} RDF notice: ${error instanceof Error?error.message:'retrieval failed'}`);}
+  }catch(error){if(retrievalInfrastructureFailure(error))throw error;warn('RDF_NOTICE_UNAVAILABLE','METADATA_INCOMPLETE','RDF',`${doc.celex} RDF notice: ${error instanceof Error?error.message:'retrieval failed'}`);}
   let formexIndex:CellarIndex|undefined;
   try{
     formexIndex=await preferredFormexIndex(doc.celex,index,formexLanguages,fetcher,alternate=>{
@@ -320,7 +349,7 @@ async function nativeEuSource(doc:EuDocument,html:SourceResponse,requestedUrl:st
       nativeSources.push({name:prefix+'.'+alternate.language+'.formats.json',source:alternate.source,requestedUrl:alternate.requestedUrl,kind:'CELLAR-WEMI-index',metadata:{celex:doc.celex,language:alternate.language,work:alternate.work,rows:alternate.rows,supplemental:true}});
     },empty=>nativeSources.push({name:prefix+'.'+empty.language+'.formats-empty.json',source:empty.source,requestedUrl:empty.requestedUrl,kind:'CELLAR-WEMI-empty-index',metadata:{celex:doc.celex,language:empty.language,scope:'Successfully queried optional representation language; zero expressions.'}}));
   }catch(error){
-    if(error instanceof XmlValidationInfrastructureError)throw error;
+    if(retrievalInfrastructureFailure(error))throw error;
     warn('FORMEX_LOCATION_FAILED','METADATA_INCOMPLETE','Formex',`${doc.celex} Formex language search could not be completed; unchanged ${language} XHTML retained.`);
     return {language,html:html.text,sourceUrl:html.url,parsed,nativeSources,nativeWarnings,nativeIssues};
   }
@@ -341,12 +370,12 @@ async function nativeEuSource(doc:EuDocument,html:SourceResponse,requestedUrl:st
     downloadedFormex=zip;
     formexStage='VALIDATE';
     const xmlValidation=await validateFormexXml(zip);
-    const info=formexInfo(zip.bytes,doc.celex,zip.url);
-    if(!info.members.some(n=>new RegExp(`(?:${formexLanguage}|${languageCode(formexLanguage)})(?=[/_.-]|$)`,'i').test(n)))throw new Error('Formex package does not identify the requested language.');
+    if(index&&formexIndex.work!==index.work)throw new Error('Formex manifestation belongs to another work.');
+    const info=formexInfo(zip.bytes,doc.celex,zip.url,formexLanguage);
     if(formexLanguage!==language)warn('FORMEX_LANGUAGE_FALLBACK','NOT_OBSERVED','Formex',`${doc.celex} Formex: ${formexLanguage} supplemental original retained; the ${language} legal text is unchanged.`);
     nativeSources.push({name:prefix+'.fmx4.zip',source:zip,requestedUrl:formexUrl,kind:'CELLAR-Formex4',metadata:{...info,celex:doc.celex,language:formexLanguage,textLanguage:language,...formexLanguage!==language?{supplemental:true}:{},...xmlValidation?{xmlValidation}:{}}});
   }catch(error){
-    if(error instanceof XmlValidationInfrastructureError)throw error;
+    if(retrievalInfrastructureFailure(error))throw error;
     if(downloadedFormex)preserveRejectedSource(downloadedFormex,'CELLAR-Formex4','FORMEX_REPRESENTATION_REJECTED');
     warn(downloadedFormex?'FORMEX_REJECTED':formexStage==='RETRIEVE'?'FORMEX_RETRIEVAL_FAILED':'FORMEX_LOCATION_FAILED',
       downloadedFormex?'REPRESENTATION_REJECTED':formexStage==='RETRIEVE'?'SOURCE_UNAVAILABLE':'METADATA_INCOMPLETE',

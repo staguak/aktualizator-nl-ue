@@ -24,7 +24,7 @@ import type { EuAct, EuDocument } from './eu-provider.js';
 import { completeBuiltOutput } from './publication-validation.js';
 import {ensureXmlValidation,closeXmlValidation,xmlValidationSummary,XmlValidationInfrastructureError} from './xml-validation.js';
 import {validateCheckpointArchive} from './xml-archive-validation.js';
-import {readEuCheckpointFiles} from './eu-checkpoint.js';
+import {readEuCheckpointFiles,reusableEuCheckpointActs} from './eu-checkpoint.js';
 import {parsedCacheStats} from './parsed-source-cache.js';
 import {executionRevision} from './execution-revision.js';
 import {sourceAuditCheckpointTag} from './source-audit.js';
@@ -33,6 +33,10 @@ import {withOperationErrors,setErrorPhase,inErrorPhase} from './operation-errors
 import {registerIncrementalPlan} from './incremental-plan.js';
 import {legalPartName} from './legal-structure.js';
 import type {LegalDraft} from './legal-structure.js';
+import {EuDocumentUnavailable,EU_DISCOVERY_FALLBACK_ROLE} from './eu-provider.js';
+import type {MissingEuDocument} from './eu-unavailable.js';
+import {euDocumentHeader} from './eu-document-header.js';
+import type {EuDocumentHeader} from './eu-document-header.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUTPUT = path.join(process.env.LAW_PUBLIC_WORK_ROOT??ROOT, 'output-ue');
@@ -40,9 +44,12 @@ const CHECKPOINT = path.join(ROOT, '.checkpoint-ue');
 const digest = (s: string, algo = 'sha256') => createHash(algo).update(s).digest('hex');
 interface SourceFile { name: string; md5: string; celex: string; part: number }
 interface CompletedAct {
+  discoveryIncomplete?:boolean;
+  missingDocuments?:MissingEuDocument[];
   retrievalScope?:'full-act-and-case';caseCatalog?:EuCaseCatalog;
   sourceArchive?: SourceArchive;
   order: number; title: string; celex: string; documents: (EuDocument & {
+    header?:EuDocumentHeader;
     language:EuLanguage;
     sourceUrl: string; sourceSha256: string; articleCount: number; textLength: number;
     integrity: EuIntegrity; navigation: EuNavigation; oversizedParts: number[];
@@ -83,7 +90,7 @@ async function main(): Promise<void> {
         // Validate the complete candidate before accepting any act or writing
         // a reuse receipt; this also catches collisions between two acts.
         readEuCheckpointFiles(CHECKPOINT,state.acts,config.acts);
-        completed=state.acts;
+        completed=reusableEuCheckpointActs(state.acts);
       }
     } catch { console.warn('EU checkpoint could not be read; rebuilding affected sources.'); }
   }
@@ -110,12 +117,15 @@ async function main(): Promise<void> {
     const archive=new OfficialSources('EU',act.celex,{from:rangeFrom,to:rangeTo,observedOn});
     try {
     const discovered = await discoverEuDocuments(act,archive);
+    let discoveryIncomplete=discovered.some(d=>d.role===EU_DISCOVERY_FALLBACK_ROLE);
     stage='document selection';
     const selected = selectEuDocuments(discovered, act, rangeFrom, rangeTo,'preferred');
     stage='formal case discovery';
-    const expanded=act.retrievalScope==='full-act-and-case'?await discoverEuCaseDocuments(selected,rangeTo,archive):undefined;
+    const expanded=act.retrievalScope==='full-act-and-case'&&!discoveryIncomplete?await discoverEuCaseDocuments(selected,rangeTo,archive):undefined;
+    if(act.retrievalScope==='full-act-and-case'&&selected.some(d=>d.celex.startsWith('6'))&&!expanded)discoveryIncomplete=true;
     const documents=(expanded?.documents??selected).map(doc=>({...doc,...act.outputProfile?{outputProfile:act.outputProfile}:{}}));
     const result: CompletedAct = { order: act.order, title: act.title, celex: act.celex, documents: [], files: [],
+      ...discoveryIncomplete?{discoveryIncomplete:true}:{},
       ...(act.retrievalScope?{retrievalScope:act.retrievalScope}:{}),...(expanded?{caseCatalog:expanded.catalog}:{}),
       excludedDocuments: discovered.filter((d) => !documents.some((selected) => selected.celex === d.celex)).map((d) => ({
         celex: d.celex, reason: d.metadata.available_language?.length &&
@@ -135,8 +145,18 @@ async function main(): Promise<void> {
     for (const doc of documents) {
       setErrorPhase('SOURCE_BUILD');
       stage=`source ${doc.celex}`;
-      const source=await loadSource(doc),parsed=source.parsed;
-      if(!result.documents.length)result.title=parsed.sourceTitle||`CELEX ${act.celex}`;
+      let source;
+      try{source=await loadSource(doc);}catch(error){
+        if(!(error instanceof EuDocumentUnavailable))throw error;
+        const missing:MissingEuDocument={profile:'eu-document-unavailable-v1',celex:doc.celex,document:doc,attempts:error.attempts};
+        (result.missingDocuments??=[]).push(missing);
+        const data=Buffer.from(JSON.stringify(missing));
+        const url='https://publications.europa.eu/resource/celex/'+encodeURIComponent(doc.celex);
+        archive.add('unavailable/'+doc.celex.replace(/[^A-Za-z0-9.-]/g,'_')+'.json',{bytes:data,url,contentType:'application/json'},url,'CELLAR-document-unavailable',{celex:doc.celex});
+        archive.warning(`Document ${doc.celex} unavailable in EN, PL, NL, FR; remaining documents continue.`,{code:'DOCUMENT_UNAVAILABLE',classification:'SOURCE_UNAVAILABLE',documentId:doc.celex});
+        console.warn(`DOCUMENT_UNAVAILABLE ${doc.celex}: EN -> PL -> NL -> FR; processing continues.`);continue;
+      }
+      const parsed=source.parsed;
       if(!source.nativeSources?.length)throw new Error('Missing original EU source bytes.');
       for(const native of source.nativeSources)archive.add('documents/'+native.name,native.source,native.requestedUrl,native.kind,native.metadata);
       for(const warning of source.nativeWarnings??[]){
@@ -149,7 +169,8 @@ async function main(): Promise<void> {
         `${String(act.order).padStart(2, '0')}_${doc.celex.replace(/[^A-Za-z0-9.-]/g, '_')}__${String(i + 1).padStart(2, '0')}.md`);
       const resolved = {chunks:parsed.chunks,navigation:{sourceFragmentIssues:[] as string[]}};
       assertEuIntegrity(parsed.integrity, resolved.chunks.join(parsed.legalDraft?'':'\n'));
-      result.documents.push({ ...doc,...parsed.legalDraft?{legalDraft:parsed.legalDraft}:{}, language:source.language??'EN', sourceUrl: source.sourceUrl, sourceSha256: parsed.legalDraft?.sourceSha256??digest(source.html),
+      if(!parsed.titleEvidence)throw new Error('EU parser lacks document title provenance; rebuild parsed cache.');
+      result.documents.push({ ...doc,header:euDocumentHeader(parsed.titleEvidence,doc.celex,doc.metadata),...parsed.legalDraft?{legalDraft:parsed.legalDraft}:{}, language:source.language??'EN', sourceUrl: source.sourceUrl, sourceSha256: parsed.legalDraft?.sourceSha256??digest(source.html),
         articleCount: parsed.articleCount, textLength: resolved.chunks.reduce((n, chunk) => n + chunk.length, 0),
         integrity: parsed.integrity, navigation: resolved.navigation,
         oversizedParts: resolved.chunks.flatMap((chunk, i) => chunk.length > 80000 ? [i + 1] : []) });
@@ -165,7 +186,7 @@ async function main(): Promise<void> {
     stage='source archive and local checkpoint';
     const native=archive.build(sourceArchiveName(act.order,act.celex));
     result.sourceArchive=native.metadata;fs.writeFileSync(path.join(CHECKPOINT,native.metadata.name),native.bytes);
-    if (!result.documents.length || !result.files.length) throw new Error(`Empty EU act: ${act.celex}`);
+    if ((!result.documents.length || !result.files.length)&&!result.missingDocuments?.length) throw new Error(`Empty EU act: ${act.celex}`);
     return result;
     } catch(error) {
       archive.preserveDiagnostic(['CELLAR discovery','formal case discovery'].includes(stage)?'EU_DISCOVERY_FAILED':'EU_SOURCE_FAILED');

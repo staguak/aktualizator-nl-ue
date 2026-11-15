@@ -415,11 +415,21 @@ def recent_attempt_rows(store):
             for release in store.recent_attempts()[:2] for record in [release_record(release)]]
 
 
+def require_complete_publication(distribution, audit):
+    # Continue building every available document, but keep the protected good
+    # database active if this attempt contains explicit source/graphic gaps.
+    rows=list(distribution.get('completeness',{}).values())+audit.get('results',[])
+    if any(row.get('status')=='PARTIAL' or row.get('completeness')=='PARTIAL' or
+           any(row.get(key,0) for key in ['missingDocuments','unavailableImages','incompleteCatalogs']) for row in rows):
+        raise PublicError('OUTPUT_INCOMPLETE', 'PUBLISH')
+
+
 def create_release_index(destination, request, release, distribution, audit, attempts=None):
     if destination.exists():
         raise PublicError('INDEX_TARGET_EXISTS', 'PUBLISH_INDEX')
     if audit.get('status') != 'PASS':
         raise PublicError('INDEPENDENT_AUDIT_REQUIRED', 'PUBLISH_INDEX')
+    require_complete_publication(distribution,audit)
     record = release_record(release)
     if not record or release.get('draft') or record['status'] != 'PUBLISHED':
         raise PublicError('RELEASE_NOT_CONFIRMED', 'PUBLISH_INDEX')
@@ -430,6 +440,8 @@ def create_release_index(destination, request, release, distribution, audit, att
                  executionSha256=request['executionSha256'], sourceAudit=request['sourceAudit'],
                  counts=distribution['counts'], release={'id': release['id'], 'tag': release['tag_name'],
                      'url': release['html_url'], 'assets': record['assets']}, attempts=attempts or [])
+    if distribution.get('completeness'):
+        value['completeness'] = distribution['completeness']
     (destination / 'VERIFICATION.json').write_text(json.dumps(audit, ensure_ascii=False, indent=2) + '\n')
     write_index_readme(destination, value)
     value['files'] = inventory(destination)
@@ -445,6 +457,12 @@ def write_index_readme(destination, value):
             + f'Zakres: **{value["rangeFrom"]}–{value["rangeTo"]}**.\n\n'
             + f'NL: {value["counts"]["NL"]} aktów; UE: {value["counts"]["UE"]} pozycji.\n\n'
             + '[Otwórz wydanie z plikami](' + release['url'] + ')\n\n')
+    incomplete = {k:v for k,v in value.get('completeness',{}).items() if v.get('status') == 'PARTIAL'}
+    if incomplete:
+        text += '**Dane niepełne — zgłoszone braki źródeł:**\n\n'
+        for name, finding in incomplete.items():
+            text += f'- {name}: niedostępne dokumenty {finding["missingDocuments"]}; grafiki {finding["unavailableImages"]}; niepełne katalogi {finding.get("incompleteCatalogs",0)}. Szczegóły w raportach pakietu.\n'
+        text += '\n'
     for name, label in [('NL-results.zip', 'NL — teksty i raporty'), ('UE-results.zip', 'UE — teksty i raporty'),
                         ('NL-sources.zip', 'NL — wszystkie oryginalne źródła'), ('UE-sources.zip', 'UE — wszystkie oryginalne źródła')]:
         text += '- [' + label + '](' + base + name + ')\n'
@@ -554,6 +572,7 @@ def publish():
     audit = json.loads((STATE / 'independent-audit.json').read_bytes())
     if audit.get('status') != 'PASS':
         raise PublicError('INDEPENDENT_AUDIT_REQUIRED', 'PUBLISH')
+    require_complete_publication(distribution,audit)
     pack_runtime_state(APP, ['output', 'output-ue', '.checkpoint', '.checkpoint-ue', '.source-diagnostics'],
                distribution_dir / 'runtime-state.zip')
     run, attempt = run_identity()

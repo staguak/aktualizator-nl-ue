@@ -97,7 +97,7 @@ export function decodeUnitMetadata(metadata:any,jurisdiction:string):void{
   if(Array.isArray(metadata.unitHistory))for(const snapshot of metadata.unitHistory){
     checkCorrectionProfile(snapshot,jurisdiction);
     if(snapshot.unitEncoding!==undefined){
-      if(!['direct-attributes-v1','source-locators-v2'].includes(snapshot.unitEncoding)||!['unit-observations-v2','unit-observations-v3','unit-correction-observations-v1'].includes(snapshot.profile))throw new Error('Unknown Formex evidence encoding.');
+      if(!['direct-attributes-v1','source-locators-v2'].includes(snapshot.unitEncoding)||!['unit-observations-v2','unit-observations-v3','unit-correction-observations-v1','unit-formex-observations-v1'].includes(snapshot.profile))throw new Error('Unknown Formex evidence encoding.');
       snapshot.units=snapshot.unitEncoding==='source-locators-v2'?expandUnits(snapshot.units,snapshot.source,snapshot.source.jurisdiction,snapshot.profile):snapshot.units.map((unit:any)=>expandEncoded(unit,snapshot.source.jurisdiction,snapshot.profile));
     }
   }
@@ -121,6 +121,9 @@ export function decodeUnitMetadata(metadata:any,jurisdiction:string):void{
 }
 
 function checkCorrectionProfile(snapshot:any,jurisdiction:string){
+  if(snapshot.profile==='unit-formex-observations-v1'&&
+    (jurisdiction!=='EU'||snapshot.source?.jurisdiction!=='EU'||!['JUDGMENT','CJT','CASE','CONCLUSION','ANNEX','GENERAL'].includes(snapshot.root)))
+    throw new Error('Extended Formex observation profile requires a supported EU source.');
   if(snapshot.profile==='unit-correction-observations-v1'&&
     (jurisdiction!=='EU'||snapshot.source?.jurisdiction!=='EU'||snapshot.root!=='CORR'))
     throw new Error('Correction observation profile requires an EU CORR source.');

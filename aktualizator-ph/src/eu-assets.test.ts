@@ -1,7 +1,8 @@
 import test from 'node:test';
+import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {extractEuAssets} from './eu-assets.js';
+import {extractEuAssets,decodeEmbeddedImage} from './eu-assets.js';
 import {assertEuAssetIntegrity,assertEuAssetProof,compactEuImageProof,htmlIntegrity} from './content-integrity.js';
 import {normalizeEuBody,normalizeFinalEuBody} from './eu-normalize.js';
 
@@ -101,4 +102,16 @@ test('invalid embedded data fails without altering original text and ordinary Ba
   }
   const text='<pre>data:image/png;base64,not_base64</pre>';
   assert.equal((await extractEuAssets(text,'https://official.example/act')).derivedHtml,text);
+});
+
+test('official image/jpg Base64 decodes to the unchanged native JPEG and canonical MIME',async()=>{
+  const bytes=fs.readFileSync(new URL('./fixtures/01992L0058-native-image.jpg',import.meta.url));
+  const provenance=JSON.parse(fs.readFileSync(new URL('./fixtures/01992L0058-native-image.provenance.json',import.meta.url),'utf8'));
+  assert.equal(createHash('sha256').update(bytes).digest('hex'),provenance.sha256);
+  const source='data:image/jpg;base64,'+bytes.toString('base64'),decoded=decodeEmbeddedImage(source)!;
+  assert.equal(decoded.contentType,'image/jpeg');assert.deepEqual(Buffer.from(decoded.bytes),bytes);
+  const html=`<p>Complete official illustration.</p><img src="${source}">`;
+  const result=await extractEuAssets(html,'https://publications.europa.eu/source.xhtml');
+  assert.equal(result.derivedHtml,html);assert.equal(result.assets[0].name,'images/'+provenance.sha256+'.jpg');
+  assert.deepEqual(result.assets[0].bytes,bytes);
 });

@@ -92,7 +92,9 @@ export function parseEuCaseResponse(selected:EuDocument[],to:string,text:string)
       for(const [key,values] of Object.entries(metadata.get(id)??{}))doc.metadata[key]=[...new Set([...(doc.metadata[key]??[]),...values])].sort();
       const date=documentDate(doc);
       if(!date)throw new Error('Missing or ambiguous date for EU case document: '+id);
-      status=date>to?'AFTER_RANGE':preferredEuLanguages(doc.metadata.available_language).length?'INCLUDED':'NO_SUPPORTED_LANGUAGE';
+      // Catalog language hints do not replace the required EN/PL/NL/FR
+      // retrieval attempts; exhaustion is retained as a missing document.
+      status=date>to?'AFTER_RANGE':'INCLUDED';
       if(status==='INCLUDED'){
         doc.include='full-document';
         const membership:CaseMembership={seedCelex:member.seedCelex,caseUri:member.caseUri,...member.caseId?{caseId:member.caseId}:{}};
@@ -121,12 +123,15 @@ export function assertEuCaseSource(act:{caseCatalog?:EuCaseCatalog},index:any,it
 
 /** Check coverage before checkpoint reuse and before publication. A dropped
  * case document cannot be excused by recalculating output-file checksums. */
-export function assertEuCaseCoverage(act:{celex:string;retrievalScope?:string;documents:EuDocument[];caseCatalog?:EuCaseCatalog},
+export function assertEuCaseCoverage(act:{celex:string;retrievalScope?:string;documents:EuDocument[];caseCatalog?:EuCaseCatalog;missingDocuments?:import('./eu-unavailable.js').MissingEuDocument[];discoveryIncomplete?:boolean},
   expected?:{retrievalScope?:string;celex?:string;requiredVersions?:string[];attachedDocuments?:{celex:string}[]}):void{
   if(expected?.retrievalScope!=='full-act-and-case')return;
   if(act.retrievalScope!==expected.retrievalScope)throw new Error('EU retrieval scope differs from configuration.');
   if(act.documents.some(d=>!['full-document','corrigendum'].includes(d.include)))throw new Error('A selected EU source was reduced to a fragment.');
-  const caseDocuments=act.documents.filter(d=>d.celex.startsWith('6'));
+  // Source-archive validation separately requires the actual diagnostic proof.
+  // This partial result makes no assertion of complete history/case coverage.
+  if(act.discoveryIncomplete)return;
+  const caseDocuments=[...act.documents,...(act.missingDocuments??[]).map(m=>m.document)].filter(d=>d.celex.startsWith('6'));
   if(!caseDocuments.length){if(act.caseCatalog)throw new Error('Unexpected case catalog.');return;}
   const catalog=act.caseCatalog;
   if(!catalog||catalog.profile!=='cellar-case-dossiers-v1'||!Array.isArray(catalog.seeds)||!catalog.seeds.length||

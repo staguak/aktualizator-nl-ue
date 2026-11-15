@@ -1,5 +1,6 @@
 """Stream frozen outputs into four verified public packages, then install."""
 import hashlib
+import base64
 import io
 import json
 from pathlib import Path, PurePosixPath
@@ -102,6 +103,34 @@ def build(work,target,inventory,audit):
                 for relative,record in sorted(by_module[module].items()):
                     if relative=='IMAGE_INDEX.json' or relative.startswith('images/'):
                         with (directory/relative).open('rb') as incoming:source_records.append(write_member(archive,relative,incoming,record))
+                # Language fallback originals are retained inside IMAGE_INDEX
+                # for reversible validation. Also expose their exact bytes in
+                # the single original-source bundle, without another ZIP.
+                if 'IMAGE_INDEX.json' in by_module[module]:
+                    image_index=json.loads((directory/'IMAGE_INDEX.json').read_bytes());seen=set()
+                    def svg_originals(proof,depth=0):
+                        if depth>8 or proof['profile']!='self-contained-svg-v1':raise ValueError('Invalid SVG original proof')
+                        members=[(proof['originalSha256'],proof['originalBase64'])]
+                        for resource in proof['resources']:
+                            if resource.get('derivation'):svg_originals(resource['derivation'],depth+1)
+                            else:members.append((resource['sha256'],resource['base64']))
+                        for digest,encoded in members:
+                            raw=base64.b64decode(encoded,validate=True)
+                            if not re.fullmatch(r'[a-f0-9]{64}',digest) or hashlib.sha256(raw).hexdigest()!=digest:raise ValueError('Changed SVG original/dependency')
+                            if digest in seen:continue
+                            seen.add(digest)
+                            source_records.append(write_member(archive,'image-dependencies/'+digest,io.BytesIO(raw),{'sha256':digest}))
+                    for source in image_index.get('sources',[]):
+                        if source.get('derivation'):svg_originals(source['derivation'])
+                        proof=source.get('resolution')
+                        if not proof:continue
+                        digest=proof['sourceSha256']
+                        if not re.fullmatch(r'[a-f0-9]{64}',digest):raise ValueError('Unsafe image fallback source digest')
+                        raw=base64.b64decode(proof['sourceDocumentBase64'],validate=True)
+                        if hashlib.sha256(raw).hexdigest()!=digest:raise ValueError('Changed image fallback source original')
+                        if digest in seen:continue
+                        seen.add(digest)
+                        source_records.append(write_member(archive,'image-fallback/'+digest+'.xhtml',io.BytesIO(raw),{'sha256':digest}))
                 bundle=dict(profile='public-sources-v1',jurisdiction=module,acts=catalog,files=source_records)
                 raw=(json.dumps(bundle,ensure_ascii=False,sort_keys=True,indent=2)+'\n').encode()
                 source_records.append(write_member(archive,'BUNDLE_INDEX.json',io.BytesIO(raw)))
@@ -111,7 +140,11 @@ def build(work,target,inventory,audit):
                 packages.append(dict(name=file_name,bytes=record['bytes'],sha256=record['sha256']))
         start,end=next(iter(ranges))
         result=dict(profile='public-distribution-v1',status='PASS',rangeFrom=start,rangeTo=end,
-                    counts={module:len(m['acts']) for module,m in manifests.items()},files=sorted(packages,key=lambda r:r['name']))
+                    counts={module:len(m['acts']) for module,m in manifests.items()},files=sorted(packages,key=lambda r:r['name']),
+                    completeness={module:dict(status='PARTIAL' if any(a.get('missingDocuments') or a.get('discoveryIncomplete') for a in m['acts']) or (m.get('imagePackage') or {}).get('unavailableImages') else 'COMPLETE',
+                                              missingDocuments=sum(len(a.get('missingDocuments',[])) for a in m['acts']),
+                                              incompleteCatalogs=sum(bool(a.get('discoveryIncomplete')) for a in m['acts']),
+                                              unavailableImages=(m.get('imagePackage') or {}).get('unavailableImages',0)) for module,m in manifests.items()})
         (stage/'distribution.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
         # The source archives are containers too: detect a replacement between
         # the initial frozen inventory check and streamed package creation.

@@ -52,12 +52,12 @@ function graphFetcher(turtle=graph):CaseFetcher{
 }
 test('real SPARQL traversal expands formal and joined cases, without following citations or a reused case number',async()=>{
   const result=(await expandEuCaseScope([seed],'2026-11-13',graphFetcher()))!;
-  assert.deepEqual(result.documents.map(d=>d.celex),['62023CC0019','62023CJ0019','62023CO0020']);
+  assert.deepEqual(result.documents.map(d=>d.celex),['62023CC0019','62023CJ0019','62023CJ0019_RES','62023CO0020']);
   assert.equal(result.documents.find(d=>d.celex===seed.celex)?.selectionInclude,'operative-part');
   assert(result.documents.every(d=>d.include==='full-document'));
   assert.deepEqual(new Set(result.catalog.members.map(m=>m.caseId)),new Set(['C-19/23','C-20/23']));
   assert(result.catalog.members.some(m=>m.celex==='62023CA0019'&&m.status==='AFTER_RANGE'));
-  assert(result.catalog.members.some(m=>m.celex==='62023CJ0019_RES'&&m.status==='NO_SUPPORTED_LANGUAGE'));
+  assert(result.catalog.members.some(m=>m.celex==='62023CJ0019_RES'&&m.status==='INCLUDED'));
   assert(!result.catalog.members.some(m=>m.celex==='62024CJ0019'));
   const expected={celex:seed.celex,retrievalScope:'full-act-and-case',requiredVersions:[seed.celex]};
   const act={...expected,documents:result.documents,caseCatalog:result.catalog};

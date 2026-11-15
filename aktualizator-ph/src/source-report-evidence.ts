@@ -32,7 +32,7 @@ export function sourceReportEvidence(index:any,payloads?:Record<string,Uint8Arra
     for(const s of m?.unitHistory??[])snapshots.push(s);
     for(const snapshot of snapshots){
       const source=snapshot.source;
-      if(!['unit-observations-v2','unit-observations-v3','unit-correction-observations-v1'].includes(snapshot.profile)||!source||source.jurisdiction!==index.jurisdiction||typeof source.documentId!=='string'||!/^[a-f0-9]{64}$/.test(source.sha256)||!Array.isArray(snapshot.units))throw new Error('Incomplete or unsupported source report model.');
+      if(!['unit-observations-v2','unit-observations-v3','unit-correction-observations-v1','unit-formex-observations-v1'].includes(snapshot.profile)||!source||source.jurisdiction!==index.jurisdiction||typeof source.documentId!=='string'||!/^[a-f0-9]{64}$/.test(source.sha256)||!Array.isArray(snapshot.units))throw new Error('Incomplete or unsupported source report model.');
       if(source.jurisdiction==='NL'&&source.documentId!==index.identifier||source.jurisdiction==='EU'&&typeof m.celex==='string'&&source.documentId!==m.celex)throw new Error('Source report document identity mismatch.');
       structured.add(source.documentId);
       const representation=source.member??source.sha256;

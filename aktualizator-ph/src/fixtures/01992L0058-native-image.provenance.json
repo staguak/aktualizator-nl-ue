@@ -1,0 +1,12 @@
+{
+  "celex": "01992L0058-20190726",
+  "language": "EN",
+  "requestedUrl": "https://publications.europa.eu/resource/celex/01992L0058-20190726.ENG.xhtml",
+  "accept": "application/zip",
+  "member": "CL1992L0058EN0030010.0001.html",
+  "memberSha256": "8c4e6871b305d86722013431973817cdeac5a425b6c3918ea46929ced5143a9a",
+  "imageOccurrence": 0,
+  "declaredMime": "image/jpg",
+  "bytes": 89802,
+  "sha256": "f76eeb99a7c7516841c9e7a870e6a02ae1386d6d217c3a65ed09271ccd1718f9"
+}

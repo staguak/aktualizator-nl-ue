@@ -5,6 +5,9 @@ from pathlib import Path
 import tempfile
 import unittest
 import zipfile
+import sys
+
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 
 spec = importlib.util.spec_from_file_location('verify_official_output', Path(__file__).resolve().parents[1] / 'scripts/verify_official_output.py')
 audit = importlib.util.module_from_spec(spec)
@@ -27,8 +30,10 @@ class OfficialAudit(unittest.TestCase):
             entries.append(dict(name=lang+'.json', kind='CELLAR-WEMI-index', metadata=metadata, size=len(data), md5=audit.md5(data)))
         data = b'\xef\xbb\xbf<html><body>Full official legal text</body></html>'
         members['text.xhtml'] = data
-        entries.append(dict(name='text.xhtml', kind='CELLAR-XHTML', metadata=dict(celex=celex, language=language), size=len(data), md5=audit.md5(data)))
-        docs.append(dict(celex=celex, language=language, sourceSha256=hashlib.sha256(data).hexdigest(), legalStructure={'profile':'legal-structure-v1'}))
+        url=work+'.0001.03/DOC_1'
+        entries.append(dict(name='text.xhtml',url=url, kind='CELLAR-XHTML', metadata=dict(celex=celex, language=language), size=len(data), md5=audit.md5(data)))
+        from verify_eu_headers import expected_header
+        docs.append(dict(celex=celex, language=language, sourceSha256=hashlib.sha256(data).hexdigest(),header=expected_header(data,url,celex,[]), legalStructure={'profile':'legal-structure-v1'}))
         index = dict(identifier=celex, range={'from':'2024-01-01','to':'2026-11-14'}, entries=entries, warnings=[])
         with zipfile.ZipFile(directory/'source.zip','w') as archive:
             archive.writestr('manifest.json',json.dumps(index))

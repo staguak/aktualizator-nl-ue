@@ -122,6 +122,13 @@ if snapshot['profile'] == 'unit-correction-observations-v1':
     assert snapshot['source']['jurisdiction'] == 'EU' and root.tag == snapshot['root'] == 'CORR'
     tags.update({'CORR', 'CONTENTS.CORR', 'CORRECTION', 'DESCRIPTION', 'OLD.CORR', 'NEW.CORR',
                  'P', 'DLIST', 'DLIST.ITEM', 'TERM', 'DEFINITION', 'QUOT.S'})
+if snapshot['profile'] == 'unit-formex-observations-v1':
+    assert snapshot['source']['jurisdiction'] == 'EU'
+    assert root.tag == snapshot['root'] and root.tag in {'JUDGMENT', 'CJT', 'CASE', 'CONCLUSION', 'ANNEX', 'GENERAL'}
+    tags.update({'JUDGMENT', 'CJT', 'CASE', 'CONCLUSION', 'ANNEX', 'GENERAL', 'CONTENTS', 'CONTENTS.JUDGMENT',
+                 'CONTENTS.CONCLUSION', 'ENACTING.TERMS.CJT', 'PREAMBLE', 'SUMMARY', 'RESUME', 'GR.SEQ',
+                 'CONSID', 'NP.ECR', 'NP', 'P', 'TBL', 'ROW', 'CELL', 'LIST', 'DLIST', 'DLIST.ITEM',
+                 'TERM', 'DEFINITION', 'NOTE'})
 native = [n for n in root.iter() if isinstance(n.tag, str) and n.tag in tags]
 assert len(native) == len(snapshot['units']), 'Incomplete source unit traversal'
 by_id = {u['technicalId']: u for u in snapshot['units']}

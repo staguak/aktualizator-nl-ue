@@ -19,6 +19,9 @@ import {sourceReportEvidence} from './source-report-evidence.js';
 import type {SourceReportEvidence} from './source-report-evidence.js';
 import {isDeepStrictEqual} from 'node:util';
 import {zipInventory,decodeZipPayloads} from './zip-integrity.js';
+import {inspectFormexFiles} from './formex-package.js';
+import type {EuLanguage} from './eu-language.js';
+import type {FormexPackageInfo} from './formex-package.js';
 
 export interface SourceArchive extends FileMetadata {entryCount:number;warnings:string[];model:'BWB'|'CELLAR';catalogFormat?:'canonical-compact-json-v1';sourceIssueProfile?:'source-issues-v1';reportEvidence?:SourceReportEvidence;diagnosticOnly?:true;distribution?:{bundle:string;prefix:string}}
 interface SourceEntry {name:string;size:number;md5:string;sha256?:string;requestedUrl:string;url:string;contentType:string;kind:string;metadata:unknown;httpObservation?:BinarySource['observation'];cacheHint?:BinarySource['cacheHint']}
@@ -188,23 +191,6 @@ export function bwbUnits(bytes:Uint8Array):unknown[] {
   }
   visit(doc,'');return units;
 }
-export function formexInfo(bytes:Uint8Array,celex:string,sourceUrl:string|null=null):{root:string;layers:Record<string,string>[];members:string[];unitHistory:UnitSnapshot[]} {
-  const files=unpackOfficialZip(bytes),layers:Record<string,string>[]=[],unitHistory:UnitSnapshot[]=[];let root='';
-  for(const [name,content]of Object.entries(files)){
-    if(!/\.xml$/i.test(name)||/\.doc\.xml$/i.test(name))continue;
-    const doc=xmlObject(content),key=Object.keys(doc).find(k=>!k.startsWith('?'))!;
-    if(!['ACT','CONS.ACT','CONS.OTH','JUDGMENT','GENERAL','CORR'].includes(key))continue;
-    root=key;
-    unitHistory.push(observeUnits(content,{jurisdiction:'EU',documentId:celex,url:sourceUrl,member:name,containerSha256:createHash('sha256').update(bytes).digest('hex')}));
-    function scan(n:any):void {if(Array.isArray(n)){n.forEach(scan);return;}if(!n||typeof n!=='object')return;
-      for(const [k,v]of Object.entries(n)){
-        if(k==='INFO.CONSLEG'){
-          const a=Object.fromEntries(Object.entries(v as any).filter(([p])=>p.startsWith('@_')).map(([p,x])=>[p.slice(2),String(x)]));
-          if(celex.startsWith('0')&&(a['CONSLEG.REF']!==celex.slice(1,10)||a['START.DATE']!==celex.slice(11)))throw new Error('Formex layer does not match requested CELEX.');
-          layers.push(a);
-        }else scan(v);
-      }}scan(doc[key]);
-  }
-  if(!root||celex.startsWith('0')&&!layers.length)throw new Error('Missing matching Formex legal document.');
-  return {root,layers,members:Object.keys(files).sort(),unitHistory};
+export function formexInfo(bytes:Uint8Array,celex:string,sourceUrl:string|null=null,language?:EuLanguage):FormexPackageInfo {
+  return inspectFormexFiles(unpackOfficialZip(bytes),celex,createHash('sha256').update(bytes).digest('hex'),sourceUrl,language);
 }

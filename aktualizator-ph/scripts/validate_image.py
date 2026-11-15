@@ -55,6 +55,9 @@ if __name__ == '__main__':
         if len(sys.argv) != 2:
             raise ValueError('ARGUMENT_INVALID')
         print(json.dumps(inspect_image(sys.argv[1]), sort_keys=True))
+    except ImportError:
+        print(json.dumps({'error': 'IMAGE_RUNTIME_UNAVAILABLE'}))
+        sys.exit(2)
     except Exception:
         print(json.dumps({'error': 'IMAGE_VALIDATION_FAILED'}))
         sys.exit(1)
