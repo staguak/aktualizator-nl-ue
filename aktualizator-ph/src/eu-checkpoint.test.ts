@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {readEuCheckpointFiles} from './eu-checkpoint.js';
+import {readEuCheckpointFiles,reusableEuCheckpointActs} from './eu-checkpoint.js';
 import {OfficialSources,sourceArchiveName} from './official-sources.js';
 import {parseEuHtml} from './eu-parser.js';
 import type {EuAct} from './eu-provider.js';
@@ -33,6 +33,7 @@ function fixture(t:import('node:test').TestContext){
 }
 test('EU checkpoint accepts complete acts, verifies native bytes and returns a stable byte snapshot',t=>{
   const {dir,scope,acts}=fixture(t),files=readEuCheckpointFiles(dir,acts,scope);
+  assert.deepEqual(reusableEuCheckpointActs(acts),acts,'Complete verified acts remain reusable');
   const name=acts[0].files[0].name,bytes=Buffer.from(files.get(name)!);
   fs.writeFileSync(path.join(dir,name),'changed after validation');
   assert.deepEqual(files.get(name),bytes);assert.throws(()=>readEuCheckpointFiles(dir,acts,scope),/checksum/);

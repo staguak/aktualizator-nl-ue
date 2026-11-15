@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {parseEuHtml} from './eu-parser.js';
 import {firstEuLanguage,EU_LANGUAGE_ORDER,languageCode,preferredEuLanguages,unicodeLength} from './eu-language.js';
 import type {EuLanguage} from './eu-language.js';
-import {fetchEuText,preferredFormexIndex,selectEuDocuments} from './eu-provider.js';
+import {fetchEuText,preferredFormexIndex,selectEuDocuments,EuDocumentUnavailable} from './eu-provider.js';
 import type {CellarIndex,EuDocument} from './eu-provider.js';
 import {SourceHttpError} from './source-cache.js';
 import {zipSync} from 'fflate';
@@ -102,13 +102,24 @@ test('supplemental Polish Formex has its own language and cannot replace the Eng
   assert.deepEqual(formex.source.bytes,packageBytes);assert.equal((formex.metadata as any).language,'PL');assert.equal((formex.metadata as any).textLanguage,'EN');assert.equal((formex.metadata as any).supplemental,true);
 });
 
-test('indexed English text retrieval/validation failure is not concealed by Polish text',async()=>{
+test('incomplete or unavailable English text tries all fallback languages and records exhaustion',async()=>{
   const visited:string[]=[];
   await assert.rejects(fetchEuText(document,'EN',async(url,headers)=>{
     if(headers.Accept==='application/sparql-results+json')return source(JSON.stringify({results:{bindings:bindings('EN','html')}}),url);
     visited.push(headers['Accept-Language']??'item');throw new SourceHttpError(503);
-  }),/Indexed EN legal text/);
-  assert(!visited.includes('pol'));
+  }),error=>error instanceof EuDocumentUnavailable&&JSON.stringify(error.attempts.map(a=>a.language))===JSON.stringify(EU_LANGUAGE_ORDER));
+  assert(visited.includes('pol'));assert(visited.includes('nld'));assert(visited.includes('fra'));
+});
+test('local storage, cache integrity and validator failures do not become four missing language results',async()=>{
+  for(const error of [Object.assign(new Error('No space left'),{code:'ENOSPC'}),new Error('Source cache checksum changed.'),new Error('Unsafe source cache path.')]){
+    let calls=0;
+    await assert.rejects(fetchEuText(document,'EN',async()=>{calls++;throw error;}),caught=>caught===error);
+    assert.equal(calls,1,'Local failure must stop before retrying other languages');
+  }
+  let calls=0;
+  const error=Object.assign(new Error('Disk unavailable during metadata retrieval'),{code:'EIO'});
+  await assert.rejects(fetchEuText(document,'EN',async(url,headers)=>{calls++;if(headers.Accept==='application/sparql-results+json')throw error;return source(html('EN'),url);}),caught=>caught===error);
+  assert.equal(calls,2,'Optional metadata must not swallow a disk failure');
 });
 
 test('Polish/French article labels and declared language are validated',()=>{

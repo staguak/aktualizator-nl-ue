@@ -24,8 +24,8 @@ _file_validation = importlib.util.module_from_spec(_file_spec)
 _file_spec.loader.exec_module(_file_validation)
 
 XSI = '{http://www.w3.org/2001/XMLSchema-instance}'
-CATALOG_SHA256 = '5a3292345fb2c9771ef088a9852bac247c2c63f4514222a897225b13e7b3879d'
-PROFILE = 'official-xml-v2-rdf3:' + CATALOG_SHA256
+CATALOG_SHA256 = '3cffd241a1bffb19754d45568a444d97c009173d7e09c64224b427f33cba6e24'
+PROFILE = 'official-xml-v3-formex1-rdf3:' + CATALOG_SHA256
 RDF_PROFILE = 'cellar-rdf-graph-v2:rdflib-7.6.0'
 MAX_XML_BYTES = 64_000_000
 MAX_RDF_TRIPLES = 250_000
@@ -318,7 +318,7 @@ def check_runtime():
 def serve(directory, source_roots=()):
     check_runtime()
     schemas = PinnedSchemas(directory)
-    print(json.dumps(dict(type='ready', profile=PROFILE, lxml='6.1.3', rdf='7.6.0', schemas=31)), flush=True)
+    print(json.dumps(dict(type='ready', profile=PROFILE, lxml='6.1.3', rdf='7.6.0', schemas=33)), flush=True)
     while True:
         header = sys.stdin.buffer.readline(16_385)
         if not header:

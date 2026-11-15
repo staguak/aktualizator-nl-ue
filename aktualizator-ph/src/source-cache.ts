@@ -276,6 +276,12 @@ export async function fetchSource(url:string,headers:Record<string,string>,optio
 export class SourceHttpError extends Error {
   constructor(readonly status:number){super(`Source HTTP ${status}`);this.name='SourceHttpError';}
 }
+/** Local storage/configuration/integrity failures are not missing sources. */
+export function sourceInfrastructureFailure(error:unknown):boolean {
+  return error instanceof Error&&(
+    ['EACCES','EPERM','ENOSPC','EROFS','EMFILE','EIO'].includes((error as NodeJS.ErrnoException).code??'')||
+    /^(?:Unsafe (?:source |imported source |cache file|diagnostic source)|Invalid (?:source audit |source checksum|imported source body\/path)|Source cache (?:checksum changed|requires a regular file)|XML source (?:file is outside|changed|checksum differs)|Symlinked XML source|Diagnostic source checksum mismatch|Conflicting rejected-source evidence)/.test(error.message));
+}
 export function transientSourceError(error:unknown):boolean {
   return error instanceof SourceHttpError?[408,429,500,502,503,504].includes(error.status):
     error instanceof TypeError&&/fetch failed|network|terminated/i.test(error.message)||

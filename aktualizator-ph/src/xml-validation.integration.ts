@@ -86,6 +86,43 @@ test('rejected Formex preserves both XML member and complete downloaded package'
   await assert.rejects(validateFormexXml({...source(bytes),contentType:'application/zip'}),SourceXmlRejected);
   await assert.rejects(validateFormexXml(source(bytes)),SourceXmlRejected);checkEvidence(bytes);checkEvidence(member);
 });
+test('file-backed Formex validates member bytes rather than the ZIP cache path and checksum',async t=>{
+  enabled(t);const rootBefore=process.env.LAW_XML_SOURCE_ROOT;process.env.LAW_XML_SOURCE_ROOT=process.env.LAW_XML_DIAGNOSTICS_DIR;
+  t.after(()=>{if(rootBefore===undefined)delete process.env.LAW_XML_SOURCE_ROOT;else process.env.LAW_XML_SOURCE_ROOT=rootBefore;});
+  const member=fs.readFileSync(new URL('fixtures/formex-corrigendum-native.xml',import.meta.url));
+  const bytes=Buffer.from(zipSync({'corr.xml':member})),filePath=path.join(process.env.LAW_XML_DIAGNOSTICS_DIR!,'cached.zip');
+  fs.writeFileSync(filePath,bytes);
+  const input={get bytes(){return fs.readFileSync(filePath);},url:'https://publications.europa.eu/resource/example',
+    contentType:'application/zip',filePath,sha256:hash(bytes),size:bytes.length,md5:'container-only'};
+  const receipts=await validateFormexXml(input);
+  assert.equal(receipts?.['corr.xml'].status,'PASS');
+  assert.equal(receipts?.['corr.xml'].sourceSha256,hash(member));
+  assert.equal(receipts?.['corr.xml'].sourceBytes,member.length);
+  assert.deepEqual(fs.readFileSync(filePath),bytes);
+});
+test('public file-backed Formex spools each member with its own immutable checksum',async t=>{
+  enabled(t);const previous=process.env.LAW_PUBLIC_INCREMENTAL,rootBefore=process.env.LAW_XML_SOURCE_ROOT;
+  process.env.LAW_PUBLIC_INCREMENTAL='1';process.env.LAW_XML_SOURCE_ROOT=process.env.LAW_XML_DIAGNOSTICS_DIR;
+  t.after(()=>{if(previous===undefined)delete process.env.LAW_PUBLIC_INCREMENTAL;else process.env.LAW_PUBLIC_INCREMENTAL=previous;
+    if(rootBefore===undefined)delete process.env.LAW_XML_SOURCE_ROOT;else process.env.LAW_XML_SOURCE_ROOT=rootBefore;});
+  const member=fs.readFileSync(new URL('fixtures/formex-corrigendum-native.xml',import.meta.url));
+  const bytes=Buffer.from(zipSync({'corr.xml':member})),filePath=path.join(process.env.LAW_XML_DIAGNOSTICS_DIR!,'cached.zip');
+  fs.writeFileSync(filePath,bytes);
+  const receipts=await validateFormexXml({bytes,url:'https://publications.europa.eu/resource/example',contentType:'application/zip',filePath,sha256:hash(bytes)});
+  assert.equal(receipts?.['corr.xml'].status,'PASS');assert.equal(receipts?.['corr.xml'].validationMode,'STREAMING_FILE');
+  assert.equal(receipts?.['corr.xml'].sourceSha256,hash(member));
+});
+for(const name of ['formex-case-notice-native','formex-0550-corrigendum-native'])test(`${name}: every original member passes its exact newly pinned schema`,async t=>{
+  enabled(t);const bytes=fs.readFileSync(new URL(`fixtures/${name}.zip`,import.meta.url));
+  const provenance=JSON.parse(fs.readFileSync(new URL(`fixtures/${name}.provenance.json`,import.meta.url),'utf8'));
+  assert.equal(hash(bytes),provenance.containerSha256);
+  const receipts=await validateFormexXml({bytes,url:provenance.sourceUrl,contentType:'application/zip'});
+  assert.equal(Object.keys(receipts!).length,Object.keys(provenance.members).filter(n=>n.endsWith('.xml')).length);
+  for(const [member,receipt] of Object.entries(receipts!)){
+    assert.equal(receipt.status,'PASS');assert.equal(receipt.sourceSha256,provenance.members[member].sha256);
+    assert(receipt.schema?.includes(name.includes('0550')?'formex-05.50-20130101.xd':'formex-06.02.3-20250123.xd'));
+  }
+});
 test('unavailable pinned runtime stops processing without reporting a source as corrupt',async t=>{
   enabled(t);closeXmlValidation();const previous=process.env.LAW_XML_PYTHON;
   process.env.LAW_XML_PYTHON='/nonexistent/updater-python';

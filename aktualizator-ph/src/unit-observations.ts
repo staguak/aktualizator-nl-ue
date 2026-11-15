@@ -3,6 +3,7 @@ import type {Element} from 'domhandler';
 import {XMLValidator} from 'fast-xml-parser';
 import {hash,encode} from './release-store.js';
 import {isCalendarDate} from './calendar.js';
+import {FORMEX_DOCUMENT_ROOTS,FORMEX_EXTENDED_ROOTS,FORMEX_EXTENDED_UNITS} from './formex-vocabulary.js';
 
 function observationXml(xml:string):string{
   // XML 1.0 normalizes literal attribute whitespace before entity expansion.
@@ -31,7 +32,7 @@ export interface UnitObservation {
   legalStatus:'UNRESOLVED';legalDates:'UNRESOLVED';
 }
 export interface UnitSnapshot {
-  profile:'unit-observations-v3'|'unit-correction-observations-v1';source:UnitSource&{sha256:string};root:string;
+  profile:'unit-observations-v3'|'unit-correction-observations-v1'|'unit-formex-observations-v1';source:UnitSource&{sha256:string};root:string;
   locatorSemantics:'Fields and labels use XPath relative to their unit/event locator; absolute locators remain absolute';
   units:UnitObservation[];documentaryLayers:{locator:string;attributes:Record<string,string>}[];
   corrections:{element:'redactionele-correctie';locator:string;attributes:Record<string,string>;
@@ -51,13 +52,14 @@ export function observeUnits(bytes:Uint8Array,source:UnitSource):UnitSnapshot{
   const $=load(observationXml(xml),{xmlMode:true}),root=$.root().children().first(),rootName=root[0]?.name;
   if(source.jurisdiction==='NL'&&(rootName!=='toestand'||root.attr('bwb-id')!==source.documentId))
     throw new Error('NL unit-observation source identity mismatch.');
-  if(source.jurisdiction==='EU'&&!['ACT','CONS.ACT','CONS.OTH','JUDGMENT','GENERAL','CORR'].includes(rootName))
+  if(source.jurisdiction==='EU'&&![...FORMEX_DOCUMENT_ROOTS,'ANNEX'].includes(rootName))
     throw new Error('Unsupported Formex unit-observation root.');
   const correction=source.jurisdiction==='EU'&&rootName==='CORR';
-  const snapshot:UnitSnapshot={profile:correction?'unit-correction-observations-v1':'unit-observations-v3',source:{...source,sha256:hash(bytes)},root:rootName,
+  const extended=source.jurisdiction==='EU'&&FORMEX_EXTENDED_ROOTS.includes(rootName);
+  const snapshot:UnitSnapshot={profile:correction?'unit-correction-observations-v1':extended?'unit-formex-observations-v1':'unit-observations-v3',source:{...source,sha256:hash(bytes)},root:rootName,
     locatorSemantics:'Fields and labels use XPath relative to their unit/event locator; absolute locators remain absolute',units:[],documentaryLayers:[],corrections:[]};
   const tags=new Set(source.jurisdiction==='NL'?['artikel','lid','li','bijlage','onderdeel','boek','deel','hoofdstuk','titeldeel','afdeling','paragraaf','sub-paragraaf','subparagraaf','wetgeving','intitule','citeertitel','aanhef','wetsluiting','regeling-sluiting','officiele-inhoudsopgave']:
-    ['ARTICLE','PARAG','ALINEA','ITEM','ANNEX','POINT',...correction?
+    ['ARTICLE','PARAG','ALINEA','ITEM','ANNEX','POINT',...extended?FORMEX_EXTENDED_UNITS:[],...correction?
       ['CORR','CONTENTS.CORR','CORRECTION','DESCRIPTION','OLD.CORR','NEW.CORR','P','DLIST','DLIST.ITEM','TERM','DEFINITION','QUOT.S']:[]]);
   const corrections:{node:Element;locator:string}[]=[];
   function visit(node:Element,locator:string,parentId:string|null){

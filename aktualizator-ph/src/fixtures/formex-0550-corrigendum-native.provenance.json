@@ -1,0 +1,16 @@
+{
+  "celex": "32013L0035R(01)",
+  "sourceUrl": "https://publications.europa.eu/resource/cellar/6dd2ff40-6fa8-11e3-b589-01aa75ed71a1.0002.02/zip",
+  "containerSha256": "6a608d25b21464f0f6464011555ff48491ec9dd8c4e7aa08990bdc8e2cafd3c5",
+  "origin": "Official CELLAR Formex original retained during prior run; unchanged bytes",
+  "members": {
+    "L_2013353FR.01008301.doc.xml": {
+      "bytes": 1958,
+      "sha256": "854bb783fd9863039f7d0b61c7c513434db7a4f9a7a97d701d87da25cc5c32d0"
+    },
+    "L_2013353FR.01008301.xml": {
+      "bytes": 2456,
+      "sha256": "d5093d0dd4033f45b6cf82e299c368cf8f4432986c77c974d59a1a0e5720adac"
+    }
+  }
+}

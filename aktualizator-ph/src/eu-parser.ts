@@ -6,12 +6,15 @@ import {languageMatches,unicodeLength} from './eu-language.js';
 import type {EuLanguage} from './eu-language.js';
 import {parseEuLegalStructure} from './eu-legal-structure.js';
 import type {LegalContext,LegalDraft} from './legal-structure.js';
+import {readEuTitle} from './eu-document-header.js';
+import type {EuTitle} from './eu-document-header.js';
+import {hash} from './release-store.js';
 
 const documentWords:Record<EuLanguage,RegExp>={EN:/article|treaty|judgment|directive|regulation|charter|decision/i,NL:/artikel|verdrag|arrest|richtlijn|verordening|handvest|besluit/i,PL:/artykuł|traktat|wyrok|dyrektyw|rozporządz|kart[ayęą]|karcie|decyzj/i,FR:/article|traité|arrêt|directive|règlement|charte|décision/i};
 const correctionWords:Record<EuLanguage,RegExp>={EN:/corrigendum|corrigenda/i,NL:/rectificatie|rectificaties/i,PL:/sprostowanie|sprostowania/i,FR:/rectificatif|rectificatifs/i};
 const operativeIntro:Record<EuLanguage,RegExp>={EN:/^On those grounds,? the Court .*hereby(?: rules)?:$/i,NL:/^Het Hof .*verklaart:$/i,PL:/^Z (?:powyższych|tych) względów.*Trybunał.*(?:orzeka|stanowi).*:?$/i,FR:/^Par ces motifs,? la Cour.*(?:déclare|dit|arrête|statue).*:?$/i};
 
-export interface EuText { chunks: string[]; articleCount: number; textLength: number; integrity: EuIntegrity; sourceTitle?:string;legalDraft?:LegalDraft }
+export interface EuText { chunks: string[]; articleCount: number; textLength: number; integrity: EuIntegrity; sourceTitle?:string;titleEvidence?:EuTitle;legalDraft?:LegalDraft }
 
 // Content comes from CELLAR's negotiated Dutch publication, never a summary page.
 // Walk every text node once. Tables remain HTML in Markdown to retain their layout.
@@ -32,12 +35,12 @@ export function parseEuHtml(html: string, sourceUrl: string, include = 'full-doc
   }
   const lang = $('html').attr('lang') ?? $('html').attr('xml:lang');
   if (lang && !languageMatches(lang,language)) throw new Error('Unexpected EU publication language.');
-  const sourceTitle=body.find('p.doc-ti,p.oj-doc-ti,p.title-doc').slice(0,3).map((_i,e)=>$(e).text().replace(/\s+/g,' ').trim()).get().join(' ') || $('title').text().trim();
+  const titleEvidence=readEuTitle(html,sourceUrl,context?.sourceSha256??hash(Buffer.from(html)),context?.documentId),sourceTitle=titleEvidence.value;
   if(context){
     if(!['full-document','corrigendum'].includes(include)||context.language!==language||context.sourceUrl!==sourceUrl)throw new Error('Invalid structured EU context or incomplete selector.');
     const legalDraft=parseEuLegalStructure(html,context),chunks=legalDraft.chunks.map(c=>c.body);
     return {chunks,articleCount:legalDraft.units.filter(u=>u.kind==='article').length,textLength:chunks.reduce((n,c)=>n+unicodeLength(c),0),
-      integrity:htmlIntegrity(chunks.join('')),sourceTitle,legalDraft};
+      integrity:htmlIntegrity(chunks.join('')),sourceTitle,titleEvidence,legalDraft};
   }
   body.find('[href],[src]').each((_i, el) => {
     for (const attr of ['href', 'src']) {
@@ -133,5 +136,5 @@ export function parseEuHtml(html: string, sourceUrl: string, include = 'full-doc
   const textLength = chunks.reduce((n, c) => n + unicodeLength(c), 0);
   if (!chunks.length || textLength < minimumLength) throw new Error('EU text extraction was incomplete.');
   assertEuIntegrity(integrity, chunks.join('\n'));
-  return { chunks, articleCount: articles.length, textLength, integrity,sourceTitle };
+  return { chunks, articleCount: articles.length, textLength, integrity,sourceTitle,titleEvidence };
 }

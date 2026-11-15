@@ -6,7 +6,29 @@ import {safeArchiveName,loadSourceArchive} from './official-sources.js';
 import {hash} from './release-store.js';
 import {assertEuIntegrity} from './content-integrity.js';
 import {assertEuCaseCoverage,assertEuCaseSource} from './eu-case-scope.js';
-import {verifyEuLegalCheckpoint} from './eu-legal-verification.js';
+import {verifyEuLegalCheckpoint,euHeaderFromOriginal} from './eu-legal-verification.js';
+import {assertMissingEuEvidence,missingEuDocuments} from './eu-unavailable.js';
+
+// Partial attempts remain auditable on disk, but their gaps must be retried
+// rather than becoming permanently completed checkpoints on the next resume.
+export function reusableEuCheckpointActs<T extends {missingDocuments?:unknown[];discoveryIncomplete?:boolean}>(acts:T[]):T[]{
+  return acts.filter(a=>!a.discoveryIncomplete&&!a.missingDocuments?.length);
+}
+/** Explicit offline migration; validate the entire old source/body snapshot
+ * before the returned in-memory upgrade is accepted. Never overwrite a header. */
+export function upgradeEuCheckpointHeaders(dir:string,acts:EuBuiltAct[],scope:EuAct[]):EuBuiltAct[]{
+  const upgraded=structuredClone(acts);
+  for(const act of upgraded){
+    const configured=scope.find(a=>a.celex===act.celex);if(configured)act.title=configured.title;
+    if(!act.sourceArchive||!safeArchiveName(act.sourceArchive.name))throw new Error('Invalid EU checkpoint archive name.');
+    const file=path.join(dir,act.sourceArchive.name);
+    if(!fs.lstatSync(file).isFile())throw new Error('EU checkpoint requires regular files only.');
+    const native=loadSourceArchive(fs.readFileSync(file),act.sourceArchive,'EU',act.celex);
+    for(const doc of act.documents)if(doc.legalDraft&&!doc.header)doc.header=euHeaderFromOriginal(doc,native.index,native.items);
+  }
+  readEuCheckpointFiles(dir,upgraded,scope);
+  return upgraded;
+}
 
 // Return the exact verified bytes. Finalization must not reopen mutable paths
 // after validating them or follow symlinks to files outside the checkpoint.
@@ -27,7 +49,9 @@ export function readEuCheckpointFiles(dir:string,acts:EuBuiltAct[],scope:EuAct[]
     if(!act.sourceArchive||!safeArchiveName(act.sourceArchive.name))throw new Error('Invalid EU checkpoint archive name.');
     const native=loadSourceArchive(read(act.sourceArchive.name),act.sourceArchive,'EU',act.celex);
     assertEuCaseSource(act,native.index,native.items,native.index.range.to);
-    if(!Array.isArray(act.files)||!act.files.length||!Array.isArray(act.documents)||!act.documents.length||
+    assertMissingEuEvidence(act,native.index,native.items);
+    const missing=missingEuDocuments(act);
+    if(!Array.isArray(act.files)||!act.files.length&&!missing.length||!Array.isArray(act.documents)||!act.documents.length&&!missing.length||
       new Set(act.documents.map(d=>d.celex)).size!==act.documents.length)throw new Error('Invalid EU checkpoint documents.');
     const texts=new Map<string,string>();
     for(const file of act.files){

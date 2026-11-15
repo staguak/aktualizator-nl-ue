@@ -21,7 +21,7 @@ const auditCache=new DerivedCache(undefined);
 const effectiveCache=()=>sourceAuditMode()==='unconditional'?auditCache:cache;
 function profile(kind:'NL'|'EU'):string{
   let digest=profiles.get(kind);if(digest)return digest;
-  const files=kind==='NL'?['src/bwb-parser.ts','src/nl-legal-structure.ts','src/nl-cals.ts','src/legal-tree.ts','src/legal-structure.ts']:['src/eu-parser.ts','src/eu-tables.ts','src/content-integrity.ts','src/eu-language.ts','src/eu-legal-structure.ts','src/legal-tree.ts','src/legal-structure.ts'];
+  const files=kind==='NL'?['src/bwb-parser.ts','src/nl-legal-structure.ts','src/nl-cals.ts','src/legal-tree.ts','src/legal-structure.ts']:['src/eu-parser.ts','src/eu-document-header.ts','src/calendar.ts','src/eu-tables.ts','src/content-integrity.ts','src/eu-language.ts','src/eu-legal-structure.ts','src/legal-tree.ts','src/legal-structure.ts'];
   digest=hash(Buffer.concat([...files,'package-lock.json','src/derived-cache.ts','src/parsed-source-cache.ts','src/cache-directory.ts']
     .concat('src/source-audit.ts').map(name=>fs.readFileSync(path.join(root,name)))));profiles.set(kind,digest);return digest;
 }
@@ -45,6 +45,6 @@ export function parseEuSource(source:SourceResponse,include:string,language:EuLa
     sourceUrl:source.url,include,language,context,validation:xmlValidationEnabled()?XML_PROFILE:'legacy-unvalidated'},
     ()=>parseEuHtml(source.text,source.url,include,language,context),(v:unknown):v is EuText=>{
       const s=v as EuText;return !!s&&Array.isArray(s.chunks)&&!!s.chunks.length&&s.chunks.every(c=>typeof c==='string')&&
-        Number.isSafeInteger(s.articleCount)&&Number.isSafeInteger(s.textLength)&&!!s.integrity&&(!context||s.legalDraft?.profile==='legal-structure-v1');
+        Number.isSafeInteger(s.articleCount)&&Number.isSafeInteger(s.textLength)&&!!s.integrity&&typeof s.titleEvidence?.value==='string'&&(!context||s.legalDraft?.profile==='legal-structure-v1');
     });
 }

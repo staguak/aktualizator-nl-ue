@@ -9,7 +9,9 @@ export async function validateFormexXml(source:BinarySource):Promise<Record<stri
   try{
   const files=unpackOfficialZip(source.bytes),receipts:Record<string,XmlReceipt>={};
   for(const [name,bytes] of Object.entries(files))if(/\.xml$/i.test(name)){
-    receipts[name]=(await validateSourceXml({...source,bytes:Buffer.from(bytes)},'CELLAR-Formex4'))!;
+    // A member is a different byte object from its container. Inheriting the
+    // ZIP filePath/checksums makes file-backed validation read the ZIP again.
+    receipts[name]=(await validateSourceXml({bytes:Buffer.from(bytes),url:source.url,contentType:'application/xml'},'CELLAR-Formex4'))!;
   }
   if(!Object.keys(receipts).length)throw new Error('Formex package contains no XML.');
   return receipts;

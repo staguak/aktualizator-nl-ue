@@ -1,4 +1,5 @@
 import hashlib
+import base64
 import importlib.util
 import json
 from pathlib import Path
@@ -46,3 +47,27 @@ class Distribution(unittest.TestCase):
             (work/'output'/'act.md').write_text('Changed law\n')
             with self.assertRaises(Exception):module.build(work,root/'distribution',inventory,audit)
             self.assertFalse((root/'distribution').exists())
+
+    def test_graphic_language_fallback_original_is_preserved_once_in_the_same_source_bundle(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);work,inventory,audit=self.fixture(root)
+            original=b'\xef\xbb\xbf<html lang="pl">Exact original graphic context</html>\r\n';sha=hashlib.sha256(original).hexdigest()
+            proof=dict(sourceSha256=sha,sourceDocumentBase64=base64.b64encode(original).decode())
+            raw=json.dumps({'sources':[{'resolution':proof},{'resolution':proof}]}).encode();file=work/'output-ue'/'IMAGE_INDEX.json';file.write_bytes(raw)
+            rows=json.loads(inventory.read_text());rows.append(dict(name='UE/IMAGE_INDEX.json',bytes=len(raw),sha256=hashlib.sha256(raw).hexdigest()));inventory.write_text(json.dumps(rows))
+            module.build(work,root/'distribution',inventory,audit)
+            with zipfile.ZipFile(root/'distribution'/'UE-sources.zip') as archive:
+                name='image-fallback/'+sha+'.xhtml';self.assertEqual(archive.read(name),original);self.assertEqual(archive.namelist().count(name),1)
+
+    def test_svg_original_and_dependency_are_preserved_once_in_the_same_source_bundle(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);work,inventory,audit=self.fixture(root)
+            original=b'<svg xmlns="http://www.w3.org/2000/svg"><image href="figure.png"/></svg>\r\n'
+            dependency=b'Native dependency bytes';sha=hashlib.sha256(original).hexdigest();child=hashlib.sha256(dependency).hexdigest()
+            proof=dict(profile='self-contained-svg-v1',originalSha256=sha,originalBase64=base64.b64encode(original).decode(),resources=[dict(sha256=child,base64=base64.b64encode(dependency).decode())])
+            raw=json.dumps({'sources':[{'derivation':proof},{'derivation':proof}]}).encode();file=work/'output-ue'/'IMAGE_INDEX.json';file.write_bytes(raw)
+            rows=json.loads(inventory.read_text());rows.append(dict(name='UE/IMAGE_INDEX.json',bytes=len(raw),sha256=hashlib.sha256(raw).hexdigest()));inventory.write_text(json.dumps(rows))
+            module.build(work,root/'distribution',inventory,audit)
+            with zipfile.ZipFile(root/'distribution'/'UE-sources.zip') as archive:
+                for digest,data in [(sha,original),(child,dependency)]:
+                    name='image-dependencies/'+digest;self.assertEqual(archive.read(name),data);self.assertEqual(archive.namelist().count(name),1)

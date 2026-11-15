@@ -63,3 +63,55 @@ test('SVG image references and CSS graphics receive exact native sidecars alongs
   assert.deepEqual(result.index.occurrences.map(o=>o.kind).sort(),['css','inline-svg','svg-image']);
   assert.equal(result.assets.size,2);assert(result.index.assets.some(a=>a.contentType==='image/svg+xml'));assert(result.index.assets.some(a=>a.contentType==='image/png'));
 });
+
+const flagUrl='https://publications.europa.eu/resource/cellar/official.0001.03/europeanflag.gif';
+function flagFixture(options:{source?:string;alt?:string;article?:boolean;title?:string}={}){
+  const header=`<table><tr><td><img alt="${options.alt??'European flag'}" src="${options.source??flagUrl}"></td>`+
+    `<td><p class="oj-hd-ti">${options.title??'Official Journal of the European Union'}</p></td></tr></table>`;
+  const html='<body>'+(options.article?'<p class="oj-ti-art">Article 1</p>':'')+header+'<p>Complete legal text.</p></body>';
+  const draft=parseEuLegalStructure(html,{corpus:'EU',documentId:'32024R0001',version:'32024R0001',language:'EN',sourceUrl:'https://publications.europa.eu/document.xhtml',sourceSha256:legalHash(html)});
+  const names=draft.chunks.map((_,i)=>'flag-'+i+'.md'),doc=indexLegalDocument(draft,names,draft.chunks.map(p=>p.body));
+  const files=new Map(names.map((name,i)=>[name,legalMarkdown('Law',doc,draft.chunks[i].body,[])]));
+  return {doc,files};
+}
+test('decorative OJ header flags are explicitly indexed without download or changes to Markdown',async()=>{
+  const {doc,files}=flagFixture(),before=[...files];let calls=0;
+  const result=await buildLegalImagePackage([doc],n=>files.get(n)!,async()=>{calls++;throw new Error('Decorative flag must not be requested');});
+  assert.equal(calls,0);assert.equal(result.assets.size,0);assert.equal(result.index.occurrences.length,0);assert.equal(result.index.sources.length,0);
+  assert.equal(result.index.omittedDecorations!.length,1);
+  const omission=result.index.omittedDecorations![0];assert.equal(omission.reason,'decorative-european-flag');assert.equal(omission.imageUrl,flagUrl);
+  assert.equal(omission.sourceSha256,doc.sourceSha256);assert(doc.units.some(u=>u.id===omission.legalUnitId&&u.sourceLocator===omission.sourceLocator));
+  assert.deepEqual([...files],before);
+  validateLegalImagePackage([doc],n=>files.get(n)!,result.index,()=>{throw new Error('No binary is required');});
+  for(const change of ['missing','reason','reference','duplicate']){
+    const changed=structuredClone(result.index);
+    if(change==='missing')changed.omittedDecorations=[];
+    if(change==='reason')(changed.omittedDecorations![0] as any).reason='all-images';
+    if(change==='reference')changed.omittedDecorations![0].imageUrl='https://publications.europa.eu/other.gif';
+    if(change==='duplicate')changed.omittedDecorations!.push(changed.omittedDecorations![0]);
+    assert.throws(()=>validateLegalImagePackage([doc],n=>files.get(n)!,changed,()=>png),/image/i);
+  }
+});
+test('flag exemption does not cover table braces, formulas, article illustrations or unverified header lookalikes',async()=>{
+  for(const options of [{source:'https://publications.europa.eu/r1.jpg',alt:'right accolade'},
+    {source:'https://publications.europa.eu/formula.jpg'}, {article:true},
+    {source:'https://foreign.example/europeanflag.gif'}, {alt:'Legal illustration'}, {title:'Article 1'}]){
+    const {doc,files}=flagFixture(options);let calls=0;
+    await assert.rejects(buildLegalImagePackage([doc],n=>files.get(n)!,async()=>{calls++;throw new Error('Required image unavailable');}),/Required image unavailable/);
+    assert.equal(calls,1);
+  }
+});
+test('decorative OJ flag detection supports headers in every configured fallback language',async()=>{
+  for(const title of ['Dziennik Urzędowy Unii Europejskiej','Publicatieblad van de Europese Unie','Journal officiel de l’Union européenne']){
+    const {doc,files}=flagFixture({title}),result=await buildLegalImagePackage([doc],n=>files.get(n)!,async()=>{throw new Error('No flag download');});
+    assert.equal(result.index.omittedDecorations!.length,1);
+  }
+});
+test('an explicit omission cannot be added for a substantive image and earlier image indexes remain readable',async()=>{
+  const {doc,files}=fixture(),result=await buildLegalImagePackage([doc],n=>files.get(n)!);
+  const legacy=structuredClone(result.index);delete legacy.omittedDecorations;
+  validateLegalImagePackage([doc],n=>files.get(n)!,legacy,n=>result.assets.get(n)!);
+  const changed=structuredClone(result.index);
+  changed.omittedDecorations=[{...changed.occurrences[0],reason:'decorative-european-flag',imageUrl:flagUrl} as any];
+  assert.throws(()=>validateLegalImagePackage([doc],n=>files.get(n)!,changed,n=>result.assets.get(n)!),/image/i);
+});

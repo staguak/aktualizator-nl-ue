@@ -2,10 +2,11 @@ import {createHash} from 'node:crypto';
 import {load} from 'cheerio';
 import {assertEuAssetIntegrity,htmlIntegrity} from './content-integrity.js';
 import type {EuImageOccurrence} from './content-integrity.js';
+import type {ImageContext,ImageResolution,SvgDerivation} from './image-retrieval.js';
 
 export interface EuBinaryAsset {name:string;bytes:Buffer;sha256:string;contentType:string;sourceUrl:string}
-export interface EuImageResponse {bytes:Uint8Array;contentType:string;url?:string}
-export type EuImageLoader=(url:string)=>Promise<EuImageResponse>;
+export interface EuImageResponse {bytes:Uint8Array;contentType:string;url?:string;resolution?:ImageResolution;derivation?:SvgDerivation}
+export type EuImageLoader=(url:string,context?:ImageContext)=>Promise<EuImageResponse>;
 export interface EuAssetExtraction {
   /** Compatibility name: this is the byte-for-byte unchanged input markup. */
   derivedHtml:string;documentSha256:string;assets:EuBinaryAsset[];occurrences:EuImageOccurrence[];
@@ -16,13 +17,14 @@ const extensions:Record<string,string>={
   'image/avif':'avif','image/tiff':'tif','image/bmp':'bmp','image/x-icon':'ico','image/vnd.microsoft.icon':'ico',
 };
 function mime(value:string):string{
-  const contentType=value.split(';',1)[0].trim().toLowerCase();
+  const declared=value.split(';',1)[0].trim().toLowerCase();
+  const contentType=declared==='image/jpg'?'image/jpeg':declared;
   if(!extensions[contentType])throw new Error('Unsupported EU image content type.');
   return contentType;
 }
 export function decodeEmbeddedImage(source:string):EuImageResponse|undefined {
   if(!/^data:/i.test(source))return;
-  const match=/^data:(image\/[a-z0-9.+-]+)((?:;[^,]*)?),(.*)$/is.exec(source);
+  const match=/^data:(image\/[a-z0-9.+-]+)((?:;[^,]*)?),(.*)$/is.exec(source.split('#',1)[0]);
   if(!match)throw new Error('Invalid embedded EU image.');
   const contentType=mime(match[1]);let bytes:Buffer;
   if(/(?:^|;)base64(?:;|$)/i.test(match[2])){

@@ -51,6 +51,7 @@ export function nlReport(manifest: any, previous: any, validation: ValidationRes
     `Pobrane stany aktów: ${acts.reduce((n,a)=>n+a.fetchedStates,0)}; scalone dodatkowe stany artykułów: ${versions.reduce((n,v)=>n+v.sourceStateCount-1,0)}.`,
     `Pliki treści: ${files.length}; rozmiar korpusu: ${files.reduce((n,f)=>n+f.size,0)} bajtów.`,
     `Zmiany: ${outputChanges(previous,manifest)}`,'','## Ostrzeżenia i anomalie','',
+    ...(manifest.imagePackage?.unavailableImages?[`Kompletność: NIEPEŁNA — niedostępne grafiki: ${manifest.imagePackage.unavailableImages}; pozostałą treść przetworzono.`]:[]),
     ...(manifest.officialSources?['XML w archiwach źródłowych zachowuje oryginalne bajty. Markdown jest widokiem pochodnym.',
       'Przedziały V opisują zarejestrowane brzmienie w stanach BWB, nie osobne daty obowiązywania wszystkich ustępów.',
       ...acts.flatMap(a=>(a.sourceArchive?.warnings??[]).map(w=>`- ${a.bwbId}: ${w}`))]:[]),

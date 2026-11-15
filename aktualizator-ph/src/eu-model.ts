@@ -12,9 +12,13 @@ import type {EuCaseCatalog} from './eu-case-scope.js';
 import {incrementalEuNormalization,incrementalEuNavigation} from './incremental-model.js';
 import {indexLegalDocument,legalChunkContext,LEGAL_PROFILE} from './legal-structure.js';
 import type {LegalDraft,LegalManifest,LegalContext} from './legal-structure.js';
-export type EuBuiltDocument = EuDocument & {language?:EuLanguage;sourceUrl:string;sourceSha256:string;articleCount:number;textLength:number;
+import type {MissingEuDocument} from './eu-unavailable.js';
+import type {EuDocumentHeader} from './eu-document-header.js';
+export type EuBuiltDocument = EuDocument & {header?:EuDocumentHeader;language?:EuLanguage;sourceUrl:string;sourceSha256:string;articleCount:number;textLength:number;
   integrity:EuIntegrity;navigation?:EuNavigation;oversizedParts?:number[];legalDraft?:LegalDraft};
 export interface EuBuiltAct {
+  discoveryIncomplete?:boolean;
+  missingDocuments?:MissingEuDocument[];
   retrievalScope?:'full-act-and-case';caseCatalog?:EuCaseCatalog;
   sourceArchive?:import('./official-sources.js').SourceArchive;
   order:number;title:string;celex:string;
@@ -23,7 +27,7 @@ export interface EuBuiltAct {
   excludedDocuments:{celex:string;reason:string}[];
 }
 export type EuPublishedFile = FileMetadata & {celex:string;part:number;sourceHash:string;layoutProfile?:typeof LEGAL_PROFILE} &
-  ({kind:'content';canonicalFile?:never} | {kind:'reference';canonicalFile:string});
+  ({kind:'content'|'unavailable';canonicalFile?:never} | {kind:'reference';canonicalFile:string});
 export type EuFinalDocument = Omit<EuBuiltDocument,'metadata'|'navigation'|'oversizedParts'|'legalDraft'> & {
   legalStructure?:LegalManifest;
   metadata:NormalizedMetadata;metadataHash:string;sourceHash:string;inputBodyHash:string;
@@ -33,6 +37,7 @@ export interface EuFinalAct extends Omit<EuBuiltAct,'documents'|'files'> {
   documents:EuFinalDocument[];files:EuPublishedFile[];
 }
 export interface EuPartModel {
+  header?:EuDocumentHeader;
   legalContext?:LegalContext;contextLabels?:string[];
   language?:EuLanguage; name:string; order:number; title:string; celex:string; part:number; total:number; sourceUrl:string; body:string;
   details: Pick<EuFinalFile,'jurisdiction'|'kind'> & EuFinalFileDetails;
@@ -56,7 +61,7 @@ export function buildEuModel(acts: EuBuiltAct[], readBody:(name:string)=>string)
   const priority=(e:typeof entries[number])=>[e.act.celex===e.doc.celex?0:1,e.doc.celex.startsWith('0')?1:0,e.act.order,e.doc.celex] as const;
   const compare=(a:typeof entries[number],b:typeof entries[number])=>{const x=priority(a),y=priority(b);return x[0]-y[0]||x[1]-y[1]||x[2]-y[2]||x[3].localeCompare(y[3]);};
   const parts: EuPartModel[] = [], results=new Map<number,EuFinalAct>();
-  for(const act of ordered)results.set(act.order,{order:act.order,title:act.title,celex:act.celex,documents:[],files:[],excludedDocuments:act.excludedDocuments,...act.sourceArchive?{sourceArchive:act.sourceArchive}:{},
+  for(const act of ordered)results.set(act.order,{order:act.order,title:act.title,celex:act.celex,documents:[],files:[],excludedDocuments:act.excludedDocuments,...act.discoveryIncomplete?{discoveryIncomplete:true}:{},...act.missingDocuments?{missingDocuments:act.missingDocuments}:{},...act.sourceArchive?{sourceArchive:act.sourceArchive}:{},
     ...(act.retrievalScope?{retrievalScope:act.retrievalScope}:{}),...(act.caseCatalog?{caseCatalog:act.caseCatalog}:{})});
   let beforeBytes=0,referenceCount=0,groupCount=0;
   for(const group of [...groups.values()].sort((a,b)=>a[0].sourceHash.localeCompare(b[0].sourceHash))){
@@ -66,19 +71,25 @@ export function buildEuModel(acts: EuBuiltAct[], readBody:(name:string)=>string)
     const partHashes=bodies.map(legalBodyHash),documentHash=legalBodyHash(bodies.join(canonical.doc.legalDraft?'':'\n\n'));
     for(const entry of group){
       if(entry.files.length!==canonical.files.length)throw new Error('Identical EU documents have inconsistent part boundaries.');
-      const result=results.get(entry.act.order)!;assertEuIntegrity(entry.doc.integrity,bodies.join(entry.doc.legalDraft?'':'\n'));
       const {legalDraft,...document}=entry.doc;
-      const legalStructure=legalDraft?indexLegalDocument({...legalDraft,sourceFragmentIssues:resolved.navigation.sourceFragmentIssues},canonical.files.map(f=>f.name),bodies):undefined;
+      if(legalDraft&&!entry.doc.header)throw new Error('EU document header missing; rebuild or upgrade checkpoint from verified originals.');
+      const title=entry.doc.header?.title.value??entry.act.title;
+      // Public structural files always contain the complete text. Reuse the
+      // fetched/parsed source, but resolve each physical copy's own navigation.
+      const view=legalDraft?incrementalEuNavigation(entry.normalized.map(n=>n.body),entry.files.map(f=>f.name),entry.doc.sourceUrl,true):resolved;
+      const physicalBodies=view.chunks,hashes=physicalBodies.map(legalBodyHash);
+      const result=results.get(entry.act.order)!;assertEuIntegrity(entry.doc.integrity,physicalBodies.join(legalDraft?'':'\n'));
+      const legalStructure=legalDraft?indexLegalDocument({...legalDraft,sourceFragmentIssues:view.navigation.sourceFragmentIssues},entry.files.map(f=>f.name),physicalBodies):undefined;
       result.documents.push({...document,...legalStructure?{legalStructure}:{},metadata:normalizeMetadata(entry.doc.metadata,entry.doc.celex,rules),metadataHash:metadataHash(entry.doc.metadata),
-        sourceHash:documentHash,inputBodyHash:entry.sourceHash,textLength:bodies.reduce((n,b)=>n+b.length,0),navigation:resolved.navigation,
-        htmlNormalization:entry.normalized.map(n=>n.status),oversizedParts:legalDraft?legalDraft.chunks.flatMap((p,i)=>p.technicalSplit?[i+1]:[]):bodies.flatMap((b,i)=>Buffer.byteLength(b)>80000?[i+1]:[])});
+        sourceHash:legalBodyHash(physicalBodies.join(legalDraft?'':'\n\n')),inputBodyHash:entry.sourceHash,textLength:physicalBodies.reduce((n,b)=>n+b.length,0),navigation:view.navigation,
+        htmlNormalization:entry.normalized.map(n=>n.status),oversizedParts:legalDraft?legalDraft.chunks.flatMap((p,i)=>p.technicalSplit?[i+1]:[]):physicalBodies.flatMap((b,i)=>Buffer.byteLength(b)>80000?[i+1]:[])});
       entry.files.forEach((file,i)=>{
-        const canonicalFile=canonical.files[i].name,kind=entry===canonical?'content':'reference';
-        beforeBytes+=euLayoutBytes(entry.act.title,entry.doc.celex,i+1,entry.files.length,entry.doc.sourceUrl,entry.doc.language)+Buffer.byteLength(entry.original[i]);
+        const canonicalFile=canonical.files[i].name,kind=legalDraft||entry===canonical?'content':'reference';
+        beforeBytes+=euLayoutBytes(title,entry.doc.celex,i+1,entry.files.length,entry.doc.sourceUrl,entry.doc.language)+Buffer.byteLength(entry.original[i]);
         if(kind==='reference')referenceCount++;
-        parts.push({...(legalDraft?{legalContext:legalDraft,contextLabels:legalChunkContext(legalDraft,bodies[i])}:{}),language:entry.doc.language,name:file.name,order:entry.act.order,title:entry.act.title,celex:file.celex,part:file.part,total:entry.files.length,
-          sourceUrl:entry.doc.sourceUrl,body:bodies[i],details:kind==='content'
-            ? {jurisdiction:'EU',kind,metadata:{celex:file.celex,part:file.part,sourceHash:partHashes[i],...legalDraft?{layoutProfile:LEGAL_PROFILE}:{}}}
+        parts.push({header:entry.doc.header,...(legalDraft?{legalContext:legalDraft,contextLabels:legalChunkContext(legalDraft,physicalBodies[i])}:{}),language:entry.doc.language,name:file.name,order:entry.act.order,title,celex:file.celex,part:file.part,total:entry.files.length,
+          sourceUrl:entry.doc.sourceUrl,body:physicalBodies[i],details:kind==='content'
+            ? {jurisdiction:'EU',kind,metadata:{celex:file.celex,part:file.part,sourceHash:hashes[i],...legalDraft?{layoutProfile:LEGAL_PROFILE}:{}}}
             : {jurisdiction:'EU',kind,metadata:{celex:file.celex,part:file.part,sourceHash:partHashes[i],canonicalFile}}});
       });
     }

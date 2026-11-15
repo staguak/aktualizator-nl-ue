@@ -71,6 +71,28 @@ def audit(directory, jurisdiction):
         with zipfile.ZipFile(directory / archive['name']) as z:
             assert z.testzip() is None, 'ZIP CRC mismatch'
             index = json.loads(z.read('manifest.json'))
+            discovery_failures = [e for e in index['entries'] if e['kind'] in {'CELLAR-discovery-unavailable','CELLAR-case-discovery-unavailable'}]
+            if act.get('discoveryIncomplete'):
+                assert discovery_failures
+                for entry in discovery_failures:
+                    code = 'DISCOVERY_UNAVAILABLE' if entry['kind']=='CELLAR-discovery-unavailable' else 'CASE_DISCOVERY_UNAVAILABLE'
+                    if code=='DISCOVERY_UNAVAILABLE':assert index['discovery']['unavailable'] is True
+                    proof = json.loads(z.read(entry['name']))
+                    assert proof['profile'] == 'eu-discovery-unavailable-v1' and proof['celex'] == index['identifier']
+                    assert any(i['code'] == code and i['classification'] == 'SOURCE_UNAVAILABLE' for i in index['sourceIssues'])
+            else:
+                assert not discovery_failures
+            missing = act.get('missingDocuments', [])
+            assert len({m['celex'] for m in missing}) == len(missing)
+            failures = [e for e in index['entries'] if e['kind'] == 'CELLAR-document-unavailable']
+            assert len(failures) == len(missing)
+            for m in missing:
+                assert m['profile'] == 'eu-document-unavailable-v1' and m['document']['celex'] == m['celex']
+                assert [a['language'] for a in m['attempts']] == ['EN','PL','NL','FR'] and all(a['reason'] for a in m['attempts'])
+                assert not any(d['celex'] == m['celex'] for d in act.get('documents', []))
+                matches = [e for e in failures if e['metadata']['celex'] == m['celex']]
+                assert len(matches) == 1 and json.loads(z.read(matches[0]['name'])) == m
+                assert any(i['code'] == 'DOCUMENT_UNAVAILABLE' and i['documentId'] == m['celex'] and i['classification'] == 'SOURCE_UNAVAILABLE' for i in index['sourceIssues'])
             assert index['identifier'] == act.get('bwbId', act.get('celex'))
             assert index['range']['from'] == manifest['rangeFrom']
             assert index['range']['to'] == manifest['rangeTo']
@@ -151,6 +173,8 @@ def audit(directory, jurisdiction):
                     html[identity] = data
                 elif entry['name'].endswith('.fmx4.zip'):
                     summary['formexPackages'] += 1
+                    from verify_formex_package import verify_formex_package
+                    verify_formex_package(data, entry['metadata'])
                     # Bind a package to this document's actual manifestation,
                     # not another document in the act's archive.
                     assert entry['metadata']['language'] in LANGUAGES
@@ -174,6 +198,8 @@ def audit(directory, jurisdiction):
             if jurisdiction == 'NL':
                 assert states == {state['key'] for state in act['sourceStates']}
             else:
+                from verify_eu_headers import verify_header
+                header_responses=[(entry['kind'],z.read(entry['name'])) for entry in index['entries'] if entry['kind'] in {'CELLAR-SPARQL','CELLAR-case-catalog'} and not (entry['kind']=='CELLAR-SPARQL' and index.get('discovery',{}).get('unavailable'))]
                 for doc in act['documents']:
                     assert doc['language'] in LANGUAGES
                     data = html[(doc['celex'], doc['language'])]
@@ -181,6 +207,10 @@ def audit(directory, jurisdiction):
                     # original byte MD5 above also includes any source BOM.
                     decoded = data.decode('utf-8-sig').encode('utf-8')
                     assert hashlib.sha256(data if doc.get('legalStructure') else decoded).hexdigest() == doc['sourceSha256']
+                    if doc.get('legalStructure'):
+                        source=[e for e in index['entries'] if e['kind']=='CELLAR-XHTML' and e['metadata']['celex']==doc['celex']]
+                        assert len(source)==1
+                        verify_header(directory,doc,data,source[0]['url'],header_responses,[f for f in act['files'] if f['celex']==doc['celex']])
     images = manifest.get('imagePackage')
     if images:
         assert images['profile'] == 'legal-images-v1' and images['index']['name'] == 'IMAGE_INDEX.json'
@@ -197,27 +227,58 @@ def audit(directory, jurisdiction):
             assert asset == dict(name=asset['name'], **inspect_image(directory / asset['name']))
         documents = [doc for act in manifest['acts'] for doc in (act.get('legalDocuments') or
                     [d['legalStructure'] for d in act.get('documents', []) if d.get('legalStructure')])]
+        from verify_inline_images import audit_inline
+        canonical = audit_inline(directory, image_index, documents)
+        assert images.get('rendering') == image_index.get('rendering', {}).get('profile')
+        if images.get('rendering'):
+            assert images['legalOffsetScope'] == 'restored-canonical-body'
+            assert images['unavailableImages'] == len(image_index.get('unavailableImages', []))
+            assert not any(f.get('kind') == 'reference' for a in manifest['acts'] for f in a['files'])
         used = set()
         evidence = {source['key']: source for source in image_index['sources']}
         asset_map = {asset['name']: asset for asset in image_index['assets']}
-        for occurrence in image_index['occurrences']:
+        def context(occurrence):
             matches = [d for d in documents if (d['documentId'], d['version'], d['language']) ==
-                       (occurrence['documentId'], occurrence['version'], occurrence['language'])]
-            assert len(matches) == 1 and matches[0]['sourceSha256'] == occurrence['sourceSha256']
-            assert any(u['id'] == occurrence['legalUnitId'] and u['sourceLocator'] == occurrence['sourceLocator'] for u in matches[0]['units'])
-            assert hashlib.sha256((directory/occurrence['markdownFile']).read_bytes()).hexdigest() == occurrence['markdownSha256']
+                       (occurrence['documentId'], occurrence['version'], occurrence['language']) and
+                       any(p['file'] == occurrence['markdownFile'] for p in d['parts'])]
+            assert matches and all(d['sourceSha256'] == occurrence['sourceSha256'] for d in matches)
+            assert all(any(u['id'] == occurrence['legalUnitId'] and u['sourceLocator'] == occurrence['sourceLocator'] for u in d['units']) for d in matches)
+            raw = canonical.get(occurrence['markdownFile'])
+            raw = raw.encode() if raw is not None else (directory/occurrence['markdownFile']).read_bytes()
+            assert hashlib.sha256(raw).hexdigest() == occurrence['markdownSha256']
+            return matches[0]
+        for occurrence in image_index.get('omittedDecorations', []) + image_index.get('unavailableImages', []):
+            doc = context(occurrence)
+            if occurrence['reason'] == 'decorative-european-flag':
+                units = {u['id']: u for u in doc['units']}
+                assert all(units[k]['kind'] in {'version','image','table','other'} for k in occurrence['contextIds'])
+        for occurrence in image_index['occurrences']:
+            context(occurrence)
             assert occurrence['target'] in {a['name'] for a in image_index['assets']}
             if occurrence.get('sourceEvidenceKey'):
                 source = evidence[occurrence['sourceEvidenceKey']]
-                assert source['key'] == hashlib.sha256(source['requestUrl'].encode()).hexdigest()
+                key = json.dumps([source['requestUrl'],source['baseUrl']],ensure_ascii=False,separators=(',',':')) if source.get('baseUrl') else source['requestUrl']
+                assert source['key'] == hashlib.sha256(key.encode()).hexdigest()
+                if source.get('baseUrl'):assert source['baseUrl']==occurrence['sourceUrl']
                 assert asset_map[occurrence['target']]['sha256'] == source['sha256']
                 assert asset_map[occurrence['target']]['bytes'] == source['bytes']
+                if source.get('resolution'):
+                    import base64
+                    proof = source['resolution']
+                    original = base64.b64decode(proof['sourceDocumentBase64'], validate=True)
+                    assert hashlib.sha256(original).hexdigest() == proof['sourceSha256']
+                    assert proof['documentId'] == occurrence['documentId'] and proof['version'] == occurrence['version']
+                    assert proof['language'] in {'EN','PL','NL','FR'} and proof['attempts'][-1]['language'] == proof['language'] and proof['attempts'][-1]['outcome'] == 'AVAILABLE'
             used.add(occurrence['target'])
         assert used == {a['name'] for a in image_index['assets']}
     assert not any(p.is_symlink() for p in directory.rglob('*'))
     assert {p.relative_to(directory).as_posix() for p in directory.rglob('*') if p.is_file()} == names
     summary['finalFiles'] = len(names)
     summary['range'] = [manifest['rangeFrom'], manifest['rangeTo']]
+    summary['missingDocuments'] = sum(len(a.get('missingDocuments', [])) for a in manifest['acts'])
+    summary['unavailableImages'] = (manifest.get('imagePackage') or {}).get('unavailableImages', 0)
+    summary['incompleteCatalogs'] = sum(bool(a.get('discoveryIncomplete')) for a in manifest['acts'])
+    summary['completeness'] = 'PARTIAL' if summary['missingDocuments'] or summary['unavailableImages'] or summary['incompleteCatalogs'] else 'COMPLETE'
     return summary
 
 

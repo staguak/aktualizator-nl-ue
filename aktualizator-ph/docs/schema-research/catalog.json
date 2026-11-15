@@ -307,11 +307,33 @@
           "url": "https://docs.oasis-open.org/search-ws/searchRetrieve/v1.0/csd01/schemas/diagnostic.xsd"
         }
       ]
+    },
+    {
+      "url": "http://formex.publications.europa.eu/schema/formex-06.02.3-20250123.xd",
+      "fetchUrl": "https://publications.europa.eu/resource/cellar/fab97dc0-2f75-11e9-8d04-01aa75ed71a1.0001.01/DOC_68",
+      "file": "6060110c2ebe078cfc5234dff501aa0c79431945cc729190ba5e93dd7c498842.xsd",
+      "sha256": "d1f185ff903aec853c2ccb64271cbf386fff71660e6a70b08e665ca5bf0e3f94",
+      "imports": [],
+      "aliases": [
+        "http://publications.europa.eu/resource/distribution/formex/xsd/schema_formex/formex-06.02.3-20250123.xd",
+        "http://publications.europa.eu/resource/cellar/fab97dc0-2f75-11e9-8d04-01aa75ed71a1.0001.01/DOC_68"
+      ]
+    },
+    {
+      "url": "http://formex.publications.europa.eu/schema/formex-05.50-20130101.xd",
+      "fetchUrl": "https://publications.europa.eu/resource/cellar/fab97dc0-2f75-11e9-8d04-01aa75ed71a1.0001.01/DOC_1",
+      "file": "125e125ce3d671df6ba31dbbb19263acdf43363be7110b620e3a437dd53d2a6d.xsd",
+      "sha256": "a942eb74f962e0988a56206f1df6424b770a266e52f557fb889e73ed0b5ce1da",
+      "imports": [],
+      "aliases": [
+        "http://publications.europa.eu/resource/distribution/formex/xsd/schema_formex/Formex-05.50-20130101.xd",
+        "http://publications.europa.eu/resource/cellar/fab97dc0-2f75-11e9-8d04-01aa75ed71a1.0001.01/DOC_1"
+      ]
     }
   ],
   "retrievedAt": "2026-10-11T23:06:02.902398+00:00",
   "scope": "Preparation only: pinned BWB Toestand/WTI/manifest and historical Formex schemas. Does not implement the runtime XSD gate.",
-  "bundleSha256": "ef59d1ea33ac556df14b7bab0c20c923acbf8dc1e9029c46770b56a745e4a8be",
+  "bundleSha256": "39b1bc4ebad89b86462c4d1a17da274f0d5ff0e0847f5447d6411b269f89b49f",
   "updatedAt": "2026-10-16T16:02:35.788828+00:00",
   "importAliasPolicy": "Original XSD bytes remain unchanged. For OASIS imports containing whitespace, an explicit generated assembly preloads the exact imported namespaces from pinned corresponding official csd01 URLs before including the original schema. Original import strings and targetNamespace are checked; no schema declarations are edited."
 }

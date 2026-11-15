@@ -18,6 +18,8 @@ import {sourceAvailability} from './source-availability.js';
 import type {SourceAvailability} from './source-availability.js';
 import {assertUnconditionalSourceObservations} from './source-audit.js';
 import type {SourceAuditMode} from './source-audit.js';
+import {assertMissingEuEvidence} from './eu-unavailable.js';
+import {restoreCanonicalMarkdown,validateInlineRendering} from './inline-legal-images.js';
 
 export interface ExpectedAct {
   order: number; bwbId?: string; celex?: string;
@@ -90,6 +92,7 @@ function loadValidationContext(read:(name:string)=>Buffer,list:()=>string[],expe
   }
   const names = list();
   const images=manifest.imagePackage;
+  let imageIndex:any,indexBytes:Buffer|undefined;
   if(images){
     if(images.profile!=='legal-images-v1'||images.index?.name!==IMAGE_INDEX||!Array.isArray(images.assets))throw new Error('Invalid image package declaration.');
     for(const record of [images.index,...images.assets]){
@@ -97,6 +100,10 @@ function loadValidationContext(read:(name:string)=>Buffer,list:()=>string[],expe
         !Number.isSafeInteger(record.size)||record.size<=0||record.size>95_000_000||! /^[a-f0-9]{32}$/.test(record.md5))throw new Error('Invalid or duplicate image package file.');
       declared.set(record.name,record);
     }
+    indexBytes=read(IMAGE_INDEX);imageIndex=JSON.parse(indexBytes.toString('utf8'));
+    if(images.rendering!==imageIndex.rendering?.profile||images.rendering&&images.legalOffsetScope!=='restored-canonical-body'||
+      images.unavailableImages!==undefined&&images.unavailableImages!==(imageIndex.unavailableImages?.length??0))throw new Error('Image rendering/completeness declaration mismatch.');
+    if(images.rendering&&manifest.jurisdiction==='EU'&&manifest.acts.some((a:any)=>a.files.some((f:any)=>f.kind==='reference')))throw new Error('Inline public output may not contain link-only UE-REF files.');
   }
   if (names.length !== declared.size || names.some(name => !declared.has(name))) throw new Error('Output file list differs from manifest.');
   const files = new Map<string, LoadedFile>();
@@ -109,7 +116,7 @@ function loadValidationContext(read:(name:string)=>Buffer,list:()=>string[],expe
   for (const name of verificationOrder) {
     // An independent disk read verifies generated hashes; each file is read
     // only once in this validation, including the already loaded manifest.
-    const bytes = name === 'manifest.json' ? manifestBytes : legalIndexFiles.get(name)?.bytes??read(name);
+    const bytes = name === 'manifest.json' ? manifestBytes : name===IMAGE_INDEX&&indexBytes?indexBytes:legalIndexFiles.get(name)?.bytes??read(name);
     const expected = declared.get(name)!;
     let verified:LoadedFile;
     if(safeArchiveName(name)){
@@ -119,11 +126,15 @@ function loadValidationContext(read:(name:string)=>Buffer,list:()=>string[],expe
         const content=files.get(name);if(!content)throw new Error('Missing structured NL content.');return content.text;
       },manifest.rangeFrom,manifest.rangeTo);
       if(manifest.jurisdiction==='EU'){
+        assertMissingEuEvidence(act,index,native.items);
         assertEuCaseSource(act,index,native.items,manifest.rangeTo);
         verifyEuLegalAct(act,index,native.items,name=>{const file=files.get(name);if(!file)throw new Error('Missing EU structural file.');return file.text;});
       }
       else assertFullNlSourceCoverage(act,index,native.items,manifest.rangeFrom,manifest.rangeTo);
-      if(auditMode==='unconditional')assertUnconditionalSourceObservations(index.entries);
+      if(auditMode==='unconditional'){
+        const originals=index.entries.filter((e:any)=>!['CELLAR-document-unavailable','CELLAR-discovery-unavailable','CELLAR-case-discovery-unavailable'].includes(e.kind));
+        if(originals.length||!act.missingDocuments?.length&&!act.discoveryIncomplete)assertUnconditionalSourceObservations(originals);
+      }
       if(index.diagnosticOnly===true)throw new Error('Diagnostic-only source archive cannot be published.');
       const counts=sourceStructure(index);
       const assessment=sourceAvailability(index);
@@ -136,6 +147,7 @@ function loadValidationContext(read:(name:string)=>Buffer,list:()=>string[],expe
     else verified=verifyFileBytes(name, bytes, manifest.schemaVersion === 2,structuredFiles.has(name));
     if (expected.md5 && expected.md5 !== verified.md5) throw new Error('Empty or corrupted output file.');
     if (manifest.schemaVersion === 2 && expected.size !== undefined && expected.size !== verified.size) throw new Error('Final size mismatch.');
+    if(structuredFiles.has(name)&&imageIndex?.rendering)verified.text=restoreCanonicalMarkdown(name,verified.text,imageIndex);
     files.set(name, verified);
   }
   const text = (name: string): string => {
@@ -147,6 +159,7 @@ function loadValidationContext(read:(name:string)=>Buffer,list:()=>string[],expe
     const index=JSON.parse(text(IMAGE_INDEX));if(stableJson(index)!==text(IMAGE_INDEX))throw new Error('Noncanonical image index.');
     if(!Array.isArray(index.assets)||JSON.stringify(index.assets.map((a:any)=>a.name).sort())!==JSON.stringify(images.assets.map((a:any)=>a.name).sort()))throw new Error('Image asset inventory mismatch.');
     validateLegalImagePackage(legalDocuments(manifest),text,index,name=>{const file=files.get(name);if(!file)throw new Error('Missing image bytes.');return file.bytes;});
+    validateInlineRendering(legalDocuments(manifest),index,text,name=>files.get(name)!.bytes.toString('utf8'),name=>files.get(name)!.bytes);
   }
   if (manifest.schemaVersion === 2 && text('manifest.json') !== stableJson(physicalManifest)) throw new Error('Noncanonical manifest serialization.');
   return {manifest, expectedActs, files:new Map(names.map(name=>[name,files.get(name)!])), text,...manifest.officialSources?{sourceStructure:structure,sourceAvailability:availability}:{}};

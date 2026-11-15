@@ -3,6 +3,9 @@ import io
 from pathlib import Path
 import tempfile
 import unittest
+import subprocess
+import sys
+import json
 from PIL import Image
 
 spec = importlib.util.spec_from_file_location('validate_image', Path(__file__).resolve().parents[1] / 'scripts/validate_image.py')
@@ -11,6 +14,12 @@ spec.loader.exec_module(module)
 
 
 class NativeImages(unittest.TestCase):
+    def test_missing_codec_runtime_has_a_distinct_infrastructure_exit_status(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source=Path(directory)/'image.png';Image.new('RGB',(1,1)).save(source)
+            run=subprocess.run([sys.executable,'-S',str(Path(__file__).resolve().parents[1]/'scripts/validate_image.py'),str(source)],capture_output=True,text=True)
+            self.assertEqual(run.returncode,2)
+            self.assertEqual(json.loads(run.stdout)['error'],'IMAGE_RUNTIME_UNAVAILABLE')
     def test_native_formats_are_verified_without_changing_any_byte(self):
         with tempfile.TemporaryDirectory() as directory:
             for kind, suffix in [('PNG', 'png'), ('JPEG', 'jpg'), ('WEBP', 'webp'), ('GIF', 'gif')]:
