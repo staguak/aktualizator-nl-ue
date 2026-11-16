@@ -77,6 +77,7 @@ class XmlClient {
   private pending=new Map<number,{resolve:(r:XmlReceipt)=>void;reject:(e:Error)=>void;cancelDeadline:()=>void}>();
   private sequence=0;private failed=false;private decoder=new XmlFrameDecoder();private failure:XmlValidatorUnavailable|undefined;
   private queue=new XmlValidationQueue(8);
+  private started=false;
   readonly ready:Promise<void>;
   constructor(){
     this.child=spawn(process.env.LAW_XML_PYTHON??'python3',['-I','-u',path.join(root,'scripts/xml_validation.py'),'--serve',
@@ -89,8 +90,6 @@ class XmlClient {
       (stream as typeof stream&{unref?:()=>void}).unref?.();
     let resolveReady:()=>void,rejectReady:(e:Error)=>void;
     this.ready=new Promise<void>((resolve,reject)=>{resolveReady=resolve;rejectReady=reject;});
-    const startup=setTimeout(()=>this.fail('STARTUP_TIMEOUT'),30_000);
-    this.ready.then(()=>clearTimeout(startup),()=>clearTimeout(startup));
     this.failReady=error=>rejectReady(error);
     this.child.stdout.setEncoding('utf8');
     this.child.stdout.on('data',(data:string)=>{
@@ -112,6 +111,15 @@ class XmlClient {
     this.child.stderr.resume(); // Never echo arbitrary Python/dependency diagnostics.
     this.child.on('error',()=>this.fail('PROCESS_START'));this.child.on('close',()=>this.fail('PROCESS_EXIT'));
     this.child.stdin.on('error',()=>this.fail('STREAM_IO'));
+  }
+  /** Explicit asynchronous start: never schedule promise work in a constructor. */
+  start():Promise<void>{
+    if(!this.started){
+      this.started=true;
+      const startup=setTimeout(()=>this.fail('STARTUP_TIMEOUT'),30_000);
+      void this.ready.then(()=>clearTimeout(startup),()=>clearTimeout(startup));
+    }
+    return this.ready;
   }
   private failReady:(error:XmlValidatorUnavailable)=>void=()=>{};
   private fail(reason:XmlInfrastructureReason){
@@ -167,7 +175,7 @@ class XmlClient {
   close(){this.fail('CLOSED');}
 }
 export async function ensureXmlValidation():Promise<void>{
-  if(xmlValidationEnabled()){client??=new XmlClient();await client.ready;}
+  if(xmlValidationEnabled()){client??=new XmlClient();await client.start();}
 }
 export function closeXmlValidation():void{client?.close();client=undefined;}
 process.once('exit',closeXmlValidation);
