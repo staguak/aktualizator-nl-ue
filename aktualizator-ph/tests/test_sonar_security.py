@@ -84,7 +84,7 @@ class ZipSafetyTests(unittest.TestCase):
             original = directory / 'original.xml'
             original.write_bytes(b'original')
             recipe = self.recipe(directory, original)
-            recipe['files'][0]['name'] = 'unsafe\\x00source.xml'
+            recipe['files'][0]['name'] = 'unsafe\x00source.xml'
             with self.assertRaises(ValueError):
                 build(recipe, directory / 'recipe.json')
 
