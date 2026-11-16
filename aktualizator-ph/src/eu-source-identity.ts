@@ -11,6 +11,12 @@ function declaredCelex(value:string):string|undefined{
     if(candidate&&celexPattern.test(candidate))return candidate;
   }catch{/* Not every official identifier is a URL or a CELEX. */}
 }
+function cleanEurLexTitle(title:string):string|undefined{
+  let clean=title.replace(/^EUR-Lex\s*-\s*/i,'');
+  const match=/-\s*(?:EN|PL|NL|FR)$/i.exec(clean);
+  if(match)clean=clean.slice(0,match.index).trimEnd();
+  return declaredCelex(clean);
+}
 export function assertEuSourceIdentity(html:string,sourceUrl:string,expected:string,index?:CellarIndex):void{
   const $=load(html),title=$('head title').text().replace(/\s+/g,' ').trim(),declared:string[]=[];
   // Consolidations name the original act and documentary layer separately.
@@ -38,7 +44,7 @@ export function assertEuSourceIdentity(html:string,sourceUrl:string,expected:str
   }
   if(consolidation)declared.push(consolidation);
   else{
-    const id=declaredCelex(title.replace(/^EUR-Lex\s*-\s*/i,'').replace(/\s*-\s*(?:EN|PL|NL|FR)$/i,''));
+    const id=cleanEurLexTitle(title);
     if(id)declared.push(id);
   }
   $('head meta[name],head link[rel="canonical"]').each((_i,node)=>{
