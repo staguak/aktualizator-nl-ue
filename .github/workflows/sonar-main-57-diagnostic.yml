@@ -1,0 +1,35 @@
+name: Read-only SonarCloud main issue snapshot
+on:
+  push:
+    branches:
+      - audit/sonar-main-57-20261116
+permissions:
+  contents: read
+jobs:
+  list-sonar-main:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Retrieve current main issue lists from public SonarCloud API
+        run: |
+          python3 - <<'PY'
+          import json,urllib.request,urllib.parse,collections
+          root='https://sonarcloud.io/api/issues/search'
+          base={'projects':'staguak_aktualizator-nl-ue',
+                'branch':'main','ps':'500','issueStatuses':'OPEN,CONFIRMED'}
+          for scope in ('new','all'):
+              opts={**base,**({'sinceLeakPeriod':'true'} if scope=='new' else {})}
+              request=urllib.request.Request(root+'?'+urllib.parse.urlencode(opts),
+                headers={'Accept':'application/json','User-Agent':'ReadOnlyPublicIssueAudit/1.0'})
+              with urllib.request.urlopen(request,timeout=35) as response:
+                  result=json.load(response)
+              print('SONAR_META '+json.dumps({'scope':scope,'total':result.get('total'),
+                'returned':len(result.get('issues',[]))},sort_keys=True))
+              for issue in result.get('issues',[]):
+                  cols=('key','rule','severity','type','component','line','message',
+                    'status','issueStatus','creationDate','updateDate','resolution',
+                    'effort','debt','tags','impacts','textRange')
+                  row={k:issue.get(k) for k in cols}
+                  row['scope']=scope
+                  print('SONAR_RECORD '+json.dumps(row,ensure_ascii=True,separators=(',',':')))
+          PY
