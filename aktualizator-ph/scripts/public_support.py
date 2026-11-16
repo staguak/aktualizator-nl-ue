@@ -82,7 +82,18 @@ class GitHubApi:
         self.wait = wait or time.sleep
 
     def request(self, suffix, payload=None, method='GET', attempts=3):
-        if not suffix.startswith('/') or '..' in suffix:
+        # Only the exact routes needed by the public request workflow are
+        # allowed. Encoded separators, dot segments, extra query parameters
+        # and arbitrary API endpoints must never reach urllib.
+        routes = (
+            (r'/issues/[1-9][0-9]*', {'PATCH'}),
+            (r'/issues/[1-9][0-9]*/comments', {'POST'}),
+            (r'/issues/[1-9][0-9]*/comments\\?per_page=100&page=(?:[1-9]|10)', {'GET'}),
+            (r'/issues/comments/[1-9][0-9]*', {'PATCH'}),
+            (r'/actions/runs/[1-9][0-9]*/attempts/[1-9][0-9]*', {'GET'}),
+        )
+        if not any(method in methods and re.fullmatch(route, suffix)
+                   for route, methods in routes):
             raise PublicError('API_ROUTE_INVALID', 'GITHUB_API')
         for attempt in range(attempts):
             request = urllib.request.Request('https://api.github.com/repos/' + self.repo + suffix,
