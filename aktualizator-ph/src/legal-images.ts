@@ -29,7 +29,10 @@ export interface ImageOccurrence {
   legalUnitId:string;sourceLocator:string;contextIds:string[];target:string;sourceEvidenceKey?:string;
 }
 interface ImageSourceEvidence {key:string;requestUrl:string;responseUrl:string;sha256:string;bytes:number;contentType:string;baseUrl?:string;resolution?:ImageResolution;derivation?:SvgDerivation}
-const evidenceKey=(requestUrl:string,baseUrl?:string)=>legalHash(baseUrl?JSON.stringify([requestUrl,baseUrl]):requestUrl);
+const evidenceKey=(requestUrl:string,baseUrl?:string,resolution?:ImageResolution)=>
+  resolution?legalHash(JSON.stringify(['official-fallback-v2',requestUrl,baseUrl??null,
+    resolution.documentId,resolution.version,resolution.language,resolution.sourceUrl,resolution.sourceSha256,resolution.sourceLocator])):
+    legalHash(baseUrl?JSON.stringify([requestUrl,baseUrl]):requestUrl);
 interface OmittedDecoration extends Omit<ImageOccurrence,'target'|'sourceEvidenceKey'> {reason:'decorative-european-flag';imageUrl:string}
 interface UnavailableImage extends Omit<ImageOccurrence,'target'|'sourceEvidenceKey'> {reason:'source-unavailable';imageUrl:string;attempts:ImageAttempt[]}
 export interface LegalImageIndex {profile:'legal-images-v1';offsetEncoding:'utf16-code-units';assets:({name:string}&NativeImage)[];occurrences:ImageOccurrence[];sources:ImageSourceEvidence[];omittedDecorations?:OmittedDecoration[];unavailableImages?:UnavailableImage[];rendering?:ImageRendering}
@@ -119,7 +122,13 @@ export async function buildLegalImagePackage(documents:LegalManifest[],read:(nam
     const key=evidenceKey(url,url.startsWith('data:')?context?.document.sourceUrl:undefined);
     let value=loaded.get(key);
     if(!value){if(!loader)throw new Error('Image loader required.');value=loader(url,context);loaded.set(key,value);}
-    try{return await value;}
+    try{
+      const response=await value;
+      // Alternative-language image selection depends on the legal-unit context.
+      // Only downloaded native bytes may be shared by URL without context.
+      if(response.resolution&&loaded.get(key)===value)loaded.delete(key);
+      return response;
+    }
     catch(error){if(loaded.get(key)===value)loaded.delete(key);throw error;}
   };
   for(const doc of documents)for(const part of doc.parts){
@@ -141,7 +150,7 @@ export async function buildLegalImagePackage(documents:LegalManifest[],read:(nam
       let sourceEvidenceKey:string|undefined;
       if(!/^data:/i.test(ref.source)||response.resolution||response.derivation){
         const requestUrl=new URL(ref.source,doc.sourceUrl).href,baseUrl=requestUrl.startsWith('data:')?doc.sourceUrl:undefined;
-        sourceEvidenceKey=evidenceKey(requestUrl,baseUrl);sources.set(sourceEvidenceKey,{key:sourceEvidenceKey,requestUrl,responseUrl:response.url??doc.sourceUrl,sha256:native.sha256,bytes:bytes.length,contentType:response.contentType,...baseUrl?{baseUrl}:{},...response.resolution?{resolution:response.resolution}:{},...response.derivation?{derivation:response.derivation}:{}});
+        sourceEvidenceKey=evidenceKey(requestUrl,baseUrl,response.resolution);sources.set(sourceEvidenceKey,{key:sourceEvidenceKey,requestUrl,responseUrl:response.url??doc.sourceUrl,sha256:native.sha256,bytes:bytes.length,contentType:response.contentType,...baseUrl?{baseUrl}:{},...response.resolution?{resolution:response.resolution}:{},...response.derivation?{derivation:response.derivation}:{}});
       }
       assets.set(target,bytes);nativeAssets.set(target,{name:target,...native});occurrences.push({...identity(doc,part.file,markdown,ref),...sourceEvidenceKey?{sourceEvidenceKey}:{},target});
     }
@@ -156,7 +165,8 @@ export function validateLegalImagePackage(documents:LegalManifest[],read:(name:s
   if(index.unavailableImages!==undefined&&!Array.isArray(index.unavailableImages))throw new Error('Invalid unavailable images.');
   const sources=new Map<string,ImageSourceEvidence>();
   for(const source of index.sources){
-    if(source.key!==evidenceKey(source.requestUrl,source.baseUrl)||sources.has(source.key)||! /^[a-f0-9]{64}$/.test(source.sha256)||!Number.isSafeInteger(source.bytes)||source.bytes<1)throw new Error('Invalid image source evidence.');
+    if((source.key!==evidenceKey(source.requestUrl,source.baseUrl,source.resolution)&&
+      source.key!==evidenceKey(source.requestUrl,source.baseUrl))||sources.has(source.key)||! /^[a-f0-9]{64}$/.test(source.sha256)||!Number.isSafeInteger(source.bytes)||source.bytes<1)throw new Error('Invalid image source evidence.');
     for(const value of [source.requestUrl,source.responseUrl,...source.baseUrl?[source.baseUrl]:[]]){const url=new URL(value);if(!['http:','https:'].includes(url.protocol)&&!(value===source.requestUrl&&url.protocol==='data:'&&(source.resolution||source.derivation))||url.username||url.password)throw new Error('Invalid image source URL.');}
     if(source.derivation){const bytes=svgDerivative(source.derivation);if(hash(bytes)!==source.sha256||bytes.length!==source.bytes||source.contentType!=='image/svg+xml'||source.derivation.responseUrl!==source.responseUrl)throw new Error('SVG derivation differs from source evidence.');}
     if(source.resolution){
@@ -195,7 +205,7 @@ export function validateLegalImagePackage(documents:LegalManifest[],read:(name:s
       const occurrence=index.occurrences[cursor++];if(!occurrence)throw new Error('Missing image occurrence.');
       const {target,...record}=occurrence,proof=record.sourceEvidenceKey?sources.get(record.sourceEvidenceKey):undefined;
       const expected=identity(doc,part.file,markdown,ref);
-      if(proof?.resolution||proof?.derivation)expected.sourceEvidenceKey=evidenceKey(new URL(ref.source,doc.sourceUrl).href,proof.baseUrl);
+      if(proof?.resolution||proof?.derivation)expected.sourceEvidenceKey=proof.key;
       if(proof?.baseUrl&&proof.baseUrl!==doc.sourceUrl)throw new Error('Embedded SVG source context differs.');
       if(!isDeepStrictEqual(expected,record)||!assets.has(target))throw new Error('Image context/index mismatch.');
       let embedded;try{embedded=decodeEmbeddedImage(ref.source);}catch{if(!proof?.resolution)throw new Error('Invalid embedded image without fallback proof.');}
@@ -213,6 +223,37 @@ export function validateLegalImagePackage(documents:LegalManifest[],read:(name:s
         const indexed=indexLegalDocument(draft,draft.chunks.map((_,i)=>'proof-'+i+'.md'),draft.chunks.map(c=>c.body));
         const refs=draft.chunks.flatMap((chunk,i)=>legalImageReferences(chunk.body).filter(r=>r.kind===ref.kind).filter(r=>indexed.units.filter(u=>u.locations.some(l=>l.part===i+1&&l.start<=r.offset&&l.end>=r.end)).at(-1)?.sourceLocator===p.sourceLocator));
         if(refs.length!==1)throw new Error('Fallback image location differs from preserved original.');
+        // Independently match the foreign image to the ORIGINAL legal unit,
+        // not just to its own archived foreign document.
+        const context=(units:LegalManifest['units'],locator:string)=>{
+          const current=units.find(u=>u.sourceLocator===locator);
+          if(!current)return null;
+          const byId=new Map(units.map(u=>[u.id,u])),chain:string[]=[];
+          let node:typeof current|undefined=current;
+          while(node){
+            if(['article','annex','recital','holding','section','chapter'].includes(node.kind))
+              chain.unshift(node.kind+':'+(node.reference??node.label.match(/(?:\\d+[a-z]?|\\b[IVXLCDM]+\\b)/gi)?.join(':')??''));
+            node=node.parentId?byId.get(node.parentId):undefined;
+          }
+          return chain.join('/');
+        };
+        const originalContext=context(doc.units,record.sourceLocator),foreignContext=context(indexed.units,p.sourceLocator);
+        if(originalContext===null||foreignContext===null||originalContext!==foreignContext)
+          throw new Error('Fallback image legal context differs from original unit.');
+        const originalUnit=doc.units.find(u=>u.sourceLocator===record.sourceLocator)!;
+        const fallbackUnit=indexed.units.find(u=>u.sourceLocator===p.sourceLocator)!;
+        const imageName=(url:string,base:string)=>{
+          if(/^data:/i.test(url))return null;
+          const pathname=new URL(url,base).pathname;
+          return pathname.includes('.xhtml.')?pathname.split('.xhtml.').at(-1):pathname.split('/').at(-1);
+        };
+        const namedImage=imageName(ref.source,doc.sourceUrl);
+        const fallbackImage=imageName(refs[0].source,p.sourceUrl);
+        const matchingImage=record.sourceLocator===p.sourceLocator||
+          !!originalContext&&!!namedImage&&namedImage===fallbackImage&&
+          ['alt','width','height'].every(k=>typeof originalUnit.attributes[k]==='string'&&
+            originalUnit.attributes[k]===fallbackUnit.attributes[k]);
+        if(!matchingImage)throw new Error('Fallback image does not match original image occurrence.');
         const decoded=decodeEmbeddedImage(refs[0].source);
         if(p.attempts.at(-1)!.url!==(decoded?p.sourceUrl:new URL(refs[0].source,p.sourceUrl).href)||decoded&&hash(decoded.bytes)!==(proof.derivation?.originalSha256??proof.sha256))throw new Error('Fallback image differs from preserved representation.');
       }
