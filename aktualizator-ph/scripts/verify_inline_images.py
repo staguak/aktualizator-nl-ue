@@ -305,7 +305,19 @@ def audit_inline(directory, index, documents):
     records = index['rendering']['files']
     assert len(records) == len(names) and {f['name'] for f in records} == names
     assets = {a['name']: a for a in index['assets']}
-    source_targets = {(s.get('baseUrl'),s['requestUrl']): s['sha256'] for s in index['sources']}
+    # A single original URL may have distinct, officially proved images in
+    # different legal units. Do not collapse such evidence by URL.
+    source_targets = {}
+    for source in index['sources']:
+        key=(source.get('baseUrl'),source['requestUrl'])
+        source_targets.setdefault(key,[]).append(source)
+        if index.get('profile')=='legal-images-v2' and source.get('resolution'):
+            proof=source['resolution']
+            expected=['official-fallback-v2',source['requestUrl'],source.get('baseUrl'),
+                      proof['documentId'],proof['version'],proof['language'],
+                      proof['sourceUrl'],proof['sourceSha256'],proof['sourceLocator']]
+            import json
+            assert source['key']==sha(json.dumps(expected,separators=(',',':'),ensure_ascii=False)), 'Image fallback key differs from official context'
     canonical_files = {}
     for record in records:
         name = record['name']
@@ -327,13 +339,22 @@ def audit_inline(directory, index, documents):
             assert omission['reason'] == 'decorative-european-flag'
             assert omission['imageUrl'].split('?',1)[0].endswith('/europeanflag.gif')
 
-        def token(uri, base, output=False):
+        def token(uri, base, output=False, evidence_key=None):
             if uri.startswith('#'): return uri
             absolute = urljoin(base, uri)
             if not output and absolute in gap_urls: return None
             fragment='#'+unquote(urlsplit(uri).fragment) if urlsplit(uri).fragment else ''
-            if not output and (base,absolute) in source_targets:return source_targets[(base,absolute)]+fragment
-            if not output and (None,absolute) in source_targets:return source_targets[(None,absolute)]+fragment
+            if not output:
+                for lookup in ((base,absolute),(None,absolute)):
+                    matches=source_targets.get(lookup,[])
+                    if not matches:continue
+                    if evidence_key is not None:
+                        specific=[s for s in matches if s['key']==evidence_key]
+                        assert len(specific)<=1, 'Duplicate image source evidence'
+                        if specific:return specific[0]['sha256']+fragment
+                    hashes={s['sha256'] for s in matches}
+                    assert len(hashes)==1, 'Ambiguous graphic URL requires legal occurrence evidence'
+                    return next(iter(hashes))+fragment
             if uri.startswith('data:'):
                 return sha(decoded(uri)[1])+fragment
             assert not output, 'Final graphics still depend on a URL'
@@ -346,7 +367,10 @@ def audit_inline(directory, index, documents):
                 scope = prefix[close_brace+1:open_brace] if open_brace > close_brace else prefix[prefix.rfind(';')+1:]
                 uri = next(v for v in match.groups() if v is not None)
                 if uri.startswith('#') or re.search(r'@font-face\b|^\s*@import\b', scope, re.I): return match[0]
-                identity = token(uri, base, output)
+                # A CSS occurrence is scoped to the exact legal node, not just
+                # the request URL, so two translations can remain distinct.
+                key=p.get('sourceEvidenceKey') if p.get('kind')=='css' else None
+                identity = token(uri, base, output, key)
                 return 'none' if identity is None else 'url(GRAPHIC:'+identity+')'
             return URL.sub(replace, value)
 
