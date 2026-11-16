@@ -67,7 +67,9 @@ def resolve_formex_locator(root, locator):
         if position == 0:
             candidates = [candidate for candidate in candidates if candidate.tag == name]
         index = int(ordinal) if ordinal else 1
-        if not candidates or index > len(candidates) or (ordinal is None and len(candidates) != 1):
+        if ordinal is None and len(candidates) > 1:
+            raise ValueError('Ambiguous Formex locator')
+        if not candidates or index > len(candidates):
             return []
         node = candidates[index - 1]
     if attribute is not None:
