@@ -206,7 +206,16 @@ export function createEuSourceLoader(fetcher:(doc:EuDocument)=>Promise<EuSource>
   const load=shareInFlight(key=>fetcher(documents.get(key)!));
   return doc=>{const key=JSON.stringify([doc.celex,doc.include,doc.outputProfile]);if(!documents.has(key))documents.set(key,doc);return load(key);};
 }
-class EuLanguageUnavailable extends Error {}
+type EuTextFailureClass='NOT_OBSERVED'|'PARSE_REJECTED'|'IDENTITY_REJECTED'|'RETRIEVAL_INCOMPLETE';
+class EuLanguageUnavailable extends Error {
+  constructor(message:string,readonly classification:EuTextFailureClass){super(message);}
+}
+export class EuDocumentVerificationIncomplete extends Error {
+  constructor(readonly classification:Exclude<EuTextFailureClass,'NOT_OBSERVED'>,
+    readonly attempts:{language:EuLanguage;reason:string}[]){
+    super('EU legal text verification incomplete: '+classification+'.');
+  }
+}
 export class EuDocumentUnavailable extends Error {
   constructor(readonly attempts:{language:EuLanguage;reason:string}[]){super('No complete document in '+attempts.map(a=>a.language).join(', ')+'.');}
 }
@@ -218,12 +227,20 @@ export async function fetchEuText(doc: EuDocument, language:EuLanguage='EN',fetc
   // alone enables the approved EN→PL→NL→FR fallback.
   const languages=language==='EN'?EU_LANGUAGE_ORDER:[language];
   let result:EuSource|undefined;const attempts:{language:EuLanguage;reason:string}[]=[];
+  let unresolved:Exclude<EuTextFailureClass,'NOT_OBSERVED'>|undefined;
   for(const lang of languages){
     try{result=await fetchEuTextLanguage(doc,lang,fetcher,binaryFetcher,language==='EN'?EU_LANGUAGE_ORDER:[language]);break;}
     catch(error){if(retrievalInfrastructureFailure(error))throw error;
-      attempts.push({language:lang,reason:error instanceof Error&&/^Source HTTP \d+$/.test(error.message)?error.message:'No complete validated official representation.'});}
+      if(error instanceof EuLanguageUnavailable&&error.classification!=='NOT_OBSERVED')
+        unresolved??=error.classification;
+      else if(!(error instanceof EuLanguageUnavailable))unresolved??='RETRIEVAL_INCOMPLETE';
+      attempts.push({language:lang,reason:error instanceof Error&&/^Source HTTP \d+$/.test(error.message)?error.message:
+        error instanceof EuLanguageUnavailable?error.classification:'RETRIEVAL_INCOMPLETE'});}
   }
-  if(!result)throw new EuDocumentUnavailable(attempts);
+  if(!result){
+    if(unresolved)throw new EuDocumentVerificationIncomplete(unresolved,attempts);
+    throw new EuDocumentUnavailable(attempts);
+  }
   if(language==='EN'&&result.language!=='EN'){
     const message=`${doc.celex} text: no complete English representation was available; ${result.language} official text retained.`;
     result.nativeWarnings?.push(message);result.nativeIssues?.push({code:'TEXT_LANGUAGE_FALLBACK',classification:'NOT_OBSERVED',representation:'XHTML',documentId:doc.celex,message});
@@ -237,6 +254,7 @@ async function fetchEuTextLanguage(doc:EuDocument,language:EuLanguage,fetcher:ty
     `https://eur-lex.europa.eu/legal-content/${language}/TXT/HTML/?uri=${encodeURIComponent('CELEX:' + doc.celex)}`,
   ];
   let last: unknown,indexPromise:Promise<CellarIndex>|undefined,indexSeen:CellarIndex|undefined,indexError:unknown;
+  let receivedRejected=false,identityRejected=false,transportIncomplete=false;
   const getIndex=():Promise<CellarIndex>=>{
     if(!indexPromise){const pending=fetchEuRepresentations(doc.celex,language,fetcher).then(index=>{indexSeen=index;return index;},error=>{indexError=error;throw error;});indexPromise=pending;
       void pending.catch(()=>{if(indexPromise===pending)indexPromise=undefined;});}
@@ -244,11 +262,18 @@ async function fetchEuTextLanguage(doc:EuDocument,language:EuLanguage,fetcher:ty
   };
   const failures: string[] = [];
   for (const url of urls) {
+    let received=false,parsed=false;
     try {
       const response = await fetcher(url, { Accept: 'application/xhtml+xml,text/html;q=0.9', 'Accept-Language': languageAccept(language) });
-      const parsed=parseEuSource(response, doc.include, language,doc.outputProfile?doc.celex:undefined);
-      return await nativeEuSource(doc,response,url,parsed,language,undefined,getIndex,fetcher,binaryFetcher,formexLanguages);
-    } catch (error) { if(retrievalInfrastructureFailure(error))throw error;last = error; failures.push(String(error)); }
+      received=true;
+      const parsedSource=parseEuSource(response, doc.include, language,doc.outputProfile?doc.celex:undefined);parsed=true;
+      return await nativeEuSource(doc,response,url,parsedSource,language,undefined,getIndex,fetcher,binaryFetcher,formexLanguages);
+    } catch (error) {
+      if(retrievalInfrastructureFailure(error))throw error;
+      if(received){receivedRejected=true;if(parsed)identityRejected=true;}
+      if(transientSourceError(error))transportIncomplete=true;
+      last = error; failures.push(String(error));
+    }
   }
   // Resolve the official language-specific streams, also retaining this index
   // for metadata/Formex retrieval rather than repeating a second discovery.
@@ -256,17 +281,28 @@ async function fetchEuTextLanguage(doc:EuDocument,language:EuLanguage,fetcher:ty
     const index=await getIndex();
     const candidates=[...new Set(index.rows.filter(r=>['xhtml','html','html_simplified','xhtml_simplified'].includes(r.format)).flatMap(r=>r.item?[r.item]:[]))];
     for (const item of candidates) {
+      let received=false,parsed=false;
       try {
         const source = await fetcher(item, { Accept: 'application/xhtml+xml,text/html;q=0.9' });
-        const parsed=parseEuSource(source, doc.include, language,doc.outputProfile?doc.celex:undefined);
-        return await nativeEuSource(doc,source,item,parsed,language,index,getIndex,fetcher,binaryFetcher,formexLanguages);
-      } catch (error) { if(retrievalInfrastructureFailure(error))throw error;last = error; }
+        received=true;
+        const parsedSource=parseEuSource(source, doc.include, language,doc.outputProfile?doc.celex:undefined);parsed=true;
+        return await nativeEuSource(doc,source,item,parsedSource,language,index,getIndex,fetcher,binaryFetcher,formexLanguages);
+      } catch (error) {
+        if(retrievalInfrastructureFailure(error))throw error;
+        if(received){receivedRejected=true;if(parsed)identityRejected=true;}
+        if(transientSourceError(error))transportIncomplete=true;
+        last = error;
+      }
     }
-  } catch (error) { if(retrievalInfrastructureFailure(error))throw error;last = error; }
+  } catch (error) { if(retrievalInfrastructureFailure(error))throw error;if(transientSourceError(error))transportIncomplete=true;last = error; }
   if(indexSeen?.rows.some(row=>['xhtml','html','html_simplified','xhtml_simplified'].includes(row.format)))
-    throw new EuLanguageUnavailable(`Indexed ${language} legal text could not be retrieved or validated for ${doc.celex}.`);
-  if(indexError&&!(indexError instanceof EuExpressionUnavailable))throw indexError;
-  throw new EuLanguageUnavailable(`Unable to retrieve complete ${language} EU source ${doc.celex}: ${failures.join('; ')}; stream: ${String(last)}`);
+    throw new EuLanguageUnavailable(`Indexed ${language} legal text could not be retrieved or validated for ${doc.celex}.`,
+      receivedRejected?(identityRejected?'IDENTITY_REJECTED':'PARSE_REJECTED'):'RETRIEVAL_INCOMPLETE');
+  if(receivedRejected)throw new EuLanguageUnavailable(`Retrieved official ${language} text was rejected for ${doc.celex}.`,
+    identityRejected?'IDENTITY_REJECTED':'PARSE_REJECTED');
+  if(transportIncomplete||indexError&&!(indexError instanceof EuExpressionUnavailable))
+    throw new EuLanguageUnavailable(`Source discovery or download remained incomplete for ${doc.celex} in ${language}.`,'RETRIEVAL_INCOMPLETE');
+  throw new EuLanguageUnavailable(`No complete verified ${language} expression was observed for ${doc.celex}.`,'NOT_OBSERVED');
 }
 
 async function checkedNotice(source:SourceResponse,kind:XmlKind,check:()=>void,identifier?:string){
