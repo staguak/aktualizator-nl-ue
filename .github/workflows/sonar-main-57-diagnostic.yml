@@ -15,14 +15,26 @@ jobs:
           python3 - <<'PY'
           import json,urllib.request,urllib.parse,collections
           root='https://sonarcloud.io/api/issues/search'
-          base={'projects':'staguak_aktualizator-nl-ue',
-                'branch':'main','ps':'500','issueStatuses':'OPEN,CONFIRMED'}
-          for scope in ('new','all'):
-              opts={**base,**({'sinceLeakPeriod':'true'} if scope=='new' else {})}
-              request=urllib.request.Request(root+'?'+urllib.parse.urlencode(opts),
-                headers={'Accept':'application/json','User-Agent':'ReadOnlyPublicIssueAudit/1.0'})
-              with urllib.request.urlopen(request,timeout=35) as response:
-                  result=json.load(response)
+          base={'projects':'staguak_aktualizator-nl-ue','branch':'main','ps':'500'}
+          cases=[
+              ('all',{}),
+              ('new',{'sinceLeakPeriod':'true'}),
+              ('all-with-status',{'issueStatuses':'OPEN,CONFIRMED'}),
+              ('new-with-status',{'issueStatuses':'OPEN,CONFIRMED','sinceLeakPeriod':'true'}),
+          ]
+          for scope,filters in cases:
+              opts={**base,**filters}
+              url=root+'?'+urllib.parse.urlencode(opts)
+              request=urllib.request.Request(url,headers={'Accept':'application/json',
+                  'User-Agent':'ReadOnlyPublicIssueAudit/1.0'})
+              try:
+                  with urllib.request.urlopen(request,timeout=35) as response:
+                      result=json.load(response)
+              except Exception as exc:
+                  try: detail=exc.read(1000).decode('utf8','replace')
+                  except Exception: detail=''
+                  print('SONAR_ERROR '+json.dumps({'scope':scope,'code':getattr(exc,'code',None),'detail':detail[:1000]}))
+                  continue
               print('SONAR_META '+json.dumps({'scope':scope,'total':result.get('total'),
                 'returned':len(result.get('issues',[]))},sort_keys=True))
               for issue in result.get('issues',[]):
