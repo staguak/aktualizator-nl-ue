@@ -90,6 +90,7 @@ class GitHubApi:
             (r'/issues/[1-9][0-9]*/comments', {'POST'}),
             (r'/issues/[1-9][0-9]*/comments\?per_page=100&page=(?:[1-9]|10)', {'GET'}),
             (r'/issues/comments/[1-9][0-9]*', {'PATCH'}),
+            (r'/actions/runs/[1-9][0-9]*', {'GET'}),
             (r'/actions/runs/[1-9][0-9]*/attempts/[1-9][0-9]*', {'GET'}),
         )
         if not any(method in methods and re.fullmatch(route, suffix)
