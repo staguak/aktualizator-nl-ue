@@ -94,7 +94,10 @@ export function buildReport(manifest:any,previous:any,validation:ValidationResul
     sourceReview:{mode:sourceAuditMode(env),technicalAuditId:sourceAuditIdentity(env),status:validation.status==='PASS'?'COMPLETED':'NOT_COMPLETED',
       scope:'Complete configured catalog/history review in both modes; unconditional bypasses HTTP validators and parser cache. Not a claim of complete legal history.'},
     sourceAvailability:validation.sourceAvailability?.map(a=>({...a,
-      content:validation.status!=='PASS'?'NOT_VALIDATED':a.profile==='LEGACY_UNCLASSIFIED'?'VALIDATED_CONTENT_ONLY':a.hasOfficialTextFallback?'COMPLETE_FALLBACK':
+      content:validation.status!=='PASS'?'NOT_VALIDATED':
+        ((manifest.jurisdiction==='EU'&&manifest.acts.some((act:any)=>act.celex===a.identifier&&(act.missingDocuments??[]).length>0))||
+          a.issues.some(i=>i.code==='DOCUMENT_UNAVAILABLE'))?'INCOMPLETE_REQUIRED_TEXT':
+        a.profile==='LEGACY_UNCLASSIFIED'?'VALIDATED_CONTENT_ONLY':a.hasOfficialTextFallback?'COMPLETE_FALLBACK':
         a.issues.some(i=>i.classification==='SOURCE_UNAVAILABLE'&&i.representation==='Formex')?'VALIDATED_CONTENT_ONLY':'COMPLETE',
       scope:'Required selected text validation; issue classes describe their own representation/metadata scope, not complete legal history.'}))??null,
     criticalErrors:validation.status==='PASS'?0:validation.status==='FAIL'?1:null,
