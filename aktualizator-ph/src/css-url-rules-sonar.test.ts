@@ -30,3 +30,12 @@ test('long malformed nested CSS URL tokens are handled without backtracking',()=
   const css='url('.repeat(20000)+'x '+ 'url(valid.png)';
   assert.deepEqual([...cssUrlMatches(css)].map(m=>m.source),['valid.png']);
 });
+
+test('CSS comment and ordinary string URLs are not active image references',()=>{
+  const css='/* url(ghost-a.png) */\\n'.replace('\\n','\n')+
+    '.caption::before{content:"url(ghost-b.png)";}\\n'.replace('\\n','\n')+
+    '.actual{background-image:url(real.png)}';
+  assert.deepEqual([...cssUrlMatches(css)].map(m=>m.source),['real.png']);
+  assert.equal(replaceCssUrls(css,m=>'replaced:'+m.source),
+    css.replace('url(real.png)','replaced:real.png'));
+});
