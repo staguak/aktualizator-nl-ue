@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {parseEuHtml} from './eu-parser.js';
 import {firstEuLanguage,EU_LANGUAGE_ORDER,languageCode,preferredEuLanguages,unicodeLength} from './eu-language.js';
 import type {EuLanguage} from './eu-language.js';
-import {fetchEuText,preferredFormexIndex,selectEuDocuments,EuDocumentUnavailable} from './eu-provider.js';
+import {fetchEuText,preferredFormexIndex,selectEuDocuments,EuDocumentUnavailable,EuDocumentVerificationIncomplete} from './eu-provider.js';
 import type {CellarIndex,EuDocument} from './eu-provider.js';
 import {SourceHttpError} from './source-cache.js';
 import {zipSync} from 'fflate';
@@ -102,12 +102,12 @@ test('supplemental Polish Formex has its own language and cannot replace the Eng
   assert.deepEqual(formex.source.bytes,packageBytes);assert.equal((formex.metadata as any).language,'PL');assert.equal((formex.metadata as any).textLanguage,'EN');assert.equal((formex.metadata as any).supplemental,true);
 });
 
-test('incomplete or unavailable English text tries all fallback languages and records exhaustion',async()=>{
+test('transient EU text retrieval failures exhaust languages but remain incomplete, not absent',async()=>{
   const visited:string[]=[];
   await assert.rejects(fetchEuText(document,'EN',async(url,headers)=>{
     if(headers.Accept==='application/sparql-results+json')return source(JSON.stringify({results:{bindings:bindings('EN','html')}}),url);
     visited.push(headers['Accept-Language']??'item');throw new SourceHttpError(503);
-  }),error=>error instanceof EuDocumentUnavailable&&JSON.stringify(error.attempts.map(a=>a.language))===JSON.stringify(EU_LANGUAGE_ORDER));
+  }),error=>error instanceof EuDocumentVerificationIncomplete&&error.classification==='RETRIEVAL_INCOMPLETE'&&JSON.stringify(error.attempts.map(a=>a.language))===JSON.stringify(EU_LANGUAGE_ORDER));
   assert(visited.includes('pol'));assert(visited.includes('nld'));assert(visited.includes('fra'));
 });
 test('local storage, cache integrity and validator failures do not become four missing language results',async()=>{
