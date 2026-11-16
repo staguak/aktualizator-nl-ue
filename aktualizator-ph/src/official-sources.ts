@@ -131,7 +131,7 @@ export class OfficialSources {
       try{
         const catalog=path.join(temp,'manifest.json');fs.writeFileSync(catalog,data['manifest.json'][0]);
         const files=entries.map((e,i)=>{if(e.filePath)return {name:e.entry.name,path:path.resolve(e.filePath),size:e.entry.size,sha256:e.entry.sha256};const file=path.join(temp,'input-'+i);fs.writeFileSync(file,e.bytes!);return {name:e.entry.name,path:path.resolve(file),size:e.entry.size,sha256:e.entry.sha256};});
-        const recipe=path.join(temp,'recipe.json'),target=path.join(temp,'source.zip');fs.writeFileSync(recipe,JSON.stringify({files,catalog:path.resolve(catalog),target:path.resolve(target)}));
+        const recipe=path.join(temp,'recipe.json'),target=path.join(temp,'source.zip');fs.writeFileSync(recipe,JSON.stringify({files,catalog:path.resolve(catalog),catalogSize:data['manifest.json'][0].byteLength,catalogSha256:createHash('sha256').update(data['manifest.json'][0]).digest('hex'),target:path.resolve(target)}));
         const root=fileURLToPath(new URL('../',import.meta.url));
         const result=spawnSync(process.env.LAW_XML_PYTHON??'python3',[path.join(root,'scripts/build_source_zip.py'),recipe],{stdio:['ignore','pipe','pipe'],encoding:'utf8',timeout:600_000,maxBuffer:65536});
         if(result.error||result.status!==0)throw new Error(`Streaming original-source archive creation failed (${result.status??'signal'}, ${(result.error as NodeJS.ErrnoException|undefined)?.code??'helper'}).`);bytes=fs.readFileSync(target);
