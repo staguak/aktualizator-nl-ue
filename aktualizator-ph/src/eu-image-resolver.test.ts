@@ -76,3 +76,18 @@ test('a fallback XHTML BOM is preserved in original bytes and does not shift the
   assert.equal(result.index.sources[0].resolution!.sourceSha256,sha);
   assert.deepEqual(Buffer.from(result.index.sources[0].resolution!.sourceDocumentBase64,'base64'),bytes);
 });
+
+
+test('a rejected image transfer does not permanently poison the same URL',async()=>{
+  const url='https://publications.europa.eu/EN/transient.png';
+  let calls=0;
+  const resolver=createOfficialImageResolver({load:async()=>{
+    calls++;
+    if(calls===1)throw new Error('Simulated transient fetch failure');
+    return {url,bytes:png,contentType:'image/png'};
+  },log:()=>{}});
+  await assert.rejects(resolver(url),ImageUnavailableError);
+  const result=await resolver(url);
+  assert.deepEqual(Buffer.from(result.bytes),png);
+  assert.equal(calls,2);
+});
