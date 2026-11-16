@@ -91,3 +91,32 @@ test('a rejected image transfer does not permanently poison the same URL',async(
   assert.deepEqual(Buffer.from(result.bytes),png);
   assert.equal(calls,2);
 });
+
+
+test('same missing URL in two separate legal articles uses distinct translation graphics and proofs',async()=>{
+  const missing='https://publications.europa.eu/EN/absent.png';
+  const docId='32024R0001';
+  const original='<body><p class="oj-ti-art">Article 1</p><p><img src="'+missing+'" alt="Chart one"></p>'+
+    '<p class="oj-ti-art">Article 2</p><p><img src="'+missing+'" alt="Chart two"></p></body>';
+  const alternate='<body><p class="oj-ti-art">Article 1</p><p><img src="https://publications.europa.eu/PL/one.png" alt="Chart one"></p>'+
+    '<p class="oj-ti-art">Article 2</p><p><img src="https://publications.europa.eu/PL/two.svg" alt="Chart two"></p></body>';
+  const draft=parseEuLegalStructure(original,{corpus:'EU',documentId:docId,version:docId,
+    language:'EN',sourceUrl:'https://publications.europa.eu/EN/a.xhtml',sourceSha256:legalHash(original)});
+  const names=draft.chunks.map((_,i)=>'multi-'+i+'.md'),doc=indexLegalDocument(draft,names,draft.chunks.map(c=>c.body));
+  const markdown=new Map(names.map((name,i)=>[name,legalMarkdown('Act',draft,draft.chunks[i].body,[])]));
+  const polish=parseEuLegalStructure(alternate,{corpus:'EU',documentId:docId,version:docId,
+    language:'PL',sourceUrl:'https://publications.europa.eu/PL/a.xhtml',sourceSha256:legalHash(alternate)});
+  const source={language:'PL',sourceUrl:'https://publications.europa.eu/PL/a.xhtml',html:alternate,
+    parsed:{legalDraft:polish}} as EuSource;
+  const svg=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2"><path d="M0 0L2 2"/></svg>');
+  const resolver=createOfficialImageResolver({load:async url=>{
+    if(url===missing)throw new Error('404');
+    return {url,bytes:url.includes('two.svg')?svg:png,contentType:url.includes('two.svg')?'image/svg+xml':'image/png'};
+  },document:async()=>source});
+  const result=await buildLegalImagePackage([doc],name=>markdown.get(name)!,resolver);
+  assert.equal(result.index.occurrences.length,2);
+  assert.equal(new Set(result.index.occurrences.map(o=>o.target)).size,2);
+  assert.equal(new Set(result.index.occurrences.map(o=>o.sourceEvidenceKey)).size,2);
+  assert.equal(result.index.sources.length,2);
+  validateLegalImagePackage([doc],name=>markdown.get(name)!,result.index,name=>result.assets.get(name)!);
+});
