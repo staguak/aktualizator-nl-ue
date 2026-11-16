@@ -34,8 +34,8 @@ jobs:
           python-version: '3.12'
       - name: Install pinned dependencies
         run: |
-          npm ci --no-audit --no-fund
-          python -m pip install --disable-pip-version-check --index-url https://pypi.org/simple -r scripts/xml-requirements.txt -r scripts/rdf-requirements.txt -r scripts/image-requirements.txt -r scripts/workflow-requirements.txt
+          npm ci --ignore-scripts --no-audit --no-fund
+          python -m pip install --require-hashes --only-binary=:all: --disable-pip-version-check --index-url https://pypi.org/simple -r scripts/xml-requirements.txt -r scripts/rdf-requirements.txt -r scripts/image-requirements.txt -r scripts/workflow-requirements.txt
       - run: npm run typecheck
       - run: npm run typecheck:tools
       - run: npm run parser:selftest
