@@ -1,3 +1,4 @@
+import {replaceCssUrls} from './css-url-rules.js';
 import {load} from 'cheerio';
 import {isDeepStrictEqual} from 'node:util';
 import {legalHash,extractLegalBody,LEGAL_START} from './legal-structure.js';
@@ -69,8 +70,8 @@ export function renderBase64Markdown(name:string,canonical:string,index:LegalIma
   $('style,[style]').each((_i,node)=>{
     const loc=(node as any).sourceCodeLocation;if(!loc)return;
     const style=node.tagName==='style',text=style?$(node).text():$(node).attr('style')??'';
-    const updated=text.replace(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^\s)]*))\s*\)/gi,(whole,a,b,c)=>{
-      const ref=byLocation('css',loc.startOffset,a??b??c);if(!ref)return whole;
+    const updated=replaceCssUrls(text,({text:whole,source})=>{
+      const ref=byLocation('css',loc.startOffset,source);if(!ref)return whole;
       const value=decision(ref);return value.kind==='available'?`url('${value.value}')`:'none';
     });
     if(updated===text)return;
