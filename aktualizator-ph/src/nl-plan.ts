@@ -5,11 +5,11 @@ import { normalizeOutput } from './output.js';
 export const TARGET_MAX_FILE_SIZE = 50_000;
 export interface NlPartPlan {name: string; articles: string[]; predictedSize: number}
 function safeSlug(title: string): string {
-  return title
-    .normalize('NFKD')
-    .replace(/[^A-Za-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 70);
+  const normalized = title.normalize('NFKD').replace(/[^A-Za-z0-9]+/g, '_');
+  let start = 0, end = normalized.length;
+  while (start < end && normalized[start] === '_') start++;
+  while (end > start && normalized[end - 1] === '_') end--;
+  return normalized.slice(start, end).slice(0, 70);
 }
 
 // Layout planning preserves every article together with all its versions.

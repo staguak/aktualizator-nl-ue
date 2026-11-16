@@ -23,8 +23,8 @@ import {inspectFormexFiles} from './formex-package.js';
 import type {EuLanguage} from './eu-language.js';
 import type {FormexPackageInfo} from './formex-package.js';
 
-export interface SourceArchive extends FileMetadata {entryCount:number;warnings:string[];model:'BWB'|'CELLAR';catalogFormat?:'canonical-compact-json-v1';sourceIssueProfile?:'source-issues-v1';reportEvidence?:SourceReportEvidence;diagnosticOnly?:true;distribution?:{bundle:string;prefix:string}}
-interface SourceEntry {name:string;size:number;md5:string;sha256?:string;requestedUrl:string;url:string;contentType:string;kind:string;metadata:unknown;httpObservation?:BinarySource['observation'];cacheHint?:BinarySource['cacheHint']}
+export interface SourceArchive extends FileMetadata {sha256?:string;entryCount:number;warnings:string[];model:'BWB'|'CELLAR';catalogFormat?:'canonical-compact-json-v1';sourceIssueProfile?:'source-issues-v1';reportEvidence?:SourceReportEvidence;diagnosticOnly?:true;distribution?:{bundle:string;prefix:string}}
+interface SourceEntry {name:string;size:number;md5:string;sha256:string;requestedUrl:string;url:string;contentType:string;kind:string;metadata:unknown;httpObservation?:BinarySource['observation'];cacheHint?:BinarySource['cacheHint']}
 const checksum=(b:Uint8Array)=>createHash('md5').update(b).digest('hex');
 const safePath=(n:string)=>/^[A-Za-z0-9_.\/-]+$/.test(n)&&!n.split('/').some(p=>!p||p==='.'||p==='..');
 export const safeArchiveName=(n:unknown):n is string=>typeof n==='string'&&/^\d+_[A-Za-z0-9_.-]+\.sources\.zip$/.test(n);
@@ -51,7 +51,7 @@ export class OfficialSources {
     const entry:SourceEntry={name,size:native.size,md5:native.md5,sha256:native.sha256,requestedUrl,url:source.url,contentType:source.contentType,kind,metadata,
       ...source.observation?{httpObservation:source.observation}:{},...source.cacheHint?{cacheHint:source.cacheHint}:{}};
     const old=this.entries.get(name);
-    if(old&&old.entry.md5!==entry.md5)throw new Error('Official source changed within one build.');
+    if(old&&old.entry.sha256!==entry.sha256)throw new Error('Official source changed within one build.');
     if(old&&stableJson(old.entry)!==stableJson(entry))throw new Error('Conflicting source observations require distinct archive entries.');
     this.entries.set(name,{entry,...'filePath' in native?{filePath:native.filePath}:{bytes:native.bytes}});
   }
@@ -130,14 +130,21 @@ export class OfficialSources {
       const temp=fs.mkdtempSync(path.join(parent,'zip-work-'));
       try{
         const catalog=path.join(temp,'manifest.json');fs.writeFileSync(catalog,data['manifest.json'][0]);
-        const files=entries.map((e,i)=>{if(e.filePath)return {name:e.entry.name,path:path.resolve(e.filePath),size:e.entry.size,sha256:e.entry.sha256};const file=path.join(temp,'input-'+i);fs.writeFileSync(file,e.bytes!);return {name:e.entry.name,path:path.resolve(file),size:e.entry.size,sha256:e.entry.sha256};});
-        const recipe=path.join(temp,'recipe.json'),target=path.join(temp,'source.zip');fs.writeFileSync(recipe,JSON.stringify({files,catalog:path.resolve(catalog),target:path.resolve(target)}));
+        const files=entries.map((e,i)=>{if(e.filePath){
+          // Stage outside cache paths under the controlled recipe root by
+          // disk-to-disk copy. The Python packer never trusts external roots.
+          const stage=path.join(temp,'input-'+i);
+          if(fs.lstatSync(e.filePath).isSymbolicLink())throw new Error('Symlinked source cache file.');
+          fs.copyFileSync(e.filePath,stage,fs.constants.COPYFILE_EXCL);
+          return {name:e.entry.name,path:path.resolve(stage),size:e.entry.size,sha256:e.entry.sha256};
+        }const file=path.join(temp,'input-'+i);fs.writeFileSync(file,e.bytes!);return {name:e.entry.name,path:path.resolve(file),size:e.entry.size,sha256:e.entry.sha256};});
+        const recipe=path.join(temp,'recipe.json'),target=path.join(temp,'source.zip');fs.writeFileSync(recipe,JSON.stringify({files,catalog:path.resolve(catalog),catalogSize:data['manifest.json'][0].byteLength,catalogSha256:createHash('sha256').update(data['manifest.json'][0]).digest('hex'),target:path.resolve(target)}));
         const root=fileURLToPath(new URL('../',import.meta.url));
         const result=spawnSync(process.env.LAW_XML_PYTHON??'python3',[path.join(root,'scripts/build_source_zip.py'),recipe],{stdio:['ignore','pipe','pipe'],encoding:'utf8',timeout:600_000,maxBuffer:65536});
         if(result.error||result.status!==0)throw new Error(`Streaming original-source archive creation failed (${result.status??'signal'}, ${(result.error as NodeJS.ErrnoException|undefined)?.code??'helper'}).`);bytes=fs.readFileSync(target);
       }finally{fs.rmSync(temp,{recursive:true,force:true});}
     }else bytes=Buffer.from(zipSync(data,{level:6}));
-    return {bytes,metadata:{...fileMetadata(name,bytes),entryCount:entries.length,warnings:document.warnings,model:this.jurisdiction==='NL'?'BWB':'CELLAR',
+    return {bytes,metadata:{...fileMetadata(name,bytes),sha256:createHash('sha256').update(bytes).digest('hex'),entryCount:entries.length,warnings:document.warnings,model:this.jurisdiction==='NL'?'BWB':'CELLAR',
       ...options.diagnosticOnly?{diagnosticOnly:true as const}:{reportEvidence:sourceReportEvidence({...document,entries:entries.map(x=>x.entry)})},
       ...this.unclassifiedWarnings.size?{}:{sourceIssueProfile:'source-issues-v1' as const},...document.catalogFormat?{catalogFormat:document.catalogFormat}:{}}};
   }
@@ -150,7 +157,10 @@ export function unpackOfficialZip(bytes:Uint8Array):Record<string,Uint8Array> {
   return decodeZipPayloads(bytes,inventory);
 }
 export function loadSourceArchive(bytes:Buffer,expected:SourceArchive,jurisdiction:string,identifier:string):{index:any;items:Record<string,Uint8Array>} {
-  if(!safeArchiveName(expected.name)||expected.size!==bytes.length||expected.md5!==checksum(bytes))throw new Error('Official source archive checksum mismatch.');
+  if(!safeArchiveName(expected.name)||expected.size!==bytes.length||expected.md5!==checksum(bytes)||
+    (expected.sha256!==undefined&&(!/^[a-f0-9]{64}$/.test(expected.sha256)||
+      createHash('sha256').update(bytes).digest('hex')!==expected.sha256)))
+    throw new Error('Official source archive checksum mismatch.');
   const items=unpackOfficialZip(bytes),index=JSON.parse(Buffer.from(items['manifest.json']??[]).toString('utf8'));
   if(index.schemaVersion!==1||index.jurisdiction!==jurisdiction||index.identifier!==identifier||
     !Array.isArray(index.entries)||!index.entries.length||expected.entryCount!==index.entries.length||
@@ -160,7 +170,7 @@ export function loadSourceArchive(bytes:Buffer,expected:SourceArchive,jurisdicti
   const names=new Set(['manifest.json']);
   for(const e of index.entries){
     if(!safePath(e.name)||names.has(e.name)||!items[e.name]||items[e.name].length!==e.size||checksum(items[e.name])!==e.md5||
-      e.sha256!==undefined&&(typeof e.sha256!=='string'||!/^[a-f0-9]{64}$/.test(e.sha256)||createHash('sha256').update(items[e.name]).digest('hex')!==e.sha256)||
+      (index.sourceIssueProfile==='source-issues-v1'||e.sha256!==undefined)&&(typeof e.sha256!=='string'||!/^[a-f0-9]{64}$/.test(e.sha256)||createHash('sha256').update(items[e.name]).digest('hex')!==e.sha256)||
       !['https:','http:'].includes(new URL(e.url).protocol))throw new Error('Invalid official source bytes/catalog.');
     names.add(e.name);
   }

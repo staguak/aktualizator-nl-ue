@@ -1,3 +1,4 @@
+import {cssUrlMatches} from './css-url-rules.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -72,9 +73,9 @@ export function legalImageReferences(body:string):Reference[]{
   $('style,[style]').each((_i,node)=>{
     const loc=(node as any).sourceCodeLocation;if(!loc)return;
     const text=node.tagName==='style'?$(node).text():$(node).attr('style')??'';
-    for(const match of text.matchAll(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^\s)]*))\s*\)/gi)){
-      const source=match[1]??match[2]??match[3];
-      const prefix=text.slice(0,match.index),open=prefix.lastIndexOf('{'),closed=prefix.lastIndexOf('}');
+    for(const match of cssUrlMatches(text)){
+      const source=match.source;
+      const prefix=text.slice(0,match.start),open=prefix.lastIndexOf('{'),closed=prefix.lastIndexOf('}');
       const scope=open>closed?prefix.slice(closed+1,open):prefix.slice(prefix.lastIndexOf(';')+1);
       if(source.startsWith('#')||/@font-face\b/i.test(scope)||/^\s*@import\b/i.test(scope))continue;
       result.push({kind:'css',offset:loc.startOffset,end:loc.endOffset,source});

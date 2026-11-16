@@ -13,6 +13,18 @@ import {evidencePlan,manualEvidenceScope} from '../src/test-evidence-plan.js';
 import {EvidenceError,validateEvidenceIdentity,validateEvidencePlan,saveEvidenceBundle,readEvidenceBundle,finalizeEvidence,
   evidenceRetirementRows,retireEvidence,type EvidenceIdentity,type EvidenceInputs} from '../src/test-evidence.js';
 
+/** Resolve the pinned setup-python installation without consulting PATH.
+ * Local callers may explicitly provide an absolute interpreter path.
+ */
+function evidencePython():string{
+  const location=process.env.pythonLocation;
+  const candidate=process.env.LAW_EVIDENCE_PYTHON??process.env.LAW_XML_PYTHON??
+    (location?path.join(location,'bin','python3'):'/usr/bin/python3');
+  if(!path.isAbsolute(candidate)||!fs.existsSync(candidate)||!fs.statSync(candidate).isFile())
+    throw new EvidenceError('PYTHON_INTERPRETER_UNAVAILABLE');
+  return fs.realpathSync(candidate);
+}
+
 async function main(){
   const [command,name,...paths]=process.argv.slice(2);
   const identity:EvidenceIdentity={run:process.env.GITHUB_RUN_ID??'',attempt:process.env.GITHUB_RUN_ATTEMPT??'',
@@ -39,7 +51,7 @@ async function main(){
     let inventory:EvidenceInputs|undefined;
     if(command==='save'){
       stage='PACK';
-      inventory=JSON.parse(execFileSync('python3',[helper,'pack',zip,...paths,
+      inventory=JSON.parse(execFileSync(evidencePython(),[helper,'pack',zip,...paths,
         ...process.env.LAW_EVIDENCE_ALLOW_MISSING==='1'?['--allow-missing']:[]],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
     }
     if(command==='restore'&&(paths.length!==1||!safeCacheDirectory(paths[0])||fs.existsSync(paths[0])))throw new EvidenceError('NEW_DESTINATION_REQUIRED');
@@ -53,7 +65,7 @@ async function main(){
       const producerJob=name.startsWith('matched-benchmark-fixture-')?'benchmark_prepare':process.env.LAW_EVIDENCE_SOURCE_JOB??identity.job;
       const saved=await readEvidenceBundle(store,{...identity,job:producerJob},name);
       fs.writeFileSync(zip,saved.bytes,{flag:'wx'});stage='EXTRACT';
-      execFileSync('python3',[helper,'unpack',zip,paths[0]],{stdio:['ignore','pipe','pipe']});
+      execFileSync(evidencePython(),[helper,'unpack',zip,paths[0]],{stdio:['ignore','pipe','pipe']});
     }else if(command==='finalize'){
       stage='FINALIZE';const receipt=await finalizeEvidence(store,identity,plan!);
       console.log(JSON.stringify({operation:'finalize-evidence',status:receipt.status,run:receipt.id,artifacts:receipt.artifacts.length}));

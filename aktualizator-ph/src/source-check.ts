@@ -15,7 +15,7 @@ interface CheckJournal {schemaVersion:1;context:RunContext;expectedActiveSha256:
 function materialManifest(value:any){
   return {...value,generatedAt:undefined,
     ...value.officialSources?{officialSources:{...value.officialSources,observedOn:undefined,xmlValidation:undefined}}:{},
-    acts:value.acts.map((act:any)=>act.sourceArchive?{...act,sourceArchive:{...act.sourceArchive,md5:undefined,size:undefined}}:act)};
+    acts:value.acts.map((act:any)=>act.sourceArchive?{...act,sourceArchive:{...act.sourceArchive,md5:undefined,size:undefined,sha256:undefined}}:act)};
 }
 function materialCatalog(index:any){
   // Do not duplicate the potentially large expanded unit/RDF/WTI models.

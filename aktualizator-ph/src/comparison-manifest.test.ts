@@ -23,7 +23,7 @@ function fixture(legacy:boolean,kind:'base'|'release'='release'){
     const items=unpackOfficialZip(native.bytes),index=JSON.parse(Buffer.from(items['manifest.json']).toString());
     delete index.sourceIssueProfile;delete index.sourceIssues;for(const entry of index.entries)delete entry.sha256;
     items['manifest.json']=Buffer.from(stableCompactJson(index));native.bytes=Buffer.from(zipSync(items));
-    Object.assign(native.metadata,fileMetadata(native.metadata.name,native.bytes));delete native.metadata.reportEvidence;delete native.metadata.sourceIssueProfile;
+    Object.assign(native.metadata,fileMetadata(native.metadata.name,native.bytes));delete native.metadata.sha256;delete native.metadata.reportEvidence;delete native.metadata.sourceIssueProfile;
   }
   const context=newContext({mode:kind==='base'?'initialize':'update',baseId:'base',parentReleaseId:kind==='base'?null:'before',codeRevision:'fixture',configSha256:'a'.repeat(64),
     rangeFrom:'2025-01-01',rangeTo:'2026-10-20',observedOn:'2026-10-20'}),prefix=kind==='base'?`base/${context.baseId}`:`releases/${context.releaseId}`;
