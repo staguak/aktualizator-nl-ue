@@ -8,7 +8,7 @@ export interface CssUrlMatch {
   source:string;
 }
 /** Recognize CSS identifier tokens, including escaped spellings of url. */
-function* cssUrlOpeners(css:string):Generator<{start:number;after:number}>{
+function* cssUrlOpeners(css:string):Generator<{start:number;after:number},void,number|undefined>{
   const ident=(c:string)=>!!c&&(/[a-z0-9_-]/i.test(c)||c.charCodeAt(0)>=0x80);
   const hex=(c:string)=>!!c&&/[a-f0-9]/i.test(c);
   let i=0,comment=false,quote:string|null=null;
@@ -45,7 +45,11 @@ function* cssUrlOpeners(css:string):Generator<{start:number;after:number}>{
       else break;
       if(name.length<=3)name+=character;
     }
-    if(name.toLowerCase()==='url'&&css[i]==='(')yield {start,after:i+1};
+    if(name.toLowerCase()==='url'&&css[i]==='('){
+      const after=i+1;
+      const resume=yield {start,after};
+      i=typeof resume==='number'&&resume>=after?resume:after;
+    }
   }
 }
 export function* cssUrlMatches(css:string):Generator<CssUrlMatch>{
@@ -63,8 +67,11 @@ export function* cssUrlMatches(css:string):Generator<CssUrlMatch>{
     tokenEnd[i]=space||char===')'?i:tokenEnd[i+1];
   }
   let position=0;
-  for(const opener of cssUrlOpeners(css)){
-    if(opener.start<position)continue;
+  const openers=cssUrlOpeners(css);
+  let current=openers.next();
+  while(!current.done){
+    const opener=current.value;
+    if(opener.start<position){current=openers.next(position);continue;}
     const start=opener.start;
     const begin=nonWhite[opener.after];
     let close=-1,source='';
@@ -88,6 +95,7 @@ export function* cssUrlMatches(css:string):Generator<CssUrlMatch>{
       yield {start,end:close+1,text:css.slice(start,close+1),source};
       position=close+1;
     }else position=opener.after;
+    current=openers.next(position);
   }
 }
 export function replaceCssUrls(css:string,replace:(match:CssUrlMatch)=>string):string{
