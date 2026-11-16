@@ -144,7 +144,7 @@ export class OfficialSources {
         if(result.error||result.status!==0)throw new Error(`Streaming original-source archive creation failed (${result.status??'signal'}, ${(result.error as NodeJS.ErrnoException|undefined)?.code??'helper'}).`);bytes=fs.readFileSync(target);
       }finally{fs.rmSync(temp,{recursive:true,force:true});}
     }else bytes=Buffer.from(zipSync(data,{level:6}));
-    return {bytes,metadata:{...fileMetadata(name,bytes),entryCount:entries.length,warnings:document.warnings,model:this.jurisdiction==='NL'?'BWB':'CELLAR',
+    return {bytes,metadata:{...fileMetadata(name,bytes),sha256:createHash('sha256').update(bytes).digest('hex'),entryCount:entries.length,warnings:document.warnings,model:this.jurisdiction==='NL'?'BWB':'CELLAR',
       ...options.diagnosticOnly?{diagnosticOnly:true as const}:{reportEvidence:sourceReportEvidence({...document,entries:entries.map(x=>x.entry)})},
       ...this.unclassifiedWarnings.size?{}:{sourceIssueProfile:'source-issues-v1' as const},...document.catalogFormat?{catalogFormat:document.catalogFormat}:{}}};
   }
