@@ -181,4 +181,10 @@ test('independent Python checks two contextual CSS fallbacks sharing one origina
   const completed=spawnSync(process.env.LAW_IMAGE_PYTHON??'python3',['-c',script,directory],
     {cwd:fileURLToPath(new URL('../',import.meta.url)),env:{PATH:process.env.PATH},encoding:'utf8',timeout:60000});
   assert.equal(completed.status,0,completed.stderr);
+  const forged=structuredClone(result.index);
+  forged.occurrences[0].sourceEvidenceKey=forged.occurrences[1].sourceEvidenceKey;
+  fs.writeFileSync(path.join(directory,'IMAGE_INDEX.json'),JSON.stringify(forged));
+  const rejected=spawnSync(process.env.LAW_IMAGE_PYTHON??'python3',['-c',script,directory],
+    {cwd:fileURLToPath(new URL('../',import.meta.url)),env:{PATH:process.env.PATH},encoding:'utf8',timeout:60000});
+  assert.notEqual(rejected.status,0,'Independent verifier must reject a proof key attached to the wrong legal unit');
 });
