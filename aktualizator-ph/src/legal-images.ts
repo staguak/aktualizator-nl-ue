@@ -115,7 +115,13 @@ export async function buildLegalImagePackage(documents:LegalManifest[],read:(nam
   const omittedDecorations:OmittedDecoration[]=[];
   const unavailableImages:UnavailableImage[]=[];
   const loaded=new Map<string,ReturnType<EuImageLoader>>();
-  const shared:EuImageLoader=async(url,context)=>{const key=evidenceKey(url,url.startsWith('data:')?context?.document.sourceUrl:undefined);let value=loaded.get(key);if(!value){if(!loader)throw new Error('Image loader required.');value=loader(url,context);loaded.set(key,value);}return value;};
+  const shared:EuImageLoader=async(url,context)=>{
+    const key=evidenceKey(url,url.startsWith('data:')?context?.document.sourceUrl:undefined);
+    let value=loaded.get(key);
+    if(!value){if(!loader)throw new Error('Image loader required.');value=Promise.resolve().then(()=>loader(url,context));loaded.set(key,value);}
+    try{return await value;}
+    catch(error){if(loaded.get(key)===value)loaded.delete(key);throw error;}
+  };
   for(const doc of documents)for(const part of doc.parts){
     const markdown=read(part.file),body=extractLegalBody(markdown);
     for(const ref of legalImageReferences(body)){
