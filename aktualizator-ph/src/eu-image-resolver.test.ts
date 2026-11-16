@@ -119,4 +119,11 @@ test('same missing URL in two separate legal articles uses distinct translation 
   assert.equal(new Set(result.index.occurrences.map(o=>o.sourceEvidenceKey)).size,2);
   assert.equal(result.index.sources.length,2);
   validateLegalImagePackage([doc],name=>markdown.get(name)!,result.index,name=>result.assets.get(name)!);
+  const swapped=structuredClone(result.index);
+  [swapped.occurrences[0].sourceEvidenceKey,swapped.occurrences[1].sourceEvidenceKey]=
+    [swapped.occurrences[1].sourceEvidenceKey,swapped.occurrences[0].sourceEvidenceKey];
+  [swapped.occurrences[0].target,swapped.occurrences[1].target]=
+    [swapped.occurrences[1].target,swapped.occurrences[0].target];
+  assert.throws(()=>validateLegalImagePackage([doc],name=>markdown.get(name)!,swapped,name=>result.assets.get(name)!),
+    /Fallback image legal context differs from original unit/);
 });
