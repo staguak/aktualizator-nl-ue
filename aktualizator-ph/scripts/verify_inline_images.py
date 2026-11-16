@@ -41,7 +41,7 @@ class _CssUrlScanner:
             double[i] = i if char == '"' else double[i + 1]
             single[i] = i if char == "'" else single[i + 1]
             stop[i] = i if char.isspace() or char == ')' else stop[i + 1]
-        opener = re.compile(r'url\\(', re.I)
+        opener = re.compile(r'url\(', re.I)
         chunks = []
         position = 0
         last = 0
