@@ -9,7 +9,73 @@ from urllib.parse import urljoin, urlsplit, unquote
 
 START = '<!-- legal-structure-v1 body -->\n'
 END = '\n<!-- /legal-structure-v1 body -->'
-URL = re.compile(r'''url\(\s*(?:"([^"]*)"|'([^']*)'|([^\s)]*))\s*\)''', re.I)
+class _CssUrlMatch:
+    def __init__(self, whole, source, kind, position):
+        self.whole, self.source, self.kind, self.position = whole, source, kind, position
+
+    def start(self):
+        return self.position
+
+    def groups(self):
+        return (self.source if self.kind == '"' else None,
+                self.source if self.kind == "'" else None,
+                self.source if self.kind == 'bare' else None)
+
+    def __getitem__(self, index):
+        return self.whole if index == 0 else self.groups()[index - 1]
+
+
+class _CssUrlScanner:
+    """Linear-time equivalent of the legacy CSS url(...) substitution regex."""
+    @staticmethod
+    def sub(replace, text):
+        from array import array
+        n = len(text)
+        nonwhite = array('I', [n]) * (n + 1)
+        double = array('I', [n]) * (n + 1)
+        single = array('I', [n]) * (n + 1)
+        stop = array('I', [n]) * (n + 1)
+        for i in range(n - 1, -1, -1):
+            char = text[i]
+            nonwhite[i] = nonwhite[i + 1] if char.isspace() else i
+            double[i] = i if char == '"' else double[i + 1]
+            single[i] = i if char == "'" else single[i + 1]
+            stop[i] = i if char.isspace() or char == ')' else stop[i + 1]
+        lowered = text.lower()
+        chunks = []
+        position = 0
+        last = 0
+        while position < n:
+            start = lowered.find('url(', position)
+            if start < 0:
+                break
+            begin = nonwhite[start + 4]
+            end = -1
+            kind = 'bare'
+            source = ''
+            if begin < n and text[begin] in ('"', "'"):
+                quote = text[begin]
+                last_quote = double[begin + 1] if quote == '"' else single[begin + 1]
+                after = nonwhite[last_quote + 1 if last_quote < n else n]
+                if last_quote < n and after < n and text[after] == ')':
+                    end, kind = after, quote
+                    source = text[begin + 1:last_quote]
+            if end < 0:
+                first_stop = stop[begin]
+                after = nonwhite[first_stop]
+                if after < n and text[after] == ')':
+                    end = after
+                    source = text[begin:first_stop]
+            if end < 0:
+                position = start + 4
+                continue
+            chunks.extend((text[last:start],
+                           replace(_CssUrlMatch(text[start:end + 1], source, kind, start))))
+            position = last = end + 1
+        return ''.join(chunks) + text[last:]
+
+
+URL = _CssUrlScanner()
 
 
 def sha(value):
