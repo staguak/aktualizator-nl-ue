@@ -15,18 +15,19 @@ import zipfile
 
 def safe_name(name):
     return (isinstance(name, str) and bool(name) and '\\' not in name
-            and '\\0' not in name and not Path(name).is_absolute()
+            and '\0' not in name and not Path(name).is_absolute()
             and all(part not in {'.', '..', ''} for part in name.split('/')))
 
 
-def copy_verified(archive, name, source, size, expected):
+def copy_verified(archive, name, directory_fd, member, size, expected):
     if (not safe_name(name) or type(size) is not int or size < 0 or
-            not isinstance(expected, str) or not re.fullmatch(r'[a-f0-9]{64}', expected)):
+            not isinstance(expected, str) or not re.fullmatch(r'[a-f0-9]{64}', expected) or
+            not re.fullmatch(r'(?:input-[0-9]+|manifest\.json)', member)):
         raise ValueError('Invalid original-source archive record')
-    if source.is_symlink() or not stat.S_ISREG(source.lstat().st_mode):
-        raise ValueError('Staged source must be a regular file')
+    # Resolve the fixed basename relative to a previously opened directory.
+    # No source path, symlink or parent directory supplied by recipe JSON is opened.
     flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0)
-    descriptor = os.open(source, flags)
+    descriptor = os.open(member, flags, dir_fd=directory_fd)
     try:
         before = os.fstat(descriptor)
         if not stat.S_ISREG(before.st_mode) or before.st_size != size:
@@ -42,7 +43,7 @@ def copy_verified(archive, name, source, size, expected):
                     digest.update(chunk)
                     total += len(chunk)
         after = os.fstat(descriptor)
-        current = source.lstat()
+        current = os.stat(member, dir_fd=directory_fd, follow_symlinks=False)
         if (total != size or digest.hexdigest() != expected or
                 (before.st_dev, before.st_ino, before.st_mtime_ns, before.st_ctime_ns) !=
                 (after.st_dev, after.st_ino, after.st_mtime_ns, after.st_ctime_ns) or
@@ -67,19 +68,25 @@ def build(recipe, recipe_path):
         'name': 'manifest.json', 'path': str(catalog), 'size': recipe['catalogSize'],
         'sha256': recipe['catalogSha256']
     }]
-    # Exclusive creation: no pre-existing ZIP can be overwritten or followed.
-    with target.open('xb') as output:
-        with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED,
-                             compresslevel=6, allowZip64=True) as archive:
-            for index, row in enumerate(rows):
-                source = catalog if index == len(recipe['files']) else directory / ('input-' + str(index))
-                if row.get('path') != str(source):
-                    raise ValueError('Untrusted source path in archive recipe')
-                name = row['name']
-                if name in names:
-                    raise ValueError('Duplicate archive member')
-                names.add(name)
-                copy_verified(archive, name, source, row['size'], row['sha256'])
+    # Open the staging directory itself without following a symlink.
+    directory_fd = os.open(directory, os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0) |
+                           getattr(os, 'O_NOFOLLOW', 0))
+    try:
+        # Exclusive creation: no existing output or symlink can be overwritten.
+        with target.open('xb') as output:
+            with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED,
+                                 compresslevel=6, allowZip64=True) as archive:
+                for index, row in enumerate(rows):
+                    source = catalog if index == len(recipe['files']) else directory / ('input-' + str(index))
+                    if row.get('path') != str(source):
+                        raise ValueError('Untrusted source path in archive recipe')
+                    name = row['name']
+                    if name in names:
+                        raise ValueError('Duplicate archive member')
+                    names.add(name)
+                    copy_verified(archive, name, directory_fd, source.name, row['size'], row['sha256'])
+    finally:
+        os.close(directory_fd)
 
 
 if __name__ == '__main__':
