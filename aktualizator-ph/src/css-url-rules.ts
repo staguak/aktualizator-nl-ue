@@ -69,7 +69,15 @@ export function* cssUrlMatches(css:string):Generator<CssUrlMatch>{
       if(char==='/'&&next==='*'){comment=true;scan++;continue;}
       if(char==='"'||char==="'"){quote=char;continue;}
     }
-    if(!comment&&!quote){yield candidate;scan=candidate.end;}
+    if(!comment&&!quote){
+      const before=css[candidate.start-1];
+      // CSS Syntax: consume the entire identifier before testing for url().
+      // "unknownurl(" and "myurl(" are other functions, not image URLs.
+      if(before&&(/[a-z0-9_-]/i.test(before)||before==='\\'||before.charCodeAt(0)>=0x80)){
+        scan=candidate.end;continue;
+      }
+      yield candidate;scan=candidate.end;
+    }
   }
 }
 export function replaceCssUrls(css:string,replace:(match:CssUrlMatch)=>string):string{
