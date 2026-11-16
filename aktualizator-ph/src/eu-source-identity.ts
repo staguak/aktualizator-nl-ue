@@ -14,8 +14,29 @@ function declaredCelex(value:string):string|undefined{
 export function assertEuSourceIdentity(html:string,sourceUrl:string,expected:string,index?:CellarIndex):void{
   const $=load(html),title=$('head title').text().replace(/\s+/g,' ').trim(),declared:string[]=[];
   // Consolidations name the original act and documentary layer separately.
-  const consolidation=title.match(/^(?:Consolidated TEXT|Tekst skonsolidowany|Skonsolidowany tekst|Texte consolidé|Geconsolideerde tekst):\s*(3\d{4}[LRD]\d{4}(?:\(\d{2}\))?)\s*[—–-]\s*(?:EN|PL|NL|FR)\s*[—–-]\s*(\d{2})\.(\d{2})\.(\d{4})/i);
-  if(consolidation)declared.push(`0${consolidation[1].slice(1)}-${consolidation[4]}${consolidation[3]}${consolidation[2]}`);
+  // A linear, staged read avoids reconsidering long malformed CELEX titles.
+  const prefix=/^(?:Consolidated TEXT|Tekst skonsolidowany|Skonsolidowany tekst|Texte consolidé|Geconsolideerde tekst):/i.exec(title);
+  let consolidation:string|undefined;
+  if(prefix){
+    let rest=title.slice(prefix[0].length).trimStart();
+    const act=/^3\d{4}[LRD]\d{4}(?:\(\d{2}\))?/i.exec(rest);
+    if(act){
+      rest=rest.slice(act[0].length).trimStart();
+      if(rest[0]==='—'||rest[0]==='–'||rest[0]==='-'){
+        rest=rest.slice(1).trimStart();
+        const language=/^(?:EN|PL|NL|FR)/i.exec(rest);
+        if(language){
+          rest=rest.slice(language[0].length).trimStart();
+          if(rest[0]==='—'||rest[0]==='–'||rest[0]==='-'){
+            rest=rest.slice(1).trimStart();
+            const date=/^(\d{2})\.(\d{2})\.(\d{4})/.exec(rest);
+            if(date)consolidation=`0${act[0].slice(1)}-${date[3]}${date[2]}${date[1]}`;
+          }
+        }
+      }
+    }
+  }
+  if(consolidation)declared.push(consolidation);
   else{
     const id=declaredCelex(title.replace(/^EUR-Lex\s*-\s*/i,'').replace(/\s*-\s*(?:EN|PL|NL|FR)$/i,''));
     if(id)declared.push(id);
