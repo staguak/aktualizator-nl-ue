@@ -41,14 +41,15 @@ class _CssUrlScanner:
             double[i] = i if char == '"' else double[i + 1]
             single[i] = i if char == "'" else single[i + 1]
             stop[i] = i if char.isspace() or char == ')' else stop[i + 1]
-        lowered = text.lower()
+        opener = re.compile(r'url\\(', re.I)
         chunks = []
         position = 0
         last = 0
         while position < n:
-            start = lowered.find('url(', position)
-            if start < 0:
+            match = opener.search(text, position)
+            if match is None:
                 break
+            start = match.start()
             begin = nonwhite[start + 4]
             end = -1
             kind = 'bare'
