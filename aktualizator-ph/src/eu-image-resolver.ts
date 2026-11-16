@@ -19,7 +19,7 @@ export function createOfficialImageResolver(options:{load?:EuImageLoader;documen
   const raw=options.load??officialImage,documents=new Map<string,Promise<EuSource>>(),downloaded=new Map<string,Promise<import('./eu-assets.js').EuImageResponse>>();
   const load:EuImageLoader=async url=>{
     let pending=downloaded.get(url);
-    if(!pending){pending=Promise.resolve().then(()=>raw(url));downloaded.set(url,pending);}
+    if(!pending){pending=raw(url);downloaded.set(url,pending);}
     try{return await pending;}
     catch(error){if(downloaded.get(url)===pending)downloaded.delete(url);throw error;}
   };
