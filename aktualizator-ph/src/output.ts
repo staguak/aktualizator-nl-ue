@@ -6,7 +6,24 @@ export const hash = (content: string | Buffer, algorithm = 'sha256'): string =>
   createHash(algorithm).update(content).digest('hex');
 // These are the only common layout transformations. Do not collapse legal whitespace.
 export function normalizeOutput(text: string): string {
-  return text.replace(/\r\n?/g, '\n').replace(/[ \t]+$/gm, '').replace(/\n+$/, '') + '\n';
+  const normalized = text.replace(/\r\n?/g, '\n');
+  const fragments: string[] = [];
+  let start = 0;
+  // JavaScript's multiline end-of-line anchor also recognizes U+2028 and U+2029.
+  // Preserve those separators while trimming only trailing spaces and tabs.
+  for (let i = 0; i <= normalized.length; i++) {
+    const code = i < normalized.length ? normalized.charCodeAt(i) : -1;
+    if (i < normalized.length && code !== 10 && code !== 0x2028 && code !== 0x2029) continue;
+    let end = i;
+    while (end > start && (normalized.charCodeAt(end - 1) === 32 || normalized.charCodeAt(end - 1) === 9)) end--;
+    fragments.push(normalized.slice(start, end));
+    if (i < normalized.length) fragments.push(normalized[i]);
+    start = i + 1;
+  }
+  const output = fragments.join('');
+  let end = output.length;
+  while (end && output.charCodeAt(end - 1) === 10) end--;
+  return output.slice(0, end) + '\n';
 }
 const ordered = (item: any): any => Array.isArray(item) ? item.map(ordered) :
     item && typeof item === 'object' ? Object.fromEntries(Object.keys(item).filter(k=>item[k]!==undefined).sort().map(k => [k, ordered(item[k])])) : item;
