@@ -1,3 +1,9 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+import {renderBase64Markdown} from './inline-legal-images.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createOfficialImageResolver} from './eu-image-resolver.js';
@@ -126,4 +132,53 @@ test('same missing URL in two separate legal articles uses distinct translation 
     [swapped.occurrences[1].target,swapped.occurrences[0].target];
   assert.throws(()=>validateLegalImagePackage([doc],name=>markdown.get(name)!,swapped,name=>result.assets.get(name)!),
     /Fallback image legal context differs from original unit/);
+});
+
+test('independent Python checks two contextual CSS fallbacks sharing one original URL',async t=>{
+  const missing='https://publications.europa.eu/EN/same.png',docId='32024R0001';
+  const original='<body><p class="oj-ti-art">Article 1</p>'+
+    '<p style="background-image:url('+missing+')">First chart.</p>'+
+    '<p class="oj-ti-art">Article 2</p>'+
+    '<p style="background-image:url('+missing+')">Second chart.</p></body>';
+  const alternate='<body><p class="oj-ti-art">Article 1</p>'+
+    '<p style="background-image:url(https://publications.europa.eu/PL/one.png)">First chart.</p>'+
+    '<p class="oj-ti-art">Article 2</p>'+
+    '<p style="background-image:url(https://publications.europa.eu/PL/two.svg)">Second chart.</p></body>';
+  const draft=parseEuLegalStructure(original,{corpus:'EU',documentId:docId,version:docId,language:'EN',
+    sourceUrl:'https://publications.europa.eu/EN/a.xhtml',sourceSha256:legalHash(original)});
+  const names=draft.chunks.map((_,i)=>'css-context-'+i+'.md');
+  const doc=indexLegalDocument(draft,names,draft.chunks.map(c=>c.body));
+  const markdown=new Map(names.map((name,i)=>[name,legalMarkdown('Act',doc,draft.chunks[i].body,[])]));
+  const foreign=parseEuLegalStructure(alternate,{corpus:'EU',documentId:docId,version:docId,language:'PL',
+    sourceUrl:'https://publications.europa.eu/PL/a.xhtml',sourceSha256:legalHash(alternate)});
+  const source={language:'PL',sourceUrl:'https://publications.europa.eu/PL/a.xhtml',html:alternate,
+    parsed:{legalDraft:foreign}} as EuSource;
+  const svg=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2"><path d="M0 0L2 2"/></svg>');
+  const resolver=createOfficialImageResolver({
+    load:async url=>{
+      if(url===missing)throw new Error('404');
+      return {url,bytes:url.includes('two.svg')?svg:png,contentType:url.includes('two.svg')?'image/svg+xml':'image/png'};
+    },
+    document:async()=>source
+  });
+  const result=await buildLegalImagePackage([doc],name=>markdown.get(name)!,resolver);
+  assert.equal(result.index.occurrences.length,2);
+  assert.equal(new Set(result.index.occurrences.map(o=>o.sourceEvidenceKey)).size,2);
+  result.index.rendering={profile:'inline-base64-v1',offsetEncoding:'utf16-code-units',
+    patchScope:'full-markdown',legalOffsetScope:'restored-canonical-body',files:[]};
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'css-translation-'));
+  t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+  fs.mkdirSync(path.join(directory,'images'));
+  for(const [name,text]of markdown){
+    const rendered=renderBase64Markdown(name,text,result.index,n=>result.assets.get(n)!);
+    fs.writeFileSync(path.join(directory,name),rendered.text);
+    result.index.rendering.files.push(rendered.recipe);
+  }
+  for(const [name,bytes]of result.assets)fs.writeFileSync(path.join(directory,name),bytes);
+  fs.writeFileSync(path.join(directory,'IMAGE_INDEX.json'),JSON.stringify(result.index));
+  fs.writeFileSync(path.join(directory,'documents.json'),JSON.stringify([doc]));
+  const script="import sys,json;from pathlib import Path;sys.path.insert(0,'scripts');from verify_inline_images import audit_inline;p=Path(sys.argv[1]);audit_inline(p,json.loads((p/'IMAGE_INDEX.json').read_text()),json.loads((p/'documents.json').read_text()))";
+  const completed=spawnSync(process.env.LAW_IMAGE_PYTHON??'python3',['-c',script,directory],
+    {cwd:fileURLToPath(new URL('../',import.meta.url)),env:{PATH:process.env.PATH},encoding:'utf8',timeout:60000});
+  assert.equal(completed.status,0,completed.stderr);
 });
