@@ -21,7 +21,9 @@ test('each original image occurrence maps to native bytes and a legal unit witho
   const occurrence=result.index.occurrences[0];assert.equal(occurrence.documentId,doc.documentId);assert.equal(occurrence.version,doc.version);
   assert.equal(occurrence.sourceSha256,doc.sourceSha256);assert.equal(occurrence.legalUnitId,doc.units.find(u=>u.kind==='image')!.id);
   assert(occurrence.target.endsWith('.png'));assert.deepEqual(result.assets.get(occurrence.target),png);assert.deepEqual([...files],before);
+  assert.equal(result.index.profile,'legal-images-v2');
   validateLegalImagePackage([doc],name=>files.get(name)!,result.index,name=>result.assets.get(name)!);
+  validateLegalImagePackage([doc],name=>files.get(name)!,{...result.index,profile:'legal-images-v1'},name=>result.assets.get(name)!);
   assert.throws(()=>validateLegalImagePackage([doc],name=>files.get(name)!,{...result.index,occurrences:result.index.occurrences.slice(1)},name=>result.assets.get(name)!),/image/i);
 });
 test('CSS extensionless image URLs are fetched and native bytes are verified',async()=>{
