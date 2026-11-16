@@ -21,7 +21,7 @@ export function* cssUrlMatches(css:string):Generator<CssUrlMatch>{
     singleQuote[i]=char==="'"?i:singleQuote[i+1];
     tokenEnd[i]=space||char===')'?i:tokenEnd[i+1];
   }
-  const opener=/url\\(/gi;
+  const opener=/url\(/gi;
   let position=0;
   while(position<length){
     opener.lastIndex=position;
