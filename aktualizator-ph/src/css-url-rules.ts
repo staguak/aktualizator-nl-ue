@@ -21,22 +21,7 @@ export function* cssUrlMatches(css:string):Generator<CssUrlMatch>{
     singleQuote[i]=char==="'"?i:singleQuote[i+1];
     tokenEnd[i]=space||char===')'?i:tokenEnd[i+1];
   }
-  // A URL token has meaning only outside CSS comments and ordinary strings.
-  // Track lexical scope independently of the legacy URL payload scanner.
-  const active=new Uint8Array(length);
-  let comment=false,quoted:string|null=null;
-  for(let i=0;i<length;i++){
-    const char=css[i],next=css[i+1];
-    if(comment){if(char==='*'&&next==='/'){comment=false;i++;}continue;}
-    if(quoted){
-      if(char==='\\'){i++;continue;}
-      if(char===quoted)quoted=null;
-      continue;
-    }
-    if(char==='/'&&next==='*'){comment=true;i++;continue;}
-    if(char==='"'||char==="'"){quoted=char;continue;}
-    active[i]=1;
-  }
+  const candidates:CssUrlMatch[]=[];
   const opener=/url\(/gi;
   let position=0;
   while(position<length){
@@ -44,7 +29,6 @@ export function* cssUrlMatches(css:string):Generator<CssUrlMatch>{
     const found=opener.exec(css);
     if(!found)break;
     const start=found.index;
-    if(!active[start]){position=start+4;continue;}
     const begin=nonWhite[start+4];
     let close=-1;
     let source='';
@@ -65,9 +49,27 @@ export function* cssUrlMatches(css:string):Generator<CssUrlMatch>{
       }
     }
     if(close>=0){
-      yield {start,end:close+1,text:css.slice(start,close+1),source};
+      candidates.push({start,end:close+1,text:css.slice(start,close+1),source});
       position=close+1;
+
     }else position=start+4;
+  }
+  // Skip candidates inside comments and strings. Accepted URL tokens are
+  // atomic for lexical scanning, including malformed legacy payloads.
+  let scan=0,comment=false,quote:string|null=null;
+  for(const candidate of candidates){
+    for(;scan<candidate.start;scan++){
+      const char=css[scan],next=css[scan+1];
+      if(comment){if(char==='*'&&next==='/'){comment=false;scan++;}continue;}
+      if(quote){
+        if(char==='\\'){scan++;continue;}
+        if(char===quote)quote=null;
+        continue;
+      }
+      if(char==='/'&&next==='*'){comment=true;scan++;continue;}
+      if(char==='"'||char==="'"){quote=char;continue;}
+    }
+    if(!comment&&!quote){yield candidate;scan=candidate.end;}
   }
 }
 export function replaceCssUrls(css:string,replace:(match:CssUrlMatch)=>string):string{
