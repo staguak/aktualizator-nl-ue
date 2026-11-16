@@ -111,6 +111,7 @@ class ApiRouteTests(unittest.TestCase):
             ('/issues/123/comments', 'POST'),
             ('/issues/123', 'PATCH'),
             ('/issues/comments/12345', 'PATCH'),
+            ('/actions/runs/12345', 'GET'),
             ('/actions/runs/12345/attempts/2', 'GET'),
         ]
         for suffix, method in allowed:
