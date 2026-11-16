@@ -21,11 +21,13 @@ export function* cssUrlMatches(css:string):Generator<CssUrlMatch>{
     singleQuote[i]=char==="'"?i:singleQuote[i+1];
     tokenEnd[i]=space||char===')'?i:tokenEnd[i+1];
   }
-  const lowered=css.toLowerCase();
+  const opener=/url\\(/gi;
   let position=0;
   while(position<length){
-    const start=lowered.indexOf('url(',position);
-    if(start<0)break;
+    opener.lastIndex=position;
+    const found=opener.exec(css);
+    if(!found)break;
+    const start=found.index;
     const begin=nonWhite[start+4];
     let close=-1;
     let source='';
