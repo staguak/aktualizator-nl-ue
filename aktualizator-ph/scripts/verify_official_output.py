@@ -17,6 +17,17 @@ def md5(data):
     return hashlib.md5(data).hexdigest()
 
 
+def verify_digests(data, record):
+    # MD5 is only a legacy compatibility attribute. New source evidence
+    # carries a SHA-256 digest which is independently checked here.
+    if len(data) != record['size'] or md5(data) != record['md5']:
+        return False
+    strong = record.get('sha256')
+    return strong is None or (isinstance(strong, str) and
+        re.fullmatch(r'[a-f0-9]{64}', strong) is not None and
+        hashlib.sha256(data).hexdigest() == strong)
+
+
 def load_manifest(directory):
     manifest = json.loads((directory / 'manifest.json').read_bytes())
     files = set()
@@ -66,7 +77,7 @@ def audit(directory, jurisdiction):
             assert record['name'] not in names
             names.add(record['name'])
             raw = (directory / record['name']).read_bytes()
-            assert len(raw) == record['size'] and md5(raw) == record['md5']
+            assert verify_digests(raw, record)
         archive = act['sourceArchive']
         with zipfile.ZipFile(directory / archive['name']) as z:
             assert z.testzip() is None, 'ZIP CRC mismatch'
@@ -126,11 +137,14 @@ def audit(directory, jurisdiction):
             for entry in index['entries']:
                 if entry['kind'].startswith('CELLAR-RDF'):
                     # Large RDF is streamed without a bytes object or DOM.
-                    size, digest = 0, hashlib.md5()
+                    size, digest, legacy = 0, hashlib.sha256(), hashlib.md5()
                     with z.open(entry['name']) as incoming:
                         for chunk in iter(lambda: incoming.read(1024*1024), b''):
-                            size += len(chunk);digest.update(chunk)
-                    assert size == entry['size'] and digest.hexdigest() == entry['md5']
+                            size += len(chunk);digest.update(chunk);legacy.update(chunk)
+                    strong = entry.get('sha256')
+                    assert (size == entry['size'] and legacy.hexdigest() == entry['md5']
+                            and isinstance(strong, str) and re.fullmatch(r'[a-f0-9]{64}', strong)
+                            and digest.hexdigest() == strong)
                     with z.open(entry['name']) as incoming:
                         stack = []
                         for event, element in ET.iterparse(incoming, events=('start','end')):
@@ -144,7 +158,7 @@ def audit(directory, jurisdiction):
                     summary['objectNotices'] += entry['kind'] == 'CELLAR-RDF-object'
                     continue
                 data = z.read(entry['name'])
-                assert len(data) == entry['size'] and md5(data) == entry['md5']
+                assert verify_digests(data, entry)
                 summary['sourceFiles'] += 1
                 summary['sourceBytes'] += len(data)
                 if entry['name'].endswith('.xml'):
@@ -219,7 +233,7 @@ def audit(directory, jurisdiction):
             assert record['name'] not in names
             names.add(record['name'])
             raw = (directory / record['name']).read_bytes()
-            assert len(raw) == record['size'] and md5(raw) == record['md5']
+            assert verify_digests(raw, record)
         image_index = json.loads((directory / 'IMAGE_INDEX.json').read_bytes())
         assert image_index['profile'] == 'legal-images-v1'
         assert {a['name'] for a in image_index['assets']} == {a['name'] for a in images['assets']}
