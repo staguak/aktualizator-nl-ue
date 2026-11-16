@@ -51,7 +51,7 @@ def resolve_formex_locator(root, locator):
         raise ValueError('Invalid Formex locator')
     node = root
     for position, step in enumerate(steps):
-        match = re.fullmatch(r'([A-Za-z_][A-Za-z0-9_.:-]{0,127})(?:\\[([1-9][0-9]{0,8})\\])?', step)
+        match = re.fullmatch(r'([A-Za-z_][A-Za-z0-9_.:-]{0,127})(?:\[([1-9][0-9]{0,8})\])?', step)
         if not match:
             raise ValueError('Invalid Formex element locator')
         name, ordinal = match.groups()
