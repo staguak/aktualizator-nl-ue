@@ -26,7 +26,50 @@ class _CssUrlMatch:
 
 
 class _CssUrlScanner:
-    """Linear-time equivalent of the legacy CSS url(...) substitution regex."""
+    """Scan active CSS function identifiers, matching escaped URL spellings."""
+    @staticmethod
+    def _openers(text):
+        def ident(char):
+            return bool(char) and (char.isascii() and (char.isalnum() or char in '_-') or ord(char) >= 0x80)
+
+        def hexchar(char):
+            return bool(char) and char in '0123456789abcdefABCDEF'
+
+        n=len(text); i=0; comment=False; quote=None
+        while i<n:
+            char=text[i]; nxt=text[i+1] if i+1<n else ''
+            if comment:
+                if char=='*' and nxt=='/':comment=False; i+=2
+                else:i+=1
+                continue
+            if quote:
+                if char=='\\':i+=2 if nxt else 1;continue
+                if char==quote:quote=None
+                i+=1;continue
+            if char=='/' and nxt=='*':comment=True;i+=2;continue
+            if char in ('"', "'"):quote=char;i+=1;continue
+            if not ident(char) and not (char=='\\' and nxt and nxt not in '\n\r\f'):
+                i+=1;continue
+            start=i;name=''
+            while i<n:
+                part=text[i]
+                if part=='\\' and i+1<n and text[i+1] not in '\n\r\f':
+                    i+=1
+                    if hexchar(text[i]):
+                        digits=''
+                        for _ in range(6):
+                            if i>=n or not hexchar(text[i]):break
+                            digits+=text[i];i+=1
+                        scalar=int(digits,16)
+                        decoded=chr(scalar) if 0<scalar<=0x10ffff and not 0xd800<=scalar<=0xdfff else '\ufffd'
+                        if i<n and text[i].isspace():i+=1
+                    else:decoded=text[i];i+=1
+                elif ident(part):decoded=part;i+=1
+                else:break
+                if len(name)<=3:name+=decoded
+            if name.lower()=='url' and i<n and text[i]=='(':
+                yield start,i+1
+
     @staticmethod
     def sub(replace, text):
         from array import array
@@ -41,16 +84,11 @@ class _CssUrlScanner:
             double[i] = i if char == '"' else double[i + 1]
             single[i] = i if char == "'" else single[i + 1]
             stop[i] = i if char.isspace() or char == ')' else stop[i + 1]
-        opener = re.compile(r'url\(', re.I)
         chunks = []
-        position = 0
-        last = 0
-        while position < n:
-            match = opener.search(text, position)
-            if match is None:
-                break
-            start = match.start()
-            begin = nonwhite[start + 4]
+        position = last = 0
+        for start, after_open in _CssUrlScanner._openers(text):
+            if start < position:continue
+            begin = nonwhite[after_open]
             end = -1
             kind = 'bare'
             source = ''
@@ -68,13 +106,12 @@ class _CssUrlScanner:
                     end = after
                     source = text[begin:first_stop]
             if end < 0:
-                position = start + 4
+                position = after_open
                 continue
             chunks.extend((text[last:start],
                            replace(_CssUrlMatch(text[start:end + 1], source, kind, start))))
             position = last = end + 1
         return ''.join(chunks) + text[last:]
-
 
 URL = _CssUrlScanner()
 
