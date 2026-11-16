@@ -35,7 +35,7 @@ const evidenceKey=(requestUrl:string,baseUrl?:string,resolution?:ImageResolution
     legalHash(baseUrl?JSON.stringify([requestUrl,baseUrl]):requestUrl);
 interface OmittedDecoration extends Omit<ImageOccurrence,'target'|'sourceEvidenceKey'> {reason:'decorative-european-flag';imageUrl:string}
 interface UnavailableImage extends Omit<ImageOccurrence,'target'|'sourceEvidenceKey'> {reason:'source-unavailable';imageUrl:string;attempts:ImageAttempt[]}
-export interface LegalImageIndex {profile:'legal-images-v1';offsetEncoding:'utf16-code-units';assets:({name:string}&NativeImage)[];occurrences:ImageOccurrence[];sources:ImageSourceEvidence[];omittedDecorations?:OmittedDecoration[];unavailableImages?:UnavailableImage[];rendering?:ImageRendering}
+export interface LegalImageIndex {profile:'legal-images-v1'|'legal-images-v2';offsetEncoding:'utf16-code-units';assets:({name:string}&NativeImage)[];occurrences:ImageOccurrence[];sources:ImageSourceEvidence[];omittedDecorations?:OmittedDecoration[];unavailableImages?:UnavailableImage[];rendering?:ImageRendering}
 const codecCache=new Map<string,NativeImage>();
 export function verifyNativeImage(bytes:Uint8Array):NativeImage{
   const sha256=hash(bytes),known=codecCache.get(sha256);if(known)return known;
@@ -155,18 +155,18 @@ export async function buildLegalImagePackage(documents:LegalManifest[],read:(nam
       assets.set(target,bytes);nativeAssets.set(target,{name:target,...native});occurrences.push({...identity(doc,part.file,markdown,ref),...sourceEvidenceKey?{sourceEvidenceKey}:{},target});
     }
   }
-  const index:LegalImageIndex={profile:'legal-images-v1',offsetEncoding:'utf16-code-units',assets:[...nativeAssets.values()].sort((a,b)=>a.name.localeCompare(b.name)),occurrences,sources:[...sources.values()].sort((a,b)=>a.key.localeCompare(b.key)),omittedDecorations,unavailableImages};
+  const index:LegalImageIndex={profile:'legal-images-v2',offsetEncoding:'utf16-code-units',assets:[...nativeAssets.values()].sort((a,b)=>a.name.localeCompare(b.name)),occurrences,sources:[...sources.values()].sort((a,b)=>a.key.localeCompare(b.key)),omittedDecorations,unavailableImages};
   validateLegalImagePackage(documents,read,index,name=>assets.get(name)!);
   return {index,assets};
 }
 export function validateLegalImagePackage(documents:LegalManifest[],read:(name:string)=>string,index:LegalImageIndex,readAsset:(name:string)=>Uint8Array):void{
-  if(index.profile!=='legal-images-v1'||index.offsetEncoding!=='utf16-code-units'||!Array.isArray(index.assets)||!Array.isArray(index.occurrences)||!Array.isArray(index.sources))throw new Error('Invalid image index.');
+  if(!['legal-images-v1','legal-images-v2'].includes(index.profile)||index.offsetEncoding!=='utf16-code-units'||!Array.isArray(index.assets)||!Array.isArray(index.occurrences)||!Array.isArray(index.sources))throw new Error('Invalid image index.');
   if(index.omittedDecorations!==undefined&&!Array.isArray(index.omittedDecorations))throw new Error('Invalid decorative image omissions.');
   if(index.unavailableImages!==undefined&&!Array.isArray(index.unavailableImages))throw new Error('Invalid unavailable images.');
   const sources=new Map<string,ImageSourceEvidence>();
   for(const source of index.sources){
-    if((source.key!==evidenceKey(source.requestUrl,source.baseUrl,source.resolution)&&
-      source.key!==evidenceKey(source.requestUrl,source.baseUrl))||sources.has(source.key)||! /^[a-f0-9]{64}$/.test(source.sha256)||!Number.isSafeInteger(source.bytes)||source.bytes<1)throw new Error('Invalid image source evidence.');
+    if(source.key!==evidenceKey(source.requestUrl,source.baseUrl,
+      index.profile==='legal-images-v2'?source.resolution:undefined)||sources.has(source.key)||! /^[a-f0-9]{64}$/.test(source.sha256)||!Number.isSafeInteger(source.bytes)||source.bytes<1)throw new Error('Invalid image source evidence.');
     for(const value of [source.requestUrl,source.responseUrl,...source.baseUrl?[source.baseUrl]:[]]){const url=new URL(value);if(!['http:','https:'].includes(url.protocol)&&!(value===source.requestUrl&&url.protocol==='data:'&&(source.resolution||source.derivation))||url.username||url.password)throw new Error('Invalid image source URL.');}
     if(source.derivation){const bytes=svgDerivative(source.derivation);if(hash(bytes)!==source.sha256||bytes.length!==source.bytes||source.contentType!=='image/svg+xml'||source.derivation.responseUrl!==source.responseUrl)throw new Error('SVG derivation differs from source evidence.');}
     if(source.resolution){
