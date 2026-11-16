@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {scanNlVersions} from './nl-final-parser.js';
 import {observationXml} from './unit-observations.js';
 import {assertEuSourceIdentity} from './eu-source-identity.js';
+import {OfficialSources,loadSourceArchive} from './official-sources.js';
+import {createHash} from 'node:crypto';
 
 test('NL version scanner retains exact canonical source bytes and references',()=>{
   const body='### V=2025-01-01 – open\n\n<!-- NL source text -->\n<p>Legal text\nwith spacing</p>\n<!-- /NL source text -->\n\nŹródła: [^S1]\n';
@@ -34,4 +36,18 @@ test('EU consolidated titles bind unambiguously to original CELEX and version da
   assert.throws(()=>assertEuSourceIdentity(html,
     'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:'+expected, '02020R0002-20200101'),
     /identity mismatch/);
+});
+
+test('new official-source archives carry independently checked SHA-256, with legacy digest fallback',()=>{
+  const source=new OfficialSources('NL','BWBR0000001',{from:'2025-01-01',to:'2026-11-16',observedOn:'2026-11-16'});
+  source.add('state.xml',{bytes:Buffer.from('<state>original legal source</state>'),
+    url:'https://official.example/BWBR0000001',contentType:'application/xml'},
+    'https://official.example/BWBR0000001','BWB-Toestand');
+  const archive=source.build('01_BWBR0000001.sources.zip');
+  assert.equal(archive.metadata.sha256,createHash('sha256').update(archive.bytes).digest('hex'));
+  assert.doesNotThrow(()=>loadSourceArchive(archive.bytes,archive.metadata,'NL','BWBR0000001'));
+  assert.throws(()=>loadSourceArchive(archive.bytes,{...archive.metadata,sha256:'0'.repeat(64)},'NL','BWBR0000001'),
+    /checksum/);
+  const legacy={...archive.metadata};delete legacy.sha256;
+  assert.doesNotThrow(()=>loadSourceArchive(archive.bytes,legacy,'NL','BWBR0000001'));
 });
