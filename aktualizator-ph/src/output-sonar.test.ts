@@ -13,3 +13,7 @@ test('large indentation before regular text remains intact',()=>{
   const input=' '.repeat(50000)+'x';
   assert.equal(normalizeOutput(input),input+'\n');
 });
+
+test('U+2028/U+2029 line separators preserve their code points while trimming preceding blanks',()=>{
+  assert.equal(normalizeOutput('a  \u2028b \t\u2029'), 'a\u2028b\u2029\n');
+});
