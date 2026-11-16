@@ -32,8 +32,10 @@ test('malformed XHTML title is not an independent CELEX identity',()=>{
 
 test('long malformed language suffix does not bypass identity validation',()=>{
   const whitespace=' '.repeat(40_000);
-  const bad=html('EUR-Lex - 32025R0002'+whitespace+'-ZZ',meta(celex));
+  const bad=html('EUR-Lex - 32025R0002'+whitespace+'-PL',meta(celex));
   assert.throws(()=>assertEuSourceIdentity(bad,sourceUrl,celex),/identity mismatch/);
+  const unknown=html('EUR-Lex - '+celex+whitespace+'-ZZ');
+  assert.throws(()=>assertEuSourceIdentity(unknown,sourceUrl,celex),/no independently confirmed document identity/);
   const good=html('EUR-Lex - '+celex+whitespace+'-PL');
   assert.doesNotThrow(()=>assertEuSourceIdentity(good,sourceUrl,celex));
 });
