@@ -3,15 +3,17 @@ import { NL_START, NL_END } from './content-integrity.js';
 /** Read complete version bodies with monotonic delimiter searches. */
 export function scanNlVersions(section:string):string[][]{
   const results:string[][]=[];
-  const start=/^### V=([^ ]+) – ([^ \n]+)[^\n]*\n\n<!-- NL source text -->\n/gm;
+  const start=/^### V=([^\n]*)\n\n<!-- NL source text -->\n/gm;
   const footer='\n<!-- /NL source text -->\n\nŹródła: ';
   let match:RegExpExecArray|null;
   while((match=start.exec(section))!==null){
+    const dates=/^([^ \n]+) – ([^ \n]+)/.exec(match[1]);
+    if(!dates)continue;
     const close=section.indexOf(footer,start.lastIndex);
     if(close<0)continue;
     const refsStart=close+footer.length,refsEnd=section.indexOf('\n',refsStart);
     if(refsEnd<0||refsEnd===refsStart)continue;
-    results.push([match[0],match[1],match[2],section.slice(start.lastIndex,close),section.slice(refsStart,refsEnd)]);
+    results.push([match[0],dates[1],dates[2],section.slice(start.lastIndex,close),section.slice(refsStart,refsEnd)]);
     start.lastIndex=refsEnd+1;
   }
   return results;
