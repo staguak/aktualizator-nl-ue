@@ -118,7 +118,7 @@ export async function buildLegalImagePackage(documents:LegalManifest[],read:(nam
   const shared:EuImageLoader=async(url,context)=>{
     const key=evidenceKey(url,url.startsWith('data:')?context?.document.sourceUrl:undefined);
     let value=loaded.get(key);
-    if(!value){if(!loader)throw new Error('Image loader required.');value=Promise.resolve().then(()=>loader(url,context));loaded.set(key,value);}
+    if(!value){if(!loader)throw new Error('Image loader required.');value=loader(url,context);loaded.set(key,value);}
     try{return await value;}
     catch(error){if(loaded.get(key)===value)loaded.delete(key);throw error;}
   };
