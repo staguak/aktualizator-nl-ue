@@ -1,4 +1,7 @@
 """Independent validation of reversible Base64 presentation, without Node."""
+if not __debug__:
+    raise RuntimeError('Required legal-audit assertions are disabled by optimized Python')
+
 import base64
 from bisect import bisect_left
 import hashlib

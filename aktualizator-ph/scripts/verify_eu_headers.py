@@ -1,4 +1,7 @@
 """Independent source replay for EU titles and labelled documentary dates."""
+if not __debug__:
+    raise RuntimeError('Required legal-audit assertions are disabled by optimized Python')
+
 from datetime import date
 import hashlib
 import json
