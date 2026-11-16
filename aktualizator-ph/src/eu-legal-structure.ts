@@ -1,3 +1,4 @@
+import {simpleCssRules} from './css-rules.js';
 import {load} from 'cheerio';
 import {sourceTree,nodeText,descendants,renderLegalTree,vectorTags} from './legal-tree.js';
 import type {LegalSourceNode,LegalTreeRules} from './legal-tree.js';
@@ -112,8 +113,8 @@ export function parseEuLegalStructure(html:string,context:LegalContext,maxBytes?
   const body=htmlRoot?.children.find(n=>n.tag==='body');if(!htmlRoot||!body)throw new Error('Missing EU body.');
   const styles=htmlRoot.children.filter(n=>n.tag==='head').flatMap(n=>descendants(n,x=>x.tag==='style'));
   const protectedClasses=new Set<string>();
-  for(const style of [...styles,...descendants(body,n=>n.tag==='style')])for(const rule of nodeText(style).matchAll(/([^{}]+)\{([^{}]*)\}/g))
-    if(/white-space\s*:/i.test(rule[2]))for(const name of rule[1].matchAll(/\.([a-z0-9_-]+)/gi))protectedClasses.add(name[1]);
+  for(const style of [...styles,...descendants(body,n=>n.tag==='style')])for(const [selector,declarations] of simpleCssRules(nodeText(style)))
+    if(/white-space\s*:/i.test(declarations))for(const name of selector.matchAll(/\.([a-z0-9_-]+)/gi))protectedClasses.add(name[1]);
   const caseLaw=context.documentId.startsWith('6');
   infer(body,undefined,caseLaw);contextualUnits(body);if(caseLaw)courtParagraphs(body);body.children.unshift(...styles);
   const rules:LegalTreeRules={

@@ -1,3 +1,4 @@
+import {simpleCssRules} from './css-rules.js';
 import {load} from 'cheerio';
 import {fingerprintText,htmlIntegrity,assertIntegrity} from './content-integrity.js';
 import {LEGAL_PROFILE,LEGAL_START,LEGAL_END,legalIdentity,legalHash,unitStart,unitEnd,planLegalChunks} from './legal-structure.js';
@@ -23,8 +24,8 @@ export function sourceTree(source:string,xml:boolean):LegalSourceNode[]{
   if(!xml)$('style').each((_i,style)=>{
     const css=$(style).text();if(!/white-space\s*:/i.test(css))return;
     let matched=false;
-    for(const rule of css.matchAll(/([^{}]+)\{([^{}]*)\}/g))if(/white-space\s*:/i.test(rule[2])){
-      matched=true;try{$(rule[1].trim()).each((_j,node)=>{protectedNodes.add(node);});}catch{uncertainWhitespace=true;}
+    for(const [selector,declarations] of simpleCssRules(css))if(/white-space\s*:/i.test(declarations)){
+      matched=true;try{$(selector.trim()).each((_j,node)=>{protectedNodes.add(node);});}catch{uncertainWhitespace=true;}
     }
     if(!matched)uncertainWhitespace=true;
   });
