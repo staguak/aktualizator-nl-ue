@@ -1,3 +1,4 @@
+import {simpleCssRules} from './css-rules.js';
 import assert from 'node:assert/strict';
 import { load } from 'cheerio';
 import { assertEuIntegrity, htmlIntegrity } from './content-integrity.js';
@@ -87,8 +88,8 @@ export function normalizeEuBody(body:string): {body:string; status:'unchanged'|'
   $('style').each((_i,node)=>{
     const css=$(node).text();if(!/\bwhite-space\s*:/i.test(css))return;
     let matched=false;
-    for(const rule of css.matchAll(/([^{}]+)\{([^{}]*)\}/g))if(/\bwhite-space\s*:/i.test(rule[2])){
-      matched=true;try{$(rule[1].trim()).each((_j,selected)=>protect(selected));}catch{uncertainCss=true;}
+    for(const [selector,declarations] of simpleCssRules(css))if(/\bwhite-space\s*:/i.test(declarations)){
+      matched=true;try{$(selector.trim()).each((_j,selected)=>protect(selected));}catch{uncertainCss=true;}
     }
     if(!matched)uncertainCss=true;
   });
