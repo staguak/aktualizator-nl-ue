@@ -46,5 +46,25 @@ jobs:
       - run: python3 -m unittest discover -s tests -p test_distribution.py
       - run: python3 -m unittest discover -s tests -p test_sonar_security.py
       - run: python3 -m unittest discover -s tests -p test_official_audit.py
+      - name: Diagnose SonarCloud PR 13 new-code security findings (temporary)
+        if: always() && github.event_name == 'pull_request' && github.event.pull_request.number == 13
+        continue-on-error: true
+        run: |
+          python3 - <<'PY'
+          import json,urllib.parse,urllib.request
+          params=urllib.parse.urlencode({'projects':'staguak_aktualizator-nl-ue','pullRequest':'13','ps':500})
+          url='https://sonarcloud.io/api/issues/search?'+params
+          try:
+              req=urllib.request.Request(url,headers={'User-Agent':'PublicUpdater-Sonar-Audit/1.0'})
+              with urllib.request.urlopen(req,timeout=25) as response:
+                  obj=json.load(response)
+              print('SONAR_ISSUE_TOTAL',obj.get('total'))
+              for issue in obj.get('issues',[]):
+                  comp=issue.get('component','')
+                  print('SONAR_ISSUE',issue.get('key'),issue.get('rule'),comp,issue.get('line'),
+                        issue.get('severity'),issue.get('type'),issue.get('message','')[:260])
+          except Exception as exc:
+              print('SONAR_API_DIAGNOSTIC_FAILED',type(exc).__name__,getattr(exc,'code',''))
+          PY
       - name: Verify public publication, admission, diagnostics and notification boundaries
         run: python3 -m unittest discover -s tests -p 'test_public_*.py'
