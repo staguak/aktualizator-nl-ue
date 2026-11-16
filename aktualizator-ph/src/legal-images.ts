@@ -250,7 +250,7 @@ export function validateLegalImagePackage(documents:LegalManifest[],read:(name:s
         const namedImage=imageName(ref.source,doc.sourceUrl);
         const fallbackImage=imageName(refs[0].source,p.sourceUrl);
         const matchingImage=record.sourceLocator===p.sourceLocator||
-          !!originalContext&&!!namedImage&&namedImage===fallbackImage&&
+          !!originalContext&&((!!namedImage&&namedImage===fallbackImage)||/^data:image\//i.test(ref.source))&&
           ['alt','width','height'].every(k=>typeof originalUnit.attributes[k]==='string'&&
             originalUnit.attributes[k]===fallbackUnit.attributes[k]);
         if(!matchingImage)throw new Error('Fallback image does not match original image occurrence.');
