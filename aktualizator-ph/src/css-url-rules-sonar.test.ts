@@ -8,7 +8,6 @@ test('linear CSS URL scanning preserves legacy match position, payload and repla
     'a{src: URL( "file with space.svg" )}',
     "b{src:url('data:image/png;base64,AAAA==')}",
     'url() url(    ) url( x )',
-    'unmatched url("foo x) and url(next.png)',
     'url(a url(nested.png) trailing',
     'url("q\"uote") url("")',
     'url(\u00a0big\u00a0)',
@@ -38,4 +37,10 @@ test('CSS comment and ordinary string URLs are not active image references',()=>
   assert.deepEqual([...cssUrlMatches(css)].map(m=>m.source),['real.png']);
   assert.equal(replaceCssUrls(css,m=>'replaced:'+m.source),
     css.replace('url(real.png)','replaced:real.png'));
+});
+
+test('unterminated CSS strings cannot expose inactive URLs',()=>{
+  const css='unmatched url("foo x) and url(next.png)';
+  assert.deepEqual([...cssUrlMatches(css)],[]);
+  assert.equal(replaceCssUrls(css,()=>{throw new Error('Should not replace inactive CSS');}),css);
 });
