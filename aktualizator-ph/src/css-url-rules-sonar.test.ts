@@ -50,3 +50,12 @@ test('CSS functions whose identifiers merely end in url are not graphic URLs',()
   assert.equal(replaceCssUrls(css,m=>'checked:'+m.source),
     css.replace('url(real.png)','checked:real.png'));
 });
+
+test('CSS escaped ident url functions are recognized without changing their original spelling',()=>{
+  const css=String.raw\`.graph{background:u\72l(figure.png);mask:\75 rl(other.svg);content:"url(not-graphic.svg)"}\`;
+  const matches=[...cssUrlMatches(css)];
+  assert.deepEqual(matches.map(x=>x.source),['figure.png','other.svg']);
+  assert.deepEqual(matches.map(x=>x.text),[String.raw\`u\72l(figure.png)\`,String.raw\`\75 rl(other.svg)\`]);
+  assert.equal(replaceCssUrls(css,m=>'NATIVE:'+m.source),
+    String.raw\`.graph{background:NATIVE:figure.png;mask:NATIVE:other.svg;content:"url(not-graphic.svg)"}\`);
+});
