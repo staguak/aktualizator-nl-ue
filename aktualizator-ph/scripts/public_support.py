@@ -82,22 +82,28 @@ class GitHubApi:
         self.wait = wait or time.sleep
 
     def request(self, suffix, payload=None, method='GET', attempts=3):
-        # Only the exact routes needed by the public request workflow are
-        # allowed. Encoded separators, dot segments, extra query parameters
-        # and arbitrary API endpoints must never reach urllib.
+        # Rebuild the API path from checked positive integers and literal
+        # route templates, never forward a raw file/event-supplied suffix.
         routes = (
-            (r'/issues/[1-9][0-9]*', {'PATCH'}),
-            (r'/issues/[1-9][0-9]*/comments', {'POST'}),
-            (r'/issues/[1-9][0-9]*/comments\?per_page=100&page=(?:[1-9]|10)', {'GET'}),
-            (r'/issues/comments/[1-9][0-9]*', {'PATCH'}),
-            (r'/actions/runs/[1-9][0-9]*', {'GET'}),
-            (r'/actions/runs/[1-9][0-9]*/attempts/[1-9][0-9]*', {'GET'}),
+            (r'/issues/([1-9][0-9]*)', {'PATCH'}, '/issues/{}'),
+            (r'/issues/([1-9][0-9]*)/comments', {'POST'}, '/issues/{}/comments'),
+            (r'/issues/([1-9][0-9]*)/comments\?per_page=100&page=([1-9]|10)',
+             {'GET'}, '/issues/{}/comments?per_page=100&page={}'),
+            (r'/issues/comments/([1-9][0-9]*)', {'PATCH'}, '/issues/comments/{}'),
+            (r'/actions/runs/([1-9][0-9]*)', {'GET'}, '/actions/runs/{}'),
+            (r'/actions/runs/([1-9][0-9]*)/attempts/([1-9][0-9]*)',
+             {'GET'}, '/actions/runs/{}/attempts/{}'),
         )
-        if not any(method in methods and re.fullmatch(route, suffix)
-                   for route, methods in routes):
+        canonical = None
+        for pattern, methods, template in routes:
+            matched = re.fullmatch(pattern, suffix) if isinstance(suffix, str) else None
+            if method in methods and matched:
+                canonical = template.format(*(int(part) for part in matched.groups()))
+                break
+        if canonical is None:
             raise PublicError('API_ROUTE_INVALID', 'GITHUB_API')
         for attempt in range(attempts):
-            request = urllib.request.Request('https://api.github.com/repos/' + self.repo + suffix,
+            request = urllib.request.Request('https://api.github.com/repos/' + self.repo + canonical,
                 data=None if payload is None else json.dumps(payload).encode(), method=method,
                 headers={'Accept': 'application/vnd.github+json', 'Authorization': 'Bearer ' + self._token,
                          'X-GitHub-Api-Version': '2022-11-28'})
