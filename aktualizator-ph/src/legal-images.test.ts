@@ -4,6 +4,7 @@ import {parseNlLegalStructure} from './nl-legal-structure.js';
 import {indexLegalDocument,legalMarkdown,legalHash} from './legal-structure.js';
 import {buildLegalImagePackage,validateLegalImagePackage} from './legal-images.js';
 import {parseEuLegalStructure} from './eu-legal-structure.js';
+import {ImageUnavailableError} from './image-retrieval.js';
 
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC','base64');
 function fixture(src='data:image/png;base64,'+png.toString('base64'),second=src){
@@ -114,4 +115,20 @@ test('an explicit omission cannot be added for a substantive image and earlier i
   const changed=structuredClone(result.index);
   changed.omittedDecorations=[{...changed.occurrences[0],reason:'decorative-european-flag',imageUrl:flagUrl} as any];
   assert.throws(()=>validateLegalImagePackage([doc],n=>files.get(n)!,changed,n=>result.assets.get(n)!),/image/i);
+});
+
+
+test('a failed occurrence does not poison a later identical source image URL',async()=>{
+  const url='https://official.example/missing-image.png';
+  const {doc,files}=fixture(url);
+  let calls=0;
+  const loader=async()=>{
+    calls++;
+    if(calls===1)throw new ImageUnavailableError([{language:'NL',url,outcome:'UNAVAILABLE',reason:'Transient HTTP error'}]);
+    return {bytes:png,contentType:'image/png',url};
+  };
+  const result=await buildLegalImagePackage([doc],name=>files.get(name)!,loader);
+  assert.equal(calls,2);
+  assert.equal(result.index.unavailableImages?.length,1);
+  assert.equal(result.index.occurrences.length,1);
 });
