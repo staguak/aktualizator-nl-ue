@@ -11,7 +11,7 @@ import {completeBuiltOutput} from './publication-validation.js';
 import {missingEuDocuments} from './eu-unavailable.js';
 import type {MissingEuDocument} from './eu-unavailable.js';
 import type {EuBuiltAct} from './eu-model.js';
-import {discoverEuDocuments,selectEuDocuments,discoverEuCaseDocuments,EU_DISCOVERY_FALLBACK_ROLE} from './eu-provider.js';
+import {discoverEuDocuments,selectEuDocuments,discoverEuCaseDocuments,EU_DISCOVERY_FALLBACK_ROLE,fetchEuText,EuDocumentUnavailable} from './eu-provider.js';
 import {assertMissingEuEvidence} from './eu-unavailable.js';
 import {loadSourceArchive} from './official-sources.js';
 import {SourceHttpError} from './source-cache.js';
@@ -65,4 +65,18 @@ test('empty or unavailable primary catalogs still select configured documents fo
     assertMissingEuEvidence(act,original.index,original.items);
     assert.throws(()=>assertMissingEuEvidence({...act,discoveryIncomplete:false},original.index,original.items),/omitted/);
   }
+});
+
+test('a downloaded but rejected XHTML is not an absent document',async()=>{
+  const invalid=Buffer.from('<html lang="en"><body>Access Denied</body></html>');
+  const empty=Buffer.from(JSON.stringify({results:{bindings:[]}}));
+  const fetcher=async(url:string)=>{
+    const bytes=url.includes('/webapi/rdf/sparql')?empty:invalid;
+    return {url,bytes,text:bytes.toString(),contentType:url.includes('/webapi/rdf/sparql')?'application/json':'text/html'};
+  };
+  const document={celex:'32024R0001',role:'original',include:'full-document',metadata:{}};
+  await assert.rejects(fetchEuText(document,'EN',fetcher),error=>{
+    assert(!(error instanceof EuDocumentUnavailable),'A rejected HTTP-200 source is not a missing official document');
+    return true;
+  });
 });
