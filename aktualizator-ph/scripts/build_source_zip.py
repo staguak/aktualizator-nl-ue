@@ -27,7 +27,10 @@ def copy_verified(archive, name, directory_fd, member, size, expected):
     # Resolve the fixed basename relative to a previously opened directory.
     # No source path, symlink or parent directory supplied by recipe JSON is opened.
     flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0)
-    descriptor = os.open(member, flags, dir_fd=directory_fd)
+    try:
+        descriptor = os.open(member, flags, dir_fd=directory_fd)
+    except OSError:
+        raise ValueError('Unsafe staged source') from None
     try:
         before = os.fstat(descriptor)
         if not stat.S_ISREG(before.st_mode) or before.st_size != size:
