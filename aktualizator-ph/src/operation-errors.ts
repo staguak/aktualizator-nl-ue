@@ -126,7 +126,7 @@ export async function withOperationErrors(role:Role,root:string,operation:()=>Pr
       if(registry.parentId===null){
         const summary=collectOperationErrors(directory,registry.traceId);
         if(!safeCacheDirectory(directory))throw new Error('Unsafe error summary directory.');
-        fs.writeFileSync(path.join(directory,`summary-${registry.traceId}.json`),JSON.stringify(summary,null,2)+'\\n',{flag:'wx',mode:0o600});
+        fs.writeFileSync(path.join(directory,`summary-${registry.traceId}.json`),JSON.stringify(summary,null,2)+'\n',{flag:'wx',mode:0o600});
         if(summary.status!=='PASS'&&!failed)throw new Error('Operation diagnostics recorded an unsuccessful process tree.');
       }
     }catch(error){finalizationError=error;}
