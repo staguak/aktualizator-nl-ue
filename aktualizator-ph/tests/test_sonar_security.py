@@ -78,6 +78,16 @@ class ZipSafetyTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 build(recipe, directory / 'recipe.json')
 
+    def test_nul_member_name_is_rejected_before_archiving(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            original = directory / 'original.xml'
+            original.write_bytes(b'original')
+            recipe = self.recipe(directory, original)
+            recipe['files'][0]['name'] = 'unsafe\\x00source.xml'
+            with self.assertRaises(ValueError):
+                build(recipe, directory / 'recipe.json')
+
     def test_symlink_and_checksum_changes_are_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
