@@ -1,4 +1,4 @@
-import {fetchBinarySource,fetchSourceFile} from './source-cache.js';
+import {fetchBinarySource,fetchSourceFile,retrySource} from './source-cache.js';
 import {verifyNativeImage} from './legal-images.js';
 export async function officialImage(value:string,options:{cacheDir?:string;fetcher?:typeof fetch}={}){
   let url:URL;try{url=new URL(value);}catch{throw new Error('Untrusted official image URL.');}
@@ -16,8 +16,8 @@ export async function officialImage(value:string,options:{cacheDir?:string;fetch
   // SVG is an image here, not an unlimited raw RDF/XML source. Use the file
   // cache API explicitly so the image ceiling also applies to image/svg+xml.
   const transfer=process.env.LAW_PUBLIC_INCREMENTAL==='1'?fetchSourceFile:fetchBinarySource;
-  const response=await transfer(url.href,{Accept:types[extension??'']??'*/*'},
-    {cacheDir:options.cacheDir??process.env.LAW_SOURCE_CACHE_DIR,fetcher:options.fetcher,maxBytes:95_000_000,timeoutMs:60000,allowedHosts:[url.hostname]});
+  const response=await retrySource(()=>transfer(url.href,{Accept:types[extension??'']??'*/*'},
+    {cacheDir:options.cacheDir??process.env.LAW_SOURCE_CACHE_DIR,fetcher:options.fetcher,maxBytes:95_000_000,timeoutMs:60000,allowedHosts:[url.hostname]}),3);
   verifyNativeImage(response.bytes);
   return response;
 }
