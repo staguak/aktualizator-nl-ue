@@ -137,13 +137,15 @@ def audit(directory, jurisdiction):
             for entry in index['entries']:
                 if entry['kind'].startswith('CELLAR-RDF'):
                     # Large RDF is streamed without a bytes object or DOM.
-                    size, digest, legacy = 0, hashlib.sha256(), hashlib.md5()
+                    # SHA-256 is the sole integrity authority for large
+                    # streamed RDF; MD5 stays in the catalog for compatibility.
+                    size, digest = 0, hashlib.sha256()
                     with z.open(entry['name']) as incoming:
                         for chunk in iter(lambda: incoming.read(1024*1024), b''):
-                            size += len(chunk);digest.update(chunk);legacy.update(chunk)
+                            size += len(chunk);digest.update(chunk)
                     strong = entry.get('sha256')
-                    assert (size == entry['size'] and legacy.hexdigest() == entry['md5']
-                            and isinstance(strong, str) and re.fullmatch(r'[a-f0-9]{64}', strong)
+                    assert (size == entry['size'] and isinstance(strong, str)
+                            and re.fullmatch(r'[a-f0-9]{64}', strong)
                             and digest.hexdigest() == strong)
                     with z.open(entry['name']) as incoming:
                         stack = []
