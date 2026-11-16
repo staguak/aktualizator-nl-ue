@@ -29,7 +29,7 @@ export function* cssUrlMatches(css:string):Generator<CssUrlMatch>{
     const char=css[i],next=css[i+1];
     if(comment){if(char==='*'&&next==='/'){comment=false;i++;}continue;}
     if(quoted){
-      if(char==='\\\\'){i++;continue;}
+      if(char==='\\'){i++;continue;}
       if(char===quoted)quoted=null;
       continue;
     }
