@@ -68,7 +68,9 @@ class _CssUrlScanner:
                 else:break
                 if len(name)<=3:name+=decoded
             if name.lower()=='url' and i<n and text[i]=='(':
-                yield start,i+1
+                after=i+1
+                resume=yield start,after
+                i=resume if isinstance(resume,int) and resume>=after else after
 
     @staticmethod
     def sub(replace, text):
@@ -86,8 +88,14 @@ class _CssUrlScanner:
             stop[i] = i if char.isspace() or char == ')' else stop[i + 1]
         chunks = []
         position = last = 0
-        for start, after_open in _CssUrlScanner._openers(text):
-            if start < position:continue
+        openers=_CssUrlScanner._openers(text)
+        try:start,after_open=next(openers)
+        except StopIteration:return text
+        while True:
+            if start < position:
+                try:start,after_open=openers.send(position)
+                except StopIteration:break
+                continue
             begin = nonwhite[after_open]
             end = -1
             kind = 'bare'
@@ -107,10 +115,12 @@ class _CssUrlScanner:
                     source = text[begin:first_stop]
             if end < 0:
                 position = after_open
-                continue
-            chunks.extend((text[last:start],
-                           replace(_CssUrlMatch(text[start:end + 1], source, kind, start))))
-            position = last = end + 1
+            else:
+                chunks.extend((text[last:start],
+                               replace(_CssUrlMatch(text[start:end + 1], source, kind, start))))
+                position = last = end + 1
+            try:start,after_open=openers.send(position)
+            except StopIteration:break
         return ''.join(chunks) + text[last:]
 
 URL = _CssUrlScanner()
