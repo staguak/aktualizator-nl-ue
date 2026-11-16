@@ -21,6 +21,22 @@ export function* cssUrlMatches(css:string):Generator<CssUrlMatch>{
     singleQuote[i]=char==="'"?i:singleQuote[i+1];
     tokenEnd[i]=space||char===')'?i:tokenEnd[i+1];
   }
+  // A URL token has meaning only outside CSS comments and ordinary strings.
+  // Track lexical scope independently of the legacy URL payload scanner.
+  const active=new Uint8Array(length);
+  let comment=false,quoted:string|null=null;
+  for(let i=0;i<length;i++){
+    const char=css[i],next=css[i+1];
+    if(comment){if(char==='*'&&next==='/'){comment=false;i++;}continue;}
+    if(quoted){
+      if(char==='\\\\'){i++;continue;}
+      if(char===quoted)quoted=null;
+      continue;
+    }
+    if(char==='/'&&next==='*'){comment=true;i++;continue;}
+    if(char==='"'||char==="'"){quoted=char;continue;}
+    active[i]=1;
+  }
   const opener=/url\(/gi;
   let position=0;
   while(position<length){
@@ -28,6 +44,7 @@ export function* cssUrlMatches(css:string):Generator<CssUrlMatch>{
     const found=opener.exec(css);
     if(!found)break;
     const start=found.index;
+    if(!active[start]){position=start+4;continue;}
     const begin=nonWhite[start+4];
     let close=-1;
     let source='';
