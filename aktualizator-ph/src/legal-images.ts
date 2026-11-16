@@ -232,7 +232,7 @@ export function validateLegalImagePackage(documents:LegalManifest[],read:(name:s
           let node:typeof current|undefined=current;
           while(node){
             if(['article','annex','recital','holding','section','chapter'].includes(node.kind))
-              chain.unshift(node.kind+':'+(node.reference??node.label.match(/(?:\\d+[a-z]?|\\b[IVXLCDM]+\\b)/gi)?.join(':')??''));
+              chain.unshift(node.kind+':'+(node.reference??node.label.match(/(?:\d+[a-z]?|\b[IVXLCDM]+\b)/gi)?.join(':')??''));
             node=node.parentId?byId.get(node.parentId):undefined;
           }
           return chain.join('/');
