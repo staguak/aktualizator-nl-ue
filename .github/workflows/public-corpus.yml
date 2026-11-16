@@ -157,8 +157,8 @@ jobs:
       - name: Install pinned source processing runtime
         if: steps.request.outputs.build == 'true'
         run: |
-          npm ci --no-audit --no-fund
-          python -m pip install --disable-pip-version-check --index-url https://pypi.org/simple -r scripts/xml-requirements.txt -r scripts/rdf-requirements.txt -r scripts/image-requirements.txt
+          npm ci --ignore-scripts --no-audit --no-fund
+          python -m pip install --require-hashes --only-binary=:all: --disable-pip-version-check --index-url https://pypi.org/simple -r scripts/xml-requirements.txt -r scripts/rdf-requirements.txt -r scripts/image-requirements.txt
       - name: Build and independently verify the complete public corpus
         if: steps.request.outputs.build == 'true'
         env:
