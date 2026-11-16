@@ -20,7 +20,7 @@ const helper=`function cleanEurLexTitle(title:string):string|undefined{
 const candidate=initial.replace(fnStart,helper+fnStart).replace(originalLine,'    const id=cleanEurLexTitle(title);');
 fs.writeFileSync(candidateFile,candidate);
 const [{assertEuSourceIdentity:baseline},{assertEuSourceIdentity:proposed}]=await Promise.all([
-  import('../src/eu-source-identity.ts'),import('../src/eu-source-identity-audit-candidate.ts')]);
+  import('../../aktualizator-ph/src/eu-source-identity.ts'),import('../../aktualizator-ph/src/eu-source-identity-audit-candidate.ts')]);
 
 function html(title,head=''){
   const escaped=title.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
