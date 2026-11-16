@@ -17,7 +17,12 @@ import {prepareSvgImage} from './svg-image-source.js';
 
 export function createOfficialImageResolver(options:{load?:EuImageLoader;document?:(id:string,language:EuLanguage)=>Promise<EuSource>;log?:(message:string)=>void}={}):EuImageLoader{
   const raw=options.load??officialImage,documents=new Map<string,Promise<EuSource>>(),downloaded=new Map<string,Promise<import('./eu-assets.js').EuImageResponse>>();
-  const load:EuImageLoader=async url=>{let pending=downloaded.get(url);if(!pending){pending=raw(url);downloaded.set(url,pending);}return pending;};
+  const load:EuImageLoader=async url=>{
+    let pending=downloaded.get(url);
+    if(!pending){pending=raw(url);downloaded.set(url,pending);}
+    try{return await pending;}
+    catch(error){if(downloaded.get(url)===pending)downloaded.delete(url);throw error;}
+  };
   const document=options.document??((id,language)=>fetchEuText({celex:id,metadata:{},role:'image-language-fallback',include:'full-document',outputProfile:'legal-structure-v1'},language));
   const reason=(error:unknown)=>error instanceof Error&&(/^(?:Source HTTP \d+|No complete document in [A-Z, ]+\.|Fallback document identity differs\.|No unambiguous corresponding graphic in the official translation\.|Fallback legal context differs\.|Fallback source checksum differs\.)$/.test(error.message))?error.message:'Source not available or not a valid native image.';
   return async(url,context)=>{
@@ -29,8 +34,12 @@ export function createOfficialImageResolver(options:{load?:EuImageLoader;documen
       let attemptedUrl='https://publications.europa.eu/resource/celex/'+encodeURIComponent(context.document.documentId);
       try{
         const key=JSON.stringify([context.document.documentId,language]);
-        let pending=documents.get(key);if(!pending){pending=document(context.document.documentId,language);documents.set(key,pending);}
-        const source=await pending,draft=source.parsed.legalDraft;
+        let pending=documents.get(key);
+        if(!pending){pending=document(context.document.documentId,language);documents.set(key,pending);}
+        let source:EuSource;
+        try{source=await pending;}
+        catch(error){if(documents.get(key)===pending)documents.delete(key);throw error;}
+        const draft=source.parsed.legalDraft;
         attemptedUrl=source.sourceUrl;
         if(!draft||draft.documentId!==context.document.documentId||draft.version!==context.document.version||draft.language!==language)
           throw new Error('Fallback document identity differs.');

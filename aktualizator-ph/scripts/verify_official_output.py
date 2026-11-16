@@ -229,7 +229,7 @@ def audit(directory, jurisdiction):
                         verify_header(directory,doc,data,source[0]['url'],header_responses,[f for f in act['files'] if f['celex']==doc['celex']])
     images = manifest.get('imagePackage')
     if images:
-        assert images['profile'] == 'legal-images-v1' and images['index']['name'] == 'IMAGE_INDEX.json'
+        assert images['profile'] in {'legal-images-v1', 'legal-images-v2'} and images['index']['name'] == 'IMAGE_INDEX.json'
         from validate_image import inspect_image
         for record in [images['index']] + images['assets']:
             assert record['name'] not in names
@@ -237,7 +237,7 @@ def audit(directory, jurisdiction):
             raw = (directory / record['name']).read_bytes()
             assert verify_digests(raw, record)
         image_index = json.loads((directory / 'IMAGE_INDEX.json').read_bytes())
-        assert image_index['profile'] == 'legal-images-v1'
+        assert image_index['profile'] == images['profile']
         assert {a['name'] for a in image_index['assets']} == {a['name'] for a in images['assets']}
         for asset in image_index['assets']:
             assert asset == dict(name=asset['name'], **inspect_image(directory / asset['name']))

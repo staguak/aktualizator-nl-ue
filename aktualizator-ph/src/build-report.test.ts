@@ -69,3 +69,15 @@ test('report source warnings cannot close the JSON fence',()=>{
   const data=JSON.parse(text.split('```json\n')[1].split('\n```')[0]);
   assert.equal(data.warnings.messages[0],'```\nforeign section');
 });
+
+test('missing required EU text forces incomplete source coverage even when byte validation passes',()=>{
+  const manifest=eu() as any;
+  manifest.acts[0].documents=[];
+  manifest.acts[0].missingDocuments=[{celex:'32003L0088'}];
+  const source={identifier:'32003L0088',profile:'source-issues-v1' as const,
+    hasOfficialTextFallback:false,legacyWarnings:[],
+    issues:[{classification:'SOURCE_UNAVAILABLE' as const,code:'DOCUMENT_UNAVAILABLE',
+      documentId:'32003L0088',message:'Required document missing'}]};
+  const report=buildReport(manifest,null,{...pendingValidation(),status:'PASS',sourceAvailability:[source]},{});
+  assert.equal(report.sourceAvailability?.[0].content,'INCOMPLETE_REQUIRED_TEXT');
+});

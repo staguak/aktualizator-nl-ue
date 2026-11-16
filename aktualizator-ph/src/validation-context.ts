@@ -94,14 +94,14 @@ function loadValidationContext(read:(name:string)=>Buffer,list:()=>string[],expe
   const images=manifest.imagePackage;
   let imageIndex:any,indexBytes:Buffer|undefined;
   if(images){
-    if(images.profile!=='legal-images-v1'||images.index?.name!==IMAGE_INDEX||!Array.isArray(images.assets))throw new Error('Invalid image package declaration.');
+    if(!['legal-images-v1','legal-images-v2'].includes(images.profile)||images.index?.name!==IMAGE_INDEX||!Array.isArray(images.assets))throw new Error('Invalid image package declaration.');
     for(const record of [images.index,...images.assets]){
       if(declared.has(record.name)||record.name!==IMAGE_INDEX&&!/^images\/[a-f0-9]{64}\.[a-z0-9]+$/.test(record.name)||
         !Number.isSafeInteger(record.size)||record.size<=0||record.size>95_000_000||! /^[a-f0-9]{32}$/.test(record.md5))throw new Error('Invalid or duplicate image package file.');
       declared.set(record.name,record);
     }
     indexBytes=read(IMAGE_INDEX);imageIndex=JSON.parse(indexBytes.toString('utf8'));
-    if(images.rendering!==imageIndex.rendering?.profile||images.rendering&&images.legalOffsetScope!=='restored-canonical-body'||
+    if(images.profile!==imageIndex.profile||images.rendering!==imageIndex.rendering?.profile||images.rendering&&images.legalOffsetScope!=='restored-canonical-body'||
       images.unavailableImages!==undefined&&images.unavailableImages!==(imageIndex.unavailableImages?.length??0))throw new Error('Image rendering/completeness declaration mismatch.');
     if(images.rendering&&manifest.jurisdiction==='EU'&&manifest.acts.some((a:any)=>a.files.some((f:any)=>f.kind==='reference')))throw new Error('Inline public output may not contain link-only UE-REF files.');
   }

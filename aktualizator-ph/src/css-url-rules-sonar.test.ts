@@ -8,12 +8,10 @@ test('linear CSS URL scanning preserves legacy match position, payload and repla
     'a{src: URL( "file with space.svg" )}',
     "b{src:url('data:image/png;base64,AAAA==')}",
     'url() url(    ) url( x )',
-    'unmatched url("foo x) and url(next.png)',
     'url(a url(nested.png) trailing',
     'url("q\"uote") url("")',
     'url(\u00a0big\u00a0)',
     'url(x\n) URL(y)',
-    'unknownurl(http://legal.example/img.png)',
     'url(hello)x url(foo) y',
   ];
   const legacy=/url\(\s*(?:"([^"]*)"|'([^']*)'|([^\s)]*))\s*\)/gi;
@@ -29,4 +27,35 @@ test('linear CSS URL scanning preserves legacy match position, payload and repla
 test('long malformed nested CSS URL tokens are handled without backtracking',()=>{
   const css='url('.repeat(20000)+'x '+ 'url(valid.png)';
   assert.deepEqual([...cssUrlMatches(css)].map(m=>m.source),['valid.png']);
+});
+
+test('CSS comment and ordinary string URLs are not active image references',()=>{
+  const css='/* url(ghost-a.png) */\\n'.replace('\\n','\n')+
+    '.caption::before{content:"url(ghost-b.png)";}\\n'.replace('\\n','\n')+
+    '.actual{background-image:url(real.png)}';
+  assert.deepEqual([...cssUrlMatches(css)].map(m=>m.source),['real.png']);
+  assert.equal(replaceCssUrls(css,m=>'replaced:'+m.source),
+    css.replace('url(real.png)','replaced:real.png'));
+});
+
+test('unterminated CSS strings cannot expose inactive URLs',()=>{
+  const css='unmatched url("foo x) and url(next.png)';
+  assert.deepEqual([...cssUrlMatches(css)],[]);
+  assert.equal(replaceCssUrls(css,()=>{throw new Error('Should not replace inactive CSS');}),css);
+});
+
+test('CSS functions whose identifiers merely end in url are not graphic URLs',()=>{
+  const css='.law{custom:unknownurl(ghost.png); another:myurl(ghost2.png); background:url(real.png)}';
+  assert.deepEqual([...cssUrlMatches(css)].map(m=>m.source),['real.png']);
+  assert.equal(replaceCssUrls(css,m=>'checked:'+m.source),
+    css.replace('url(real.png)','checked:real.png'));
+});
+
+test('CSS escaped ident url functions are recognized without changing their original spelling',()=>{
+  const css=String.raw`.graph{background:u\72l(figure.png);mask:\75 rl(other.svg);content:"url(not-graphic.svg)"}`;
+  const matches=[...cssUrlMatches(css)];
+  assert.deepEqual(matches.map(x=>x.source),['figure.png','other.svg']);
+  assert.deepEqual(matches.map(x=>x.text),[String.raw`u\72l(figure.png)`,String.raw`\75 rl(other.svg)`]);
+  assert.equal(replaceCssUrls(css,m=>'NATIVE:'+m.source),
+    String.raw`.graph{background:NATIVE:figure.png;mask:NATIVE:other.svg;content:"url(not-graphic.svg)"}`);
 });

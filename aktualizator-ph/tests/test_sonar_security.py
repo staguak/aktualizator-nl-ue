@@ -24,7 +24,6 @@ class ScannerTests(unittest.TestCase):
         examples = [
             'background:url(img.png)', 'url("quoted path.svg")',
             "a{background:url('x y')} url( )", 'url(url(a)',
-            'unmatched url("broken text) url(working)',
             'url(\u0130) url(a)', 'url(a\t)', 'URL(a)URL(b)'
         ]
         def replacement(match):
@@ -33,6 +32,10 @@ class ScannerTests(unittest.TestCase):
         for example in examples:
             with self.subTest(example=example):
                 self.assertEqual(URL.sub(replacement, example), LEGACY.sub(replacement, example))
+
+    def test_unterminated_css_string_does_not_expose_a_false_graphic(self):
+        css='unmatched url("broken text) url(working)'
+        self.assertEqual(URL.sub(lambda _: '[BAD]', css),css)
 
     def test_long_nested_tokens(self):
         data = 'url('.join([''] * 10000) + ' url(valid.png)'

@@ -38,7 +38,7 @@ export async function finalizePackageImages(dir:string,acts:ExpectedAct[],loader
   for(const [name,bytes]of rendered)fs.writeFileSync(path.join(dir,name),bytes);
   for(const act of manifest.acts)for(const file of act.files){const bytes=rendered.get(file.name);if(bytes)Object.assign(file,fileMetadata(file.name,bytes));}
   fs.writeFileSync(path.join(dir,IMAGE_INDEX),indexBytes,{flag:'wx'});
-  manifest.imagePackage={profile:'legal-images-v1',rendering:'inline-base64-v1',legalOffsetScope:'restored-canonical-body',unavailableImages:result.index.unavailableImages?.length??0,index:fileMetadata(IMAGE_INDEX,indexBytes),assets:[...result.assets].map(([name,bytes])=>fileMetadata(name,bytes))};
+  manifest.imagePackage={profile:result.index.profile,rendering:'inline-base64-v1',legalOffsetScope:'restored-canonical-body',unavailableImages:result.index.unavailableImages?.length??0,index:fileMetadata(IMAGE_INDEX,indexBytes),assets:[...result.assets].map(([name,bytes])=>fileMetadata(name,bytes))};
   const jurisdiction=manifest.jurisdiction;
   writeCorpusManifest(dir,manifest);
   fs.writeFileSync(path.join(dir,'INDEX.md'),jurisdiction==='NL'?nlIndex(manifest):euIndex(manifest));
