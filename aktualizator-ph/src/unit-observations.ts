@@ -5,14 +5,57 @@ import {hash,encode} from './release-store.js';
 import {isCalendarDate} from './calendar.js';
 import {FORMEX_DOCUMENT_ROOTS,FORMEX_EXTENDED_ROOTS,FORMEX_EXTENDED_UNITS} from './formex-vocabulary.js';
 
-function observationXml(xml:string):string{
+export function observationXml(xml:string):string{
   // XML 1.0 normalizes literal attribute whitespace before entity expansion.
-  // Cheerio's XML mode preserves it instead. Character references such as
-  // &#10; must retain their different value; CDATA/comments/PI are not tags.
-  return xml.replace(/\r\n?/g,'\n').replace(/<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<(?:[^>"']|"[^"]*"|'[^']*')*>/g,
-    tag=>tag.startsWith('<!')||tag.startsWith('<?')?tag:
-      tag.replace(/"[^"]*"|'[^']*'/g,value=>value.replace(/[\t\n]/g,' ')));
+  // Preserve character references, CDATA, comments and processing instructions.
+  const source=xml.replace(/\r\n?/g,'\n');
+  const parts:string[]=[];
+  let position=0;
+  while(position<source.length){
+    const start=source.indexOf('<',position);
+    if(start<0){parts.push(source.slice(position));break;}
+    parts.push(source.slice(position,start));
+    let end=-1;
+    // Find the first terminating delimiter of a protected opaque region.
+    if(source.startsWith('<!--',start)){
+      const marker=source.indexOf('-->',start+4);
+      if(marker>=0)end=marker+3;
+    }else if(source.startsWith('<![CDATA[',start)){
+      const marker=source.indexOf(']]>',start+9);
+      if(marker>=0)end=marker+3;
+    }else if(source.startsWith('<?',start)){
+      const marker=source.indexOf('?>',start+2);
+      if(marker>=0)end=marker+2;
+    }
+    if(end>=0){parts.push(source.slice(start,end));position=end;continue;}
+    let quote:string|undefined;
+    for(let index=start+1;index<source.length;index++){
+      const character=source[index];
+      if(quote){
+        if(character===quote)quote=undefined;
+      }else if(character==='"'||character==="'")quote=character;
+      else if(character==='>'){end=index+1;break;}
+    }
+    if(end<0){parts.push(source.slice(start));break;}
+    let tag=source.slice(start,end);
+    if(!tag.startsWith('<!')&&!tag.startsWith('<?')){
+      const chars=[...tag];
+      quote=undefined;
+      for(let index=0;index<chars.length;index++){
+        const character=chars[index];
+        if(quote){
+          if(character===quote)quote=undefined;
+          else if(character==='\n'||character==='\t')chars[index]=' ';
+        }else if(character==='"'||character==="'")quote=character;
+      }
+      tag=chars.join('');
+    }
+    parts.push(tag);
+    position=end;
+  }
+  return parts.join('');
 }
+
 function sourceAttributes(node:Element):Record<string,string>{
   // Namespace declarations belong to XML namespace context, not the attribute
   // axis. They remain in the original byte object used to resolve each XPath.
