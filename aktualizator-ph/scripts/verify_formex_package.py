@@ -30,6 +30,53 @@ def target(member, value):
     return result
 
 
+def resolve_formex_locator(root, locator):
+    """Resolve only absolute child positions and a terminal attribute.
+
+    The metadata is untrusted. Do not execute it as an XPath expression:
+    functions, predicates other than numeric positions and descendant axes
+    are not part of the locator format produced by our source parser.
+    """
+    if not isinstance(locator, str) or len(locator) > 4096 or not locator.startswith('/'):
+        raise ValueError('Invalid Formex locator')
+    steps = locator.split('/')[1:]
+    if not steps or len(steps) > 128 or any(not step for step in steps):
+        raise ValueError('Invalid Formex locator')
+    attribute = None
+    if steps[-1].startswith('@'):
+        attribute = steps.pop()[1:]
+        if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_.:-]{0,127}', attribute):
+            raise ValueError('Invalid Formex attribute locator')
+    if not steps:
+        raise ValueError('Invalid Formex locator')
+    node = root
+    for position, step in enumerate(steps):
+        match = re.fullmatch(r'([A-Za-z_][A-Za-z0-9_.:-]{0,127})(?:\[([1-9][0-9]{0,8})\])?', step)
+        if not match:
+            raise ValueError('Invalid Formex element locator')
+        name, ordinal = match.groups()
+        if ':' in name:
+            prefix, local = name.split(':', 1)
+            namespace = node.nsmap.get(prefix)
+            if not namespace:
+                raise ValueError('Unknown Formex namespace prefix')
+            name = '{' + namespace + '}' + local
+        candidates = [node] if position == 0 else [
+            child for child in node if isinstance(child.tag, str) and child.tag == name
+        ]
+        if position == 0:
+            candidates = [candidate for candidate in candidates if candidate.tag == name]
+        index = int(ordinal) if ordinal else 1
+        if ordinal is None and len(candidates) > 1:
+            raise ValueError('Ambiguous Formex locator')
+        if not candidates or index > len(candidates):
+            return []
+        node = candidates[index - 1]
+    if attribute is not None:
+        return [node.attrib[attribute]] if attribute in node.attrib else []
+    return [node]
+
+
 def verify_formex_package(raw, metadata):
     with zipfile.ZipFile(io.BytesIO(raw)) as archive:
         assert len(archive.namelist()) == len(set(archive.namelist()))
@@ -62,7 +109,7 @@ def verify_formex_package(raw, metadata):
     assert {c['member'] for c in metadata['attachments']} == {n for n, x in xml.items() if x.tag == 'ANNEX'}
     def canonical_locator(member, locator):
         base, attribute = locator.rsplit('/@', 1)
-        nodes = xml[member].xpath(base); assert len(nodes) == 1
+        nodes = resolve_formex_locator(xml[member], base); assert len(nodes) == 1
         return nodes[0].getroottree().getpath(nodes[0]) + '/@' + attribute
     observed_refs = [(r['member'], canonical_locator(r['member'], r['locator']), r['kind'], c['member']) for c in components for r in c['references']]
     assert len(observed_refs) == len(set(observed_refs)) and set(observed_refs) == expected_refs
@@ -75,7 +122,7 @@ def verify_formex_package(raw, metadata):
         assert component['referenceMember'] == first['member'] and component['locator'] == first['locator']
         assert component['parentMember'] == (document if first['kind'] == 'DOC' else first['member'])
         for r in component['references']:
-            values = xml[r['member']].xpath(r['locator'])
+            values = resolve_formex_locator(xml[r['member']], r['locator'])
             assert len(values) == 1 and target(r['member'], values[0]) == member
     expected = set(primary) | {c['member'] for c in components}
     snapshots = metadata['unitHistory']
@@ -90,7 +137,7 @@ def verify_formex_package(raw, metadata):
         if langs:
             assert len(document['languageEvidence']) == len(langs)
             for evidence, node in zip(document['languageEvidence'], langs):
-                assert evidence['origin'] == 'bibliography' and root.xpath(evidence['locator']) == [node]
+                assert evidence['origin'] == 'bibliography' and resolve_formex_locator(root, evidence['locator']) == [node]
                 assert evidence['value'] == (node.text or '').strip().upper() and evidence['value'] in CODES[metadata['language']]
         else:
             codes = '|'.join(sorted(CODES[metadata['language']]))
@@ -106,7 +153,7 @@ def verify_formex_package(raw, metadata):
         native = [n for n in root.iter() if isinstance(n.tag, str) and n.tag in tags]
         assert len(native) == len(snapshot['units'])
         for i, (node, unit) in enumerate(zip(native, snapshot['units'])):
-            assert root.xpath(unit['locator']) == [node] and unit['element'] == node.tag and unit['order'] == i + 1
+            assert resolve_formex_locator(root, unit['locator']) == [node] and unit['element'] == node.tag and unit['order'] == i + 1
             assert unit['text']['sha256'] == hashlib.sha256(''.join(node.itertext()).encode()).hexdigest()
     return {'status': 'PASS', 'documents': len(primary), 'annexes': len(metadata['attachments']), 'fragments': len(metadata['fragments'])}
 

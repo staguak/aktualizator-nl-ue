@@ -111,21 +111,30 @@ export async function inErrorPhase<T>(phase:Phase,operation:()=>Promise<T>|T):Pr
 export async function withOperationErrors(role:Role,root:string,operation:()=>Promise<void>,env=process.env){
   const directory=path.join(root,'.source-diagnostics','errors'),registry=new OperationErrors(directory,role,env);
   return local.run({registry,phase:'CONFIGURATION'},async()=>{
-    let failed=false;
+    let failed=false,initialError:unknown;
     try{await operation();}
-    catch(error){failed=true;registry.record(error,local.getStore()!.phase);throw error;}
-    finally{
-      try{
-        registry.finish(failed||Number(process.exitCode??0)!==0?'FAIL':'PASS');
-        if(registry.parentId===null){
-          const summary=collectOperationErrors(directory,registry.traceId);
-          if(!safeCacheDirectory(directory))throw new Error('Unsafe error summary directory.');
-          fs.writeFileSync(path.join(directory,`summary-${registry.traceId}.json`),JSON.stringify(summary,null,2)+'\n',{flag:'wx',mode:0o600});
-          if(summary.status!=='PASS'&&!failed)throw new Error('Operation diagnostics recorded an unsuccessful process tree.');
-        }
-      }
-      catch(error){if(!failed)throw error;console.error('Operation error evidence finalization failed.');}
+    catch(error){
+      failed=true;initialError=error;
+      try{registry.record(error,local.getStore()!.phase);}
+      catch(recordError){initialError=recordError;}
     }
+    // Finalization is mandatory, but its failure must never replace the
+    // original operation/diagnostic-recording failure.
+    let finalizationError:unknown;
+    try{
+      registry.finish(failed||Number(process.exitCode??0)!==0?'FAIL':'PASS');
+      if(registry.parentId===null){
+        const summary=collectOperationErrors(directory,registry.traceId);
+        if(!safeCacheDirectory(directory))throw new Error('Unsafe error summary directory.');
+        fs.writeFileSync(path.join(directory,`summary-${registry.traceId}.json`),JSON.stringify(summary,null,2)+'\n',{flag:'wx',mode:0o600});
+        if(summary.status!=='PASS'&&!failed)throw new Error('Operation diagnostics recorded an unsuccessful process tree.');
+      }
+    }catch(error){finalizationError=error;}
+    if(failed){
+      if(finalizationError!==undefined)console.error('Operation error evidence finalization failed.');
+      throw initialError;
+    }
+    if(finalizationError!==undefined)throw finalizationError;
   });
 }
 

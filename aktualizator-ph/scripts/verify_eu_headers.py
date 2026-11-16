@@ -62,10 +62,13 @@ def documentary_date(fields):
     values=set(v for values in fields.values() for v in values)
     valid=True
     for value in values:
+        if not isinstance(value, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', value):
+            valid = False
+            continue
         try:
-            assert re.fullmatch(r'\d{4}-\d{2}-\d{2}',value)
             date.fromisoformat(value)
-        except (AssertionError,ValueError):valid=False
+        except ValueError:
+            valid = False
     status='unknown' if not values else 'invalid' if not valid else 'confirmed' if len(values)==1 else 'ambiguous'
     return dict(value=next(iter(values)) if status=='confirmed' else None,status=status,fields=fields)
 

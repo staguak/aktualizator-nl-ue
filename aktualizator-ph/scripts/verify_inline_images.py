@@ -241,7 +241,7 @@ def audit_inline(directory, index, documents):
         used_final = set()
         for n in original.nodes:
             if n['tag'] in {'img','image','feimage','use','svg'} or any(o['kind']=='css' and o['offset']==n['start']-original.base for o in occurrences+gaps):
-                spans.append((n['start'], n['end'] if n['tag'] in {'img','image','feimage','use','svg','style'} else n['end']))
+                spans.append((n['start'], n['end']))
         for p in record['patches']:
             assert any(a <= p['canonicalStart'] <= p['canonicalEnd'] <= b for a,b in spans), 'Rendering modified legal text outside graphics'
         for n in original.nodes:
@@ -284,12 +284,12 @@ def audit_inline(directory, index, documents):
                         root = ET.fromstring(raw)
                         def walk(e):
                             local=e.tag.rsplit('}',1)[-1]
-                            if output and local=='text' and e.text=='Grafika niedostępna':return ('MISSING_IMAGE',e.tail)
+                            if output and local=='text' and e.text=='Grafika niedostępna':return ('MISSING_IMAGE', [], None, e.tail, [])
                             attrs=[]
                             for key,value in e.attrib.items():
                                 if local in {'image','feImage','use'} and key.rsplit('}',1)[-1] in {'href','src'}:
                                     value=token(value,p['sourceUrl'],output)
-                                    if value is None:return ('MISSING_IMAGE',e.tail)
+                                    if value is None:return ('MISSING_IMAGE', [], None, e.tail, [])
                                 elif key=='style':value=css(value,p['sourceUrl'],output)
                                 attrs.append((key,value))
                             text=css(e.text or '',p['sourceUrl'],output) if local=='style' else e.text

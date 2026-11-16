@@ -115,3 +115,16 @@ test('official image/jpg Base64 decodes to the unchanged native JPEG and canonic
   assert.equal(result.derivedHtml,html);assert.equal(result.assets[0].name,'images/'+provenance.sha256+'.jpg');
   assert.deepEqual(result.assets[0].bytes,bytes);
 });
+
+test('base64 padding check accepts only canonical, equivalent padded and unpadded data',()=>{
+  for(const bytes of [Buffer.from('A'),Buffer.from('AB'),Buffer.from('ABC')]){
+    const encoded=bytes.toString('base64');
+    for(const candidate of [encoded,encoded.replace(/=+$/,'')]){
+      const decoded=decodeEmbeddedImage('data:image/png;base64,'+candidate);
+      assert.deepEqual(decoded?.bytes,bytes);
+    }
+  }
+  for(const bad of ['====','AAAA===','A','AB=CD','A===']){
+    assert.throws(()=>decodeEmbeddedImage('data:image/png;base64,'+bad));
+  }
+});

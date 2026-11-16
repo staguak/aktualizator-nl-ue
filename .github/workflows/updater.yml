@@ -77,8 +77,8 @@ jobs:
 
       - name: Install pinned runtime and dependencies
         run: |
-          python -m pip install --disable-pip-version-check --index-url https://pypi.org/simple -r scripts/xml-requirements.txt -r scripts/rdf-requirements.txt
-          npm ci --no-audit --no-fund
+          python -m pip install --require-hashes --only-binary=:all: --disable-pip-version-check --index-url https://pypi.org/simple -r scripts/xml-requirements.txt -r scripts/rdf-requirements.txt
+          npm ci --ignore-scripts --no-audit --no-fund
       - name: Validate the requested operation before authentication
         id: plan
         env:
