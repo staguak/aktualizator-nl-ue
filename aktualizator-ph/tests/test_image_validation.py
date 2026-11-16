@@ -44,3 +44,20 @@ class NativeImages(unittest.TestCase):
                 path.write_bytes(bad)
                 with self.assertRaises(Exception):
                     module.inspect_image(path)
+
+    def test_css_scanner_ignores_comment_strings_and_other_function_names(self):
+        spec=importlib.util.spec_from_file_location('verify_inline_images',
+            Path(__file__).resolve().parents[1] / 'scripts/verify_inline_images.py')
+        verifier=importlib.util.module_from_spec(spec);spec.loader.exec_module(verifier)
+        css='/* url(ghost.png) */ .caption{content:"url(ghost2.png)";x:unknownurl(fake.png);background:url(real.png)}'
+        observed=verifier.URL.sub(lambda match:'NATIVE:'+next(x for x in match.groups() if x is not None),css)
+        self.assertEqual(observed,
+            '/* url(ghost.png) */ .caption{content:"url(ghost2.png)";x:unknownurl(fake.png);background:NATIVE:real.png}')
+
+    def test_css_scanner_recognizes_escaped_function_names(self):
+        spec=importlib.util.spec_from_file_location('verify_inline_images',
+            Path(__file__).resolve().parents[1] / 'scripts/verify_inline_images.py')
+        verifier=importlib.util.module_from_spec(spec);spec.loader.exec_module(verifier)
+        css=r'.graph{background:u\72l(figure.png);mask:\75 rl(other.svg)}'
+        observed=verifier.URL.sub(lambda match:'NATIVE:'+next(x for x in match.groups() if x is not None),css)
+        self.assertEqual(observed,'.graph{background:NATIVE:figure.png;mask:NATIVE:other.svg}')
