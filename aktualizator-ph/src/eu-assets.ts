@@ -22,6 +22,11 @@ function mime(value:string):string{
   if(!extensions[contentType])throw new Error('Unsupported EU image content type.');
   return contentType;
 }
+function withoutBase64Padding(value:string):string{
+  let end=value.length;
+  while(end>0&&value[end-1]==='=')end--;
+  return value.slice(0,end);
+}
 export function decodeEmbeddedImage(source:string):EuImageResponse|undefined {
   if(!/^data:/i.test(source))return;
   const match=/^data:(image\/[a-z0-9.+-]+)((?:;[^,]*)?),(.*)$/is.exec(source.split('#',1)[0]);
@@ -32,7 +37,7 @@ export function decodeEmbeddedImage(source:string):EuImageResponse|undefined {
     if(!encoded||encoded.length%4===1||!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)||encoded.includes('=')&&encoded.length%4!==0)
       throw new Error('Invalid Base64 EU image.');
     bytes=Buffer.from(encoded,'base64');
-    if(bytes.toString('base64').replace(/=+$/,'')!==encoded.replace(/=+$/,''))throw new Error('Invalid Base64 EU image padding.');
+    if(withoutBase64Padding(bytes.toString('base64'))!==withoutBase64Padding(encoded))throw new Error('Invalid Base64 EU image padding.');
   }else{
     const parts:Buffer[]=[];
     for(const token of match[3].matchAll(/%[0-9a-f]{2}|[^%]+|%/gi)){
