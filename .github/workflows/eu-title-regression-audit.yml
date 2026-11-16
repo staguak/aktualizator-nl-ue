@@ -1,0 +1,50 @@
+name: Audit EUR-Lex title normalization against main
+on:
+  push:
+    branches: [audit/eu-title-regression-20261116]
+permissions:
+  contents: read
+jobs:
+  test-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: aktualizator-ph
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version-file: aktualizator-ph/.node-version
+          package-manager-cache: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Install pinned dependencies
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          python -m pip install --require-hashes --only-binary=:all: --disable-pip-version-check --index-url https://pypi.org/simple -r scripts/xml-requirements.txt -r scripts/rdf-requirements.txt -r scripts/image-requirements.txt -r scripts/workflow-requirements.txt
+      - name: Compare actual and proposed full source identity; benchmark both
+        run: node --import tsx ../.github/audit/title-regression.mjs
+      - name: Verify exact production patch is confined to eu-source-identity.ts
+        run: |
+          git diff --check
+          git diff -- src/eu-source-identity.ts
+          if [ "$(git diff --name-only)" != "aktualizator-ph/src/eu-source-identity.ts" ]; then
+            echo "Unexpected tracked-file change in the runner!"
+            exit 1
+          fi
+      - run: npm run typecheck
+      - run: npm run typecheck:tools
+      - run: npm run parser:selftest
+      - run: npm test
+      - run: npm run test:xml
+      - run: npm run test:evidence
+      - run: python3 -m unittest discover -s tests -p test_image_validation.py
+      - run: python3 -m unittest discover -s tests -p test_distribution.py
+      - run: python3 -m unittest discover -s tests -p test_sonar_security.py
+      - run: python3 -m unittest discover -s tests -p test_official_audit.py
+      - name: Verify public publication, admission, diagnostics and notification boundaries
+        run: python3 -m unittest discover -s tests -p 'test_public_*.py'
