@@ -7,6 +7,47 @@ export interface CssUrlMatch {
   text:string;
   source:string;
 }
+/** Recognize CSS identifier tokens, including escaped spellings of url. */
+function* cssUrlOpeners(css:string):Generator<{start:number;after:number}>{
+  const ident=(c:string)=>!!c&&(/[a-z0-9_-]/i.test(c)||c.charCodeAt(0)>=0x80);
+  const hex=(c:string)=>!!c&&/[a-f0-9]/i.test(c);
+  let i=0,comment=false,quote:string|null=null;
+  while(i<css.length){
+    const c=css[i],next=css[i+1];
+    if(comment){
+      if(c==='*'&&next==='/'){comment=false;i+=2;}else i++;
+      continue;
+    }
+    if(quote){
+      if(c==='\\'){i+=next===undefined?1:2;continue;}
+      if(c===quote)quote=null;
+      i++;continue;
+    }
+    if(c==='/'&&next==='*'){comment=true;i+=2;continue;}
+    if(c==='"'||c==="'"){quote=c;i++;continue;}
+    if(!ident(c)&&!(c==='\\'&&next!==undefined&&!/[\n\r\f]/.test(next))){i++;continue;}
+    const start=i;
+    let name='';
+    while(i<css.length){
+      const part=css[i];
+      let character:string;
+      if(part==='\\'&&i+1<css.length&&!/[\n\r\f]/.test(css[i+1])){
+        i++;
+        if(hex(css[i])){
+          let digits='';
+          for(let n=0;n<6&&hex(css[i]);n++)digits+=css[i++];
+          const scalar=parseInt(digits,16);
+          character=scalar>0&&scalar<=0x10ffff&&!(scalar>=0xd800&&scalar<=0xdfff)?
+            String.fromCodePoint(scalar):'\ufffd';
+          if(i<css.length&&/\s/u.test(css[i]))i++;
+        }else character=css[i++];
+      }else if(ident(part)){character=part;i++;}
+      else break;
+      if(name.length<=3)name+=character;
+    }
+    if(name.toLowerCase()==='url'&&css[i]==='(')yield {start,after:i+1};
+  }
+}
 export function* cssUrlMatches(css:string):Generator<CssUrlMatch>{
   const length=css.length;
   const nonWhite=new Int32Array(length+1);
@@ -21,17 +62,12 @@ export function* cssUrlMatches(css:string):Generator<CssUrlMatch>{
     singleQuote[i]=char==="'"?i:singleQuote[i+1];
     tokenEnd[i]=space||char===')'?i:tokenEnd[i+1];
   }
-  const candidates:CssUrlMatch[]=[];
-  const opener=/url\(/gi;
   let position=0;
-  while(position<length){
-    opener.lastIndex=position;
-    const found=opener.exec(css);
-    if(!found)break;
-    const start=found.index;
-    const begin=nonWhite[start+4];
-    let close=-1;
-    let source='';
+  for(const opener of cssUrlOpeners(css)){
+    if(opener.start<position)continue;
+    const start=opener.start;
+    const begin=nonWhite[opener.after];
+    let close=-1,source='';
     if(css[begin]==='"'||css[begin]==="'"){
       const last=css[begin]==='"'?doubleQuote[begin+1]:singleQuote[begin+1];
       const end=nonWhite[last<length?last+1:length];
@@ -49,35 +85,9 @@ export function* cssUrlMatches(css:string):Generator<CssUrlMatch>{
       }
     }
     if(close>=0){
-      candidates.push({start,end:close+1,text:css.slice(start,close+1),source});
+      yield {start,end:close+1,text:css.slice(start,close+1),source};
       position=close+1;
-
-    }else position=start+4;
-  }
-  // Skip candidates inside comments and strings. Accepted URL tokens are
-  // atomic for lexical scanning, including malformed legacy payloads.
-  let scan=0,comment=false,quote:string|null=null;
-  for(const candidate of candidates){
-    for(;scan<candidate.start;scan++){
-      const char=css[scan],next=css[scan+1];
-      if(comment){if(char==='*'&&next==='/'){comment=false;scan++;}continue;}
-      if(quote){
-        if(char==='\\'){scan++;continue;}
-        if(char===quote)quote=null;
-        continue;
-      }
-      if(char==='/'&&next==='*'){comment=true;scan++;continue;}
-      if(char==='"'||char==="'"){quote=char;continue;}
-    }
-    if(!comment&&!quote){
-      const before=css[candidate.start-1];
-      // CSS Syntax: consume the entire identifier before testing for url().
-      // "unknownurl(" and "myurl(" are other functions, not image URLs.
-      if(before&&(/[a-z0-9_-]/i.test(before)||before==='\\'||before.charCodeAt(0)>=0x80)){
-        scan=candidate.end;continue;
-      }
-      yield candidate;scan=candidate.end;
-    }
+    }else position=opener.after;
   }
 }
 export function replaceCssUrls(css:string,replace:(match:CssUrlMatch)=>string):string{
