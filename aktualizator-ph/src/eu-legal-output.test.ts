@@ -57,7 +57,7 @@ test('EU finalization preserves structural manifests through navigation, canonic
   assert.equal(images.omittedDecorations!.length,2);assert.equal(images.assets.length,0);
   for(const [name,bytes]of before)assert.equal(restoreCanonicalMarkdown(name,fs.readFileSync(path.join(f.dir,name),'utf8'),images),bytes.toString('utf8'));
   const stored=JSON.parse(fs.readFileSync(path.join(f.dir,'IMAGE_INDEX.json'),'utf8'));
-  assert.equal(stored.profile,'legal-images-v1');assert.equal(stored.omittedDecorations.length,2);
+  assert.equal(stored.profile,'legal-images-v2');assert.equal(stored.omittedDecorations.length,2);
 });
 test('structured EU checkpoint requires original text and refuses a changed body even with recomputed file checksums',t=>{
   const f=fixture(t);
