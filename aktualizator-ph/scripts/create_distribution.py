@@ -28,8 +28,15 @@ def digests(stream):
 
 
 def check(actual,expected):
-    for key in ['sha256','md5']:
-        if key in expected and actual[key]!=expected[key]:raise ValueError('Frozen package checksum changed')
+    # MD5 remains a legacy compatibility attribute, not an integrity authority.
+    # A frozen inventory is never accepted without a full SHA-256 checksum.
+    strong=expected.get('sha256')
+    if not isinstance(strong,str) or not re.fullmatch(r'[a-f0-9]{64}',strong):
+        raise ValueError('Frozen package SHA-256 is required')
+    if actual['sha256']!=strong:
+        raise ValueError('Frozen package SHA-256 changed')
+    if 'md5' in expected and actual['md5']!=expected['md5']:
+        raise ValueError('Frozen package MD5 compatibility attribute changed')
     size=expected.get('bytes',expected.get('size'))
     if size is not None and actual['bytes']!=size:raise ValueError('Frozen package size changed')
 
