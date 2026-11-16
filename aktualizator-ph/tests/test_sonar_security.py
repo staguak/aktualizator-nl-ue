@@ -43,11 +43,16 @@ class ZipSafetyTests(unittest.TestCase):
     def recipe(self, directory, source):
         catalog = directory / 'manifest.json'
         catalog.write_bytes(b'{"profile":"test"}')
+        stage = directory / 'input-0'
+        if source.is_symlink():
+            stage.symlink_to(source.resolve())
+        else:
+            stage.write_bytes(source.read_bytes())
         return {
             'target': str(directory / 'source.zip'), 'catalog': str(catalog),
             'catalogSize': catalog.stat().st_size,
             'catalogSha256': hashlib.sha256(catalog.read_bytes()).hexdigest(),
-            'files': [{'name': 'source/data.xml', 'path': str(source),
+            'files': [{'name': 'source/data.xml', 'path': str(stage),
                        'size': source.stat().st_size,
                        'sha256': hashlib.sha256(source.read_bytes()).hexdigest()}],
         }
@@ -62,6 +67,16 @@ class ZipSafetyTests(unittest.TestCase):
             with zipfile.ZipFile(directory / 'source.zip') as result:
                 self.assertEqual(result.read('source/data.xml'), original.read_bytes())
                 self.assertEqual(result.read('manifest.json'), b'{"profile":"test"}')
+
+    def test_untrusted_recipe_paths_cannot_escape_the_staging_directory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            original = directory / 'original.xml'
+            original.write_bytes(b'original')
+            recipe = self.recipe(directory, original)
+            recipe['files'][0]['path'] = '/etc/passwd'
+            with self.assertRaises(ValueError):
+                build(recipe, directory / 'recipe.json')
 
     def test_symlink_and_checksum_changes_are_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
