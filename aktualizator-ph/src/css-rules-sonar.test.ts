@@ -11,7 +11,7 @@ test('linear CSS rule scanner preserves legacy non-nested selector/body matches'
     '\n  .a, .b {white-space: pre; color: red}\n',
   ];
   for(const text of fixtures){
-    const expected=[...text.matchAll(/([^{}]+)\\{([^{}]*)\\}/g)].map(m=>[m[1],m[2]]);
+    const expected=[...text.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(m=>[m[1],m[2]]);
     assert.deepEqual([...simpleCssRules(text)],expected,text);
   }
 });
