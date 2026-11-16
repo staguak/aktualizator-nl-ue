@@ -35,7 +35,7 @@ export function createOfficialImageResolver(options:{load?:EuImageLoader;documen
       try{
         const key=JSON.stringify([context.document.documentId,language]);
         let pending=documents.get(key);
-        if(!pending){pending=Promise.resolve().then(()=>document(context.document.documentId,language));documents.set(key,pending);}
+        if(!pending){pending=document(context.document.documentId,language);documents.set(key,pending);}
         let source:EuSource;
         try{source=await pending;}
         catch(error){if(documents.get(key)===pending)documents.delete(key);throw error;}
