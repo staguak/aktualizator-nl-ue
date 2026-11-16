@@ -12,6 +12,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from build_source_zip import build
+from create_distribution import check as check_frozen_digest
 from public_support import GitHubApi, PublicError
 from verify_inline_images import URL
 
@@ -80,6 +81,18 @@ class ZipSafetyTests(unittest.TestCase):
             recipe['files'][0]['sha256'] = '0' * 64
             with self.assertRaises(ValueError):
                 build(recipe, directory / 'recipe.json')
+
+
+class FrozenDigestTests(unittest.TestCase):
+    def test_strong_sha256_is_mandatory_in_frozen_inventory(self):
+        payload = b'confirmed original bytes'
+        actual = dict(bytes=len(payload), sha256=hashlib.sha256(payload).hexdigest(),
+                      md5=hashlib.md5(payload).hexdigest())
+        check_frozen_digest(actual, actual)
+        with self.assertRaises(ValueError):
+            check_frozen_digest(actual, dict(bytes=len(payload), md5=actual['md5']))
+        with self.assertRaises(ValueError):
+            check_frozen_digest(actual, dict(bytes=len(payload), sha256='0' * 64, md5=actual['md5']))
 
 
 class ApiRouteTests(unittest.TestCase):
