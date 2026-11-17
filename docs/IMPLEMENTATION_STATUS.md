@@ -4,7 +4,7 @@ Zaimplementowano bezstratne grafiki i IMAGE_INDEX (niezmienny Markdown/oryginał
 
 Workflow przygotowano do Releases i małego indeksu dane, odtwarzania runtime/checkpointów/cache, ośmiu części cache, sprzątania 7→≤4 GB oraz dwóch ostatnich prób (także błędnych) i chronionej aktywnej bazy. Nie ustawiono harmonogramu ani kolejki. Kopia kodu, ręczne uruchomienie i dotychczasowe opcje pozostają dostępne. Zakres 23 NL i 65 UE pozostaje bez zmian.
 
-Przeglądy wykryły i doprowadziły do poprawek łącznie 10 ważnych usterek etapów 4–7; szczegóły i testy RED→GREEN w tasks/stage4-progress.md, stage5-progress.md, stage6-7-progress.md. Brak wznowienia/retencji przed pierwszą poprawną bazą i obsługa przerwanego Draft Release zostały naprawione. Niewiadomego/aktywnego właściciela draftu nie usuwa się.
+Przeglądy wykryły i doprowadziły do poprawek łącznie 10 ważnych usterek etapów 4–7; szczegóły i testy RED→GREEN zachowano w zarchiwizowanych poza tym repozytorium raportach postępu. Brak wznowienia/retencji przed pierwszą poprawną bazą i obsługa przerwanego Draft Release zostały naprawione. Niewiadomego/aktywnego właściciela draftu nie usuwa się.
 
 Security Advisory Scout wykrył luki Pillow12.3.0; przypięto Pillow13.0.0 z hashem koła potwierdzonym w PyPI i pobranych bajtach. Zapytania OSV dla Pillow13.0.0 oraz fast-xml-parser5.12.0, fflate0.8.3 i undici7.30.1 nie zwróciły znanych podatności. Audyt workflow: 0 Critical/High/Medium; pozostał Low o braku automatycznych aktualizacji zależności, zgodnie z pozostawieniem pracy bez harmonogramu. CODEOWNERS wskazuje rzeczywistego właściciela, ale nie zastępuje reguł GitHub.
 
@@ -20,7 +20,7 @@ Niezależny przegląd wykrył cztery ważne błędy; wszystkie poprawiono: numer
 
 Świeża weryfikacja: 332/332 npm test, obie kontrole typów, BWB selftest, 14 testów integracji XML, 34 testy XML Python, 44 publiczne testy Python — PASS. Testy wymagające lokalnego serwera wykonano z uprawnieniem do sieci. XML wymaga przypiętego interpretera .venv; systemowy Python bez zależności był prawidłowo odrzucany. Rekonstrukcję sprawdzono też na zapisanych oficjalnych wyroku i opinii C-19/23 oraz niderlandzkiej dyrektywie 32008L0104; to nie jest odbiór całego korpusu ani publicznego przebiegu.
 
-Dowody lokalne: `/workspace/publication-review/step4/`; plan i szczegóły doboru wtyczek/błędów: `tasks/plan.md`, `tasks/stage4-progress.md`. Etapy 5–8 nadal wymagają wykonania. Poniżej zachowano historyczny raport etapów 1–3; jego tabela opisuje stan sprzed etapu 4.
+Dowody lokalne: `/workspace/publication-review/step4/`; plan i szczegóły doboru wtyczek/błędów zarchiwizowano poza tym repozytorium. W tamtym punkcie kontrolnym etapy 5–8 pozostawały do wykonania. Poniżej zachowano historyczny raport etapów 1–3; jego tabela opisuje stan sprzed etapu 4.
 
 # Stan wdrożenia — kroki 1–3 — 2026-11-14
 
