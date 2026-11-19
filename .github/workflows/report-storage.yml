@@ -26,15 +26,39 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: main
-          persist-credentials: false
+      # workflow_run and check_run originate outside this trusted workflow.
+      # Fetch ONLY the script at the SHA that defines this workflow (main),
+      # never code from a contributor branch or fork.
+      - name: Fetch exporter from trusted workflow commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, re, urllib.request
+          repo, sha = os.environ['GITHUB_REPOSITORY'], os.environ['WORKFLOW_SHA']
+          if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repo):
+              raise ValueError('Invalid repository')
+          if not re.fullmatch(r'[a-fA-F0-9]{40}', sha):
+              raise ValueError('Invalid trusted workflow SHA')
+          url = f'https://api.github.com/repos/{repo}/contents/aktualizator-ph/scripts/export_run_reports.py?ref={sha}'
+          request = urllib.request.Request(url, headers={
+              'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+              'Accept': 'application/vnd.github+json',
+              'User-Agent': 'aktualizator-report-archive'})
+          with urllib.request.urlopen(request, timeout=20) as response:
+              payload = json.load(response)
+          if payload.get('encoding') != 'base64' or payload.get('type') != 'file':
+              raise ValueError('Unexpected export script response')
+          script = base64.b64decode(payload['content'].replace('\\n', ''), validate=True)
+          with open('export_run_reports.py', 'wb') as target:
+              target.write(script)
+          PY
       - name: Export source run or completed SonarCloud check
         env:
           GITHUB_TOKEN: ${{ github.token }}
           SONAR_WAIT_SECONDS: '120'
-        run: python3 aktualizator-ph/scripts/export_run_reports.py github-reports
+        run: python3 export_run_reports.py
       - name: Save report to GitHub Actions artifact storage
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
