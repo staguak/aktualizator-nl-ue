@@ -172,6 +172,44 @@ class ReportExportTests(unittest.TestCase):
             finally:
                 os.chdir(old_cwd)
 
+    def test_reconcile_id_is_authorized_by_api_not_arbitrary_payload(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'event.json').write_text('{"repository":{"full_name":"' + REPO + '"}}')
+            old_cwd = Path.cwd()
+            events = []
+            def record(event_name, event, _gh):
+                events.append((event_name, event))
+                return {'type': 'sonarqube-cloud'}
+            try:
+                os.chdir(root)
+                env = {'GITHUB_EVENT_PATH': str(root / 'event.json'),
+                       'GITHUB_REPOSITORY': REPO, 'GITHUB_TOKEN': 'fake',
+                       'GITHUB_EVENT_NAME': 'schedule', 'SONAR_RECONCILE_CHECK_ID': '9001'}
+                with patch.dict(os.environ, env), patch('export_run_reports.export', side_effect=record):
+                    self.assertEqual(main(), 0)
+                self.assertEqual(events[0][0], 'check_run')
+                self.assertEqual(events[0][1]['check_run']['id'], 9001)
+                self.assertEqual(events[0][1]['repository']['full_name'], REPO)
+            finally:
+                os.chdir(old_cwd)
+
+    def test_reconcile_rejects_external_check_identifiers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'event.json').write_text('{}')
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                env = {'GITHUB_EVENT_PATH': str(root / 'event.json'),
+                       'GITHUB_REPOSITORY': REPO, 'GITHUB_TOKEN': 'fake',
+                       'GITHUB_EVENT_NAME': 'schedule', 'SONAR_RECONCILE_CHECK_ID': '../private'}
+                with patch.dict(os.environ, env), patch('export_run_reports.export') as mocked:
+                    self.assertEqual(main(), 1)
+                    mocked.assert_not_called()
+            finally:
+                os.chdir(old_cwd)
+
     def test_git_api_rejects_bad_repo(self):
         with self.assertRaisesRegex(ExportError, 'INVALID_REPOSITORY'):
             GitHub('../../bad', 'dummy')
