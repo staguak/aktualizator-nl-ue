@@ -1,11 +1,9 @@
 name: SonarCloud - kontrola brakujących raportów
 
 on:
-  # Secondary safety net; the existing check_run trigger is still immediate.
-  schedule:
-    - cron: '17,47 * * * *'
-  workflow_dispatch:
-  # Also validate reconciliation after each update of main.
+  # Each commit pushed to main runs Verify public updater code.
+  # Reconcile only when that push-triggered verification finishes.
+  # There is no periodic polling or manual trigger.
   workflow_run:
     workflows:
       - Verify public updater code
@@ -22,9 +20,10 @@ jobs:
       checks: read
       pull-requests: read
     if: >-
-      github.event_name != 'workflow_run' ||
-      (github.event.workflow_run.head_branch == 'main' &&
-       github.event.workflow_run.head_repository.full_name == github.repository)
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     outputs:
