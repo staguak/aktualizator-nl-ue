@@ -193,11 +193,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/public_github.py retain
-      - name: Trim local source cache and compute shard signatures
+      - name: Compute source cache shard signatures
         id: cache_state
         if: always() && steps.admission.outputs.accepted == 'true'
         run: |
-          python3 scripts/public_cache.py local
           python3 scripts/public_cache.py signatures > .cache-signatures.json
           python3 -c 'import json,os; values=json.load(open(".cache-signatures.json")); out=open(os.environ["GITHUB_OUTPUT"],"a"); [print("shard"+key+"="+value,file=out) for key,value in values.items()]'
       - name: Save source cache shard 0
@@ -296,13 +295,8 @@ jobs:
             aktualizator-ph/.source-cache/models/7
             aktualizator-ph/.source-cache/validated/7
           key: nl-ue-source-v5-${{ runner.os }}-s7-${{ steps.cache_state.outputs.shard7 }}
-      - name: Trim old owned GitHub cache entries after saving this attempt
-        if: always() && steps.admission.outputs.accepted == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/public_cache.py remote
       - name: Refresh diagnostics after state and cache maintenance
-        # Refresh safe diagnostics after retention/cache maintenance too.
+        # Refresh safe diagnostics after publication and cache saving.
         # Publication status and the active data pointer remain independent.
         if: always() && steps.checkout.outcome == 'success'
         env:
