@@ -26,6 +26,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
+      - name: Initialize fallback diagnostic artifact
+        run: |
+          mkdir -p github-reports
+          echo '{"status":"incomplete","reason":"export did not complete; inspect workflow logs"}' > github-reports/export-incomplete.json
       # workflow_run and check_run originate outside this trusted workflow.
       # Fetch ONLY the script at the SHA that defines this workflow (main),
       # never code from a contributor branch or fork.
@@ -50,7 +54,7 @@ jobs:
               payload = json.load(response)
           if payload.get('encoding') != 'base64' or payload.get('type') != 'file':
               raise ValueError('Unexpected export script response')
-          script = base64.b64decode(payload['content'].replace('\\n', ''), validate=True)
+          script = base64.b64decode(''.join(payload['content'].split()), validate=True)
           with open('export_run_reports.py', 'wb') as target:
               target.write(script)
           PY
@@ -59,6 +63,9 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           SONAR_WAIT_SECONDS: '120'
         run: python3 export_run_reports.py
+      - name: Remove fallback marker after successful export
+        if: success()
+        run: rm -f github-reports/export-incomplete.json
       - name: Save report to GitHub Actions artifact storage
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
