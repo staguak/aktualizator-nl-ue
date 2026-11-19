@@ -50,7 +50,7 @@ jobs:
               payload = json.load(response)
           if payload.get('encoding') != 'base64' or payload.get('type') != 'file':
               raise ValueError('Unexpected export script response')
-          script = base64.b64decode(payload['content'].replace('\\n', ''), validate=True)
+          script = base64.b64decode(''.join(payload['content'].split()), validate=True)
           with open('export_run_reports.py', 'wb') as target:
               target.write(script)
           PY
