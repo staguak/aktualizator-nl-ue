@@ -1,0 +1,45 @@
+name: Archiwum raportów Git i SonarQube
+
+on:
+  workflow_run:
+    workflows:
+      - Verify public updater code
+      - Publiczna baza NL i UE
+      - Aktualizator prawa NL i UE
+    types: [completed]
+  check_run:
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+  checks: read
+
+jobs:
+  archive:
+    # The SonarCloud GitHub App publishes a check run; GitHub Actions publish
+    # workflow_run events. Do not execute code or check out untrusted commits.
+    if: >-
+      github.event_name == 'workflow_run' ||
+      (github.event_name == 'check_run' &&
+       github.event.check_run.app.slug == 'sonarqubecloud')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Export source run or completed SonarCloud check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SONAR_WAIT_SECONDS: '120'
+        run: python3 aktualizator-ph/scripts/export_run_reports.py github-reports
+      - name: Save report to GitHub Actions artifact storage
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: report-${{ github.event_name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: github-reports/
+          retention-days: 90
+          if-no-files-found: error
