@@ -125,10 +125,16 @@ class ReconciliationTests(unittest.TestCase):
         with self.assertRaisesRegex(ExportError, 'INCOMPLETE_CHECK_HISTORY'):
             discover(TooManyChecks({}), now=NOW)
 
-    def test_workflow_has_schedule_manual_trigger_and_reconcile_matrix(self):
+    def test_reconciliation_runs_only_after_main_push_verification(self):
         workflow = (ROOT.parent / '.github/workflows/sonar-reconciliation.yml').read_text()
-        self.assertIn('workflow_dispatch:', workflow)
-        self.assertIn('schedule:', workflow)
+        self.assertIn('workflow_run:', workflow)
+        self.assertIn('Verify public updater code', workflow)
+        self.assertIn("github.event.workflow_run.event == 'push'", workflow)
+        self.assertIn("github.event.workflow_run.head_branch == 'main'", workflow)
+        self.assertIn("github.event.workflow_run.head_repository.full_name == github.repository", workflow)
+        self.assertNotIn('schedule:', workflow)
+        self.assertNotIn('workflow_dispatch:', workflow)
+        self.assertNotIn('sonarcloud-reconcile-frequent-poll', workflow)
         self.assertIn('sonar_reconcile.py', workflow)
         self.assertIn('fromJSON(needs.reconcile_discover.outputs.checks)', workflow)
         self.assertIn('sonar-check-', workflow)
