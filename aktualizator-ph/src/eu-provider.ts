@@ -142,7 +142,7 @@ SELECT DISTINCT ?id ?p ?v ?relation ?w WHERE {
   archive?.completeDiscovery({protocol:'CELLAR-SPARQL',rowCount:rows.length,limit:10000,
     scope:'Configured CELEX family, relations and required pins; completed bounded query.'});
   for (const doc of documents.values()){
-    for (const values of Object.values(doc.metadata)) values.sort();
+    for (const values of Object.values(doc.metadata)) values.sort((a,b)=>a.localeCompare(b,'en'));
     doc.territorialObservations?.sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b),'en'));
     doc.officialDates?.sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b),'en'));
   }

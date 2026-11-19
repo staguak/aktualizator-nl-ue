@@ -24,12 +24,14 @@ def md5(data):
 def verify_digests(data, record):
     # MD5 is only a legacy compatibility attribute. New source evidence
     # carries a SHA-256 digest which is independently checked here.
-    if len(data) != record['size'] or md5(data) != record['md5']:
-        return False
+    legacy = record.get('md5')
     strong = record.get('sha256')
-    return strong is None or (isinstance(strong, str) and
-        re.fullmatch(r'[a-f0-9]{64}', strong) is not None and
-        hashlib.sha256(data).hexdigest() == strong)
+    if len(data) != record['size'] or (legacy is not None and md5(data) != legacy):
+        return False
+    if strong is None:
+        return legacy is not None
+    return (isinstance(strong, str) and re.fullmatch(r'[a-f0-9]{64}', strong) is not None
+            and hashlib.sha256(data).hexdigest() == strong)
 
 
 def load_manifest(directory):

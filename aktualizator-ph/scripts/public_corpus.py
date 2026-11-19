@@ -309,7 +309,8 @@ def clean_manifest(manifest, directory, target):
             data = public_catalog(json_file(directory / name),
                                   lambda object_name, body: install_evidence(target, object_name, body))
             (target / name).write_bytes(data)
-            record.update(size=len(data), md5=hashlib.md5(data).hexdigest(), sha256=digest(data))
+            record.pop('md5', None)
+            record.update(size=len(data), sha256=digest(data))
             record.pop('reportEvidence', None)
     return manifest
 
@@ -361,17 +362,16 @@ def history_payload(directory, cache=None):
             if record['name'].endswith('.json'):
                 catalog = stable_catalog(json_file(directory / record['name']))
                 payload[record['name']] = catalog
-                record.update(size=len(catalog), md5=hashlib.md5(catalog).hexdigest(), sha256=digest(catalog))
             else:
-                original = record.copy()
-                old_name = original['name']
-                catalog = public_catalog(read_legacy_catalog(directory, original, cache),
+                old_name = record['name']
+                catalog = public_catalog(read_legacy_catalog(directory, record, cache),
                                          lambda name, body: payload.setdefault(name, body))
                 name = old_name.removesuffix('.zip') + '.json'
                 payload[name] = catalog
-                record.update(name=name, size=len(catalog), md5=hashlib.md5(catalog).hexdigest(), sha256=digest(catalog),
-                              legacyArchiveSha256=original.get('sha256') or digest((directory / old_name).read_bytes()))
+                record.update(name=name, legacyArchiveSha256=record.get('sha256') or digest((directory / old_name).read_bytes()))
                 record.pop('distribution', None)
+            record.pop('md5', None)
+            record.update(size=len(catalog), sha256=digest(catalog))
     payload['manifest.json'] = canonical(manifest)
     return payload
 

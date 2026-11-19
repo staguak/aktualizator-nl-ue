@@ -89,6 +89,10 @@ class FileBasedPublicationTests(unittest.TestCase):
                 self.assertEqual(previous['profile'], corpus.PROFILE)
                 self.assertFalse(any(row['name'].endswith('.zip') for row in previous['files']))
                 self.assertNotIn('generatedAt', (state / 'prior/NL/manifest.json').read_text())
+                catalog = corpus.json_file(state / 'prior/NL/manifest.json')['acts'][0]['sourceArchive']
+                self.assertNotIn('md5', catalog)
+                self.assertTrue(corpus.verify_digests((state / 'prior/NL' / catalog['name']).read_bytes(), catalog))
+                self.assertFalse(corpus.verify_digests(b'0' * catalog['size'], catalog))
                 history = corpus.history_rows(state / 'prior/NL')[0]['files']
                 self.assertIn('historical', (state / 'prior/NL' / history['law.md']['path']).read_text())
                 request.update(previousSha=sha, initialize=False, priorDirectory='prior')
