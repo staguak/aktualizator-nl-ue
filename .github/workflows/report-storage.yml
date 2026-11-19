@@ -66,11 +66,21 @@ jobs:
       - name: Remove fallback marker after successful export
         if: success()
         run: rm -f github-reports/export-incomplete.json
-      - name: Save report to GitHub Actions artifact storage
-        if: always()
+      - name: Save complete report to GitHub Actions artifact storage
+        if: success()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: report-${{ github.event_name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          # Stable Sonar check ID enables incremental reconciliation without
+          # treating an unsuccessful export as a successfully archived report.
+          name: ${{ github.event_name == 'check_run' && format('sonar-check-{0}', github.event.check_run.id) || format('report-{0}-{1}-{2}', github.event_name, github.run_id, github.run_attempt) }}
+          path: github-reports/
+          retention-days: 90
+          if-no-files-found: error
+      - name: Save failure diagnostics
+        if: ${{ always() && (failure() || cancelled()) }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: error-${{ github.event_name }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: github-reports/
           retention-days: 90
           if-no-files-found: error
