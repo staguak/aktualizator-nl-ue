@@ -5,7 +5,6 @@ Każdy może czytać i pobierać opublikowane pliki oraz kopiować kod. Zwykły 
 nie ma prawa zapisu do tego repozytorium. Poprawki można zaproponować przez pull request.
 
 **[Otwórz aktualną bazę](https://github.com/staguak/aktualizator-nl-ue/tree/dane)** ·
-**[Pobierz pliki z Releases](https://github.com/staguak/aktualizator-nl-ue/releases)** ·
 **[Zamów aktualizację](https://github.com/staguak/aktualizator-nl-ue/issues/new?template=refresh-public-corpus.yml)**
 
 Baza pojawia się po pierwszym udanym uruchomieniu workflow **Publiczna baza NL i UE**.
@@ -14,29 +13,22 @@ Nie zakładaj aktualności wyłącznie na podstawie zielonego testu kodu: sprawd
 
 ## Odczyt i uruchamianie
 
-* **Każdy, również bez konta GitHub**, może otworzyć indeks na gałęzi `dane` i pobrać pliki z Releases.
-  `NL-results.zip` i `UE-results.zip` zawierają Markdown, indeksy, raporty i grafiki;
-  `NL-sources.zip` i `UE-sources.zip` — po jednej wspólnej paczce wszystkich oryginałów.
-  Źródła są rozłożone w katalogach aktów; `BUNDLE_INDEX.json` opisuje ich kompletność.
-  Pobierz obie paczki wybranego korpusu, aby mieć treść i źródła. ZIP samej gałęzi `dane` zawiera tylko indeks.
+* **Każdy, również bez konta GitHub**, może otworzyć indeks i pobrać pliki bezpośrednio z gałęzi `dane`.
+  Katalogi `NL/` i `UE/` zawierają Markdown, indeksy i grafiki. Zachowane wersje wcześniejszych migawek
+  są dostępne przez `history.json`, który wiąże pierwotne nazwy i sumy SHA-256 z obecnymi ścieżkami.
+  Wydania GitHub sprzed przejścia na ten model są materiałem historycznym.
 * **Każdy zalogowany użytkownik** może zamówić odświeżenie formularzem zgłoszenia
   powyżej. Zachowaj tytuł `[Aktualizacja bazy]`. Nie wpisuj sekretów ani danych osobowych.
   Gdy aktualizator jest wolny, bot poda wynik i linki. Gdy już pracuje, prośba
   zostanie odrzucona z komunikatem i linkiem do trwającej operacji; nie trafi do kolejki.
 * **Właściciel** może wybrać Actions → **Publiczna baza NL i UE** → Run workflow → `main`.
-  Opcja `force` pomija godzinną ochronę przed powtarzaniem tego samego odświeżenia.
-  `full_source_audit` samo wymusza ponowne pobranie wszystkich treści i pominięcie cache
-  parserów, również dla świeżej bazy i bez zaznaczania `force`. Żadna z tych opcji
-  nie omija blokady aktualizatora, który już pracuje.
+  Opcja `force` uruchamia pełny zestaw kroków pomimo skądinąd wystarczającego wyniku wstępnego.
+  Opcja `full_source_audit` wymusza ponowne pobranie treści i pomija cache parserów.
+  Blokada działa tak samo dla audytu pełnego i sprawdzenia przyrostowego.
 
-Publiczne żądanie wybiera wyłącznie działanie „odśwież”. Nie wybiera kodu, gałęzi,
-ścieżek, poleceń ani konfiguracji. Używa zatwierdzonego zakresu z `main`.
-Jeśli ten sam wykonywalny kod i konfiguracja opublikowały poprawny zestaw mniej niż godzinę
-wcześniej i dla tego samego dnia w Warszawie, żądanie zwróci istniejącą bazę.
-Po godzinie albo zmianie dnia, wykonywalnego kodu lub konfiguracji potrzebne jest nowe
-sprawdzenie. Zmiana autora, komunikatu scalenia, dokumentacji lub testów nie wymusza
-pobierania całego korpusu. Manifest zachowuje rzeczywistą rewizję producenta, a osobny
-`executionSha256` identyfikuje kod używany do decyzji o ponownym budowaniu.
+Publiczne żądanie uruchamia zatwierdzony zakres z `main`. Aktualizator sprawdza
+źródła oraz porównuje ustalenia prawne z poprzednią bazą. Wynik `NO_CHANGE`
+pozostawia ten sam commit `dane` i udostępnia w Actions artefakt `wait.md`.
 
 Jednocześnie działa najwyżej jeden aktualizator. **Nie ma kolejki aktualizacji.**
 Nowe żądanie podczas pracy dostaje błąd „aktualizacja w toku” i nie uruchomi się później.
@@ -47,36 +39,25 @@ Wszyscy korzystają z tej samej opublikowanej bazy. **Harmonogram nie jest ustaw
 
 ## Zapis danych i sprzątanie
 
-Program pobiera źródła i buduje oba moduły na tymczasowym runnerze GitHub. Po kontroli
-kompletności, treści, obrazów, ZIP/XML i hashy publikuje **spójny zestaw w Releases**,
-a na gałęzi `dane` zapisuje mały indeks z linkami i sumami kontrolnymi.
-Cały wskaźnik gałęzi zmienia się atomowo, z kontrolą poprzedniej rewizji. Błąd budowania
-lub równoległa zmiana magazynu nie usuwa ostatniego poprawnego zestawu.
+Przy pierwszym starcie faza BASE buduje stan na `rangeFrom`, a faza UPDATE
+uzupełnia go do `rangeTo`. Obie fazy podlegają audytowi w tym samym uruchomieniu.
+Przy poprawnej istniejącej bazie aktualizator wykonuje fazę UPDATE.
 
-Każda publikacja danych jest nowym, niezależnym commitem bez rodzica. Zastępuje stary
-snapshot, usuwa zbędne pliki poprzedniej wersji i nie zachowuje łańcucha starych wydań
-tej gałęzi. Historyczne teksty przepisów potrzebne dla wybranego zakresu są nadal
-częścią materiału urzędowego; nie są zbędnymi plikami technicznymi.
+Po audycie i scaleniu historii program porównuje osobno sumę bajtów `NL/` i `UE/`.
+Spadek w którymkolwiek katalogu blokuje zapis. Zaktualizowana baza ma postać osobnych
+plików na `dane`. Jedna zmiana ref z kontrolą oczekiwanego SHA instaluje spójny
+commit bez rodzica. Niepowodzenie próby pozostawia ostatnią zweryfikowaną bazę.
 
-Końcowe kroki zapisują raport i stan próby, zachowują dwa ostatnie uruchomienia
-(także nieudane) oraz chronioną aktywną poprawną bazę, jeżeli jest starsza.
-Podczas nowej próby dostępne są dwa poprzednie zestawy i budowany nowy; po
-zakończeniu starsze materiały techniczne są usuwane. Historia prawa potrzebna
-w aktualnej bazie pozostaje częścią treści. Checkpointy i cache mogą zostać
-odtworzone przy następnym uruchomieniu. Nieudana próba nie zastępuje poprawnej bazy.
+HTTP, parsery, modele, checkpointy i wyniki walidacji korzystają z ośmiu części
+cache GitHub Actions. Odpowiedź 304 pozwala wykorzystać zweryfikowany obiekt.
+Poszczególne źródła są identyfikowane przez SHA-256. Oryginalny ZIP Formex
+może znajdować się w cache w formacie dostawcy. Dostępnością i retencją cache
+oraz logów zarządza GitHub.
 
-Źródła mają cache HTTP, parserów, modeli i walidacji, przechowywany w ośmiu częściach
-GitHub Actions. Odpowiedź 304 pozwala wykorzystać wcześniejsze bajty; zmiana SHA
-wymaga przetworzenia. Po przekroczeniu 7 GB program usuwa najstarsze pliki
-cache do najwyżej 4 GB; podobnie ogranicza własne stare wpisy cache GitHub.
-GitHub może spakować lub usunąć cache według własnych zasad. Archiwa poprzedniej
-bazy umożliwiają odtworzenie źródeł po utracie cache. Plik runtime w Releases
-służy do wznowienia i przechowuje również potrzebne obliczone wyniki.
-
-Nie tworzymy GitHub Artifacts. Sprzątanie usuwa katalog roboczy bieżącej próby
-i logi; zachowuje cache, checkpointy i zweryfikowane wyniki. Logi statusów Actions
-pozostają zgodnie z zasadami GitHub. Bezpieczny raport podaje kod i etap błędu;
-błąd powiadomienia nie zmienia potwierdzonej publikacji.
+Domyślna kolejność języków UE to EN, FR i języki aktywnych modułów krajowych.
+Publiczny zestaw NL+UE używa EN, FR, NL. Przy potwierdzonej dostępności tylko
+w innych językach indeks podaje `SKIPPED_UNSUPPORTED_LANGUAGE`.
+`APPLICABILITY_UNKNOWN` oznacza zachowaną treść o niepotwierdzonym zasięgu terytorialnym.
 
 Mała gałąź `updater-state` przechowuje jeden plik `state.json` i jeden commit: aktualny
 stan RUNNING/IDLE, identyfikator uruchomienia oraz okno czasu ostatniej operacji. To
@@ -90,13 +71,12 @@ repo na serwerze: nieosiągalne obiekty usuwa GitHub. Markdown ma pomocniczy lim
 sekcji, artykułów i innych jednostek prawnych; nie z celu znakowego. Manifest
 pozwala odtworzyć całą wersję i odnaleźć jednostki. Nie ma osobnego eksportu artykułów.
 Zbyt dużą jednostkę można dzielić tylko przy bezpiecznej granicy jej struktury.
-Surowy RDF/XML nie ma programowego limitu wielkości. Pojedynczy zasób Releases
-musi mieścić się w limicie GitHub (poniżej 2 GiB); przekroczenie blokuje publikację.
+Surowy RDF/XML nie ma programowego limitu wielkości. Publiczne pliki podlegają limitowi GitHub dla zwykłych obiektów Git.
 
 Maszynowy `manifest.json` wskazuje osobne indeksy poszczególnych wersji
 `LEGAL_<SHA-256>.json`. Każde odwołanie podaje akt, wersję, język, rozmiar i hash.
 Indeksy zawierają pełną hierarchię jednostek oraz zakresy rekonstrukcji; znajdują
-się w paczce wynikowej. Ten podział techniczny metadanych nie zmienia granic
+się w katalogu danego modułu. Ten podział techniczny metadanych nie zmienia granic
 prawnych ani treści Markdown. Starsze manifesty z osadzonymi indeksami nadal
 można odczytywać.
 
@@ -143,15 +123,15 @@ LAW_XML_VALIDATION=required node --import tsx src/github-build.ts
 ```
 
 Nie przekazuj temu procesowi OAuth, tokenów GitHub ani prywatnej konfiguracji.
-Lokalnie wynik pozostanie w `output/` oraz `output-ue/`, a gotowe paczki
-w `.public-state/distribution/`. Automatyczne publikowanie
+Lokalnie wynik pozostanie w `output/` oraz `output-ue/`. Dowody audytu znajdują się
+w `.public-state/`. Aby sprawdzić obie fazy lokalnie, ustaw `LAW_PUBLIC_INITIALIZE=true`. Publikowanie
 na GitHub wykonuje przygotowany workflow z kontrolą kontekstu i sprzątaniem.
 
 ## Weryfikacja i koszty
 
 Workflow **Verify public updater code** testuje zmiany bez dostępu do danych prywatnych.
 Sprawdzenia obejmują parsery, oba moduły, XML, integralność, ochronę parametrów,
-atomową publikację, usuwanie starego snapshotu, konflikt równoległego zapisu i sprzątanie.
+atomową publikację, zachowanie historii, konflikt równoległego zapisu i sprzątanie.
 Dodatkowo każdy publiczny zestaw przechodzi niezależny audyt bajtów źródeł i ZIP/XML.
 Brak opcjonalnego Formex lub węższe metadane RDF pozostają ostrzeżeniem w raporcie.
 

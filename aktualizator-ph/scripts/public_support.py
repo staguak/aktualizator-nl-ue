@@ -144,7 +144,8 @@ def executable_digest(app):
         executable = (name.startswith('src/') and name.endswith('.ts')
                       and not name.endswith(('.test.ts', '.integration.ts')) and p.name != 'parser-selftest.ts')
         helper = name.startswith('scripts/') and p.suffix in {'.ts', '.py', '.txt'} and not p.name.startswith('test_')
-        schema = name in {'docs/schema-research/catalog.json', 'docs/schema-research/official-schemas.zip'}
+        schema = (name in {'docs/schema-research/catalog.json', 'docs/schema-research/official-schemas.zip'}
+                  or re.fullmatch(r'docs/schema-research/formex-[0-9.]+-[0-9]{8}\.xd', name))
         if name in fixed or executable or helper or schema:
             files.append(name)
     if not files or not fixed <= set(files):

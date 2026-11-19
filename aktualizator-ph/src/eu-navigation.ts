@@ -1,10 +1,9 @@
 import { load } from 'cheerio';
+import type { CheerioAPI } from 'cheerio';
 
 export interface EuNavigation { sourceFragmentIssues: string[] }
-const idsIn = (html: string): Set<string> => {
-  const $ = load(html);
-  return new Set($('[id],[name]').toArray().flatMap((e) => [$(e).attr('id'), $(e).attr('name')]).filter((id): id is string => !!id));
-};
+const idsIn = ($: CheerioAPI): Set<string> =>
+  new Set($('[id],[name]').toArray().flatMap((e) => [$(e).attr('id'), $(e).attr('name')]).filter((id): id is string => !!id));
 const fragment = (value: string): string => {
   try { return decodeURIComponent(value); } catch { throw new Error('Malformed EU fragment identifier.'); }
 };
@@ -13,7 +12,7 @@ export function resolveEuNavigation(chunks: string[], names: string[], sourceUrl
   if (chunks.length !== names.length || new Set(names).size !== names.length ||
       names.some((name) => !/^[A-Za-z0-9_.-]+\.md$/.test(name))) throw new Error('Invalid EU part names.');
   const targets = new Map<string, number>();
-  chunks.forEach((chunk, i) => { for (const id of idsIn(chunk)) if (!targets.has(id)) targets.set(id, i); });
+  chunks.forEach((chunk, i) => { for (const id of idsIn(load(chunk))) if (!targets.has(id)) targets.set(id, i); });
   const sourceFragmentIssues = new Set<string>();
   const resolved = chunks.map((chunk, i) => {
     const $ = load(chunk,{sourceCodeLocationInfo:fragmentMode},!fragmentMode);
@@ -55,16 +54,19 @@ export function resolveEuNavigation(chunks: string[], names: string[], sourceUrl
 }
 
 export function validateEuNavigation(chunks: string[], names: string[]): void {
-  const targets = new Map(names.map((name, i) => [name, idsIn(chunks[i])]));
-  chunks.forEach((chunk, i) => {
+  const targets = new Map<string, Set<string>>();
+  const links = chunks.map((chunk, i) => {
     const $ = load(chunk);
-    $('a[href]').each((_j, e) => {
-      const href = $(e).attr('href')!;
-      if (href === '#' || /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(href)) return;
+    targets.set(names[i], idsIn($));
+    return $('a[href]').toArray().map(e => $(e).attr('href')!);
+  });
+  links.forEach((hrefs, i) => {
+    for (const href of hrefs) {
+      if (href === '#' || /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(href)) continue;
       const separator = href.indexOf('#');
       const name = separator < 0 ? href : href.slice(0, separator) || names[i];
       const id = separator < 0 ? '' : fragment(href.slice(separator + 1));
       if (!targets.has(name) || (id && !targets.get(name)!.has(id))) throw new Error('Broken local EU reference.');
-    });
+    }
   });
 }

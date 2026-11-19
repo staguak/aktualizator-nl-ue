@@ -12,7 +12,9 @@ import {XmlFrameDecoder} from './xml-frame-decoder.js';
 import {XmlValidationQueue,XmlQueueCapacityError} from './xml-validation-queue.js';
 import {XmlInputDeadline} from './xml-input-deadline.js';
 
-export const XML_PROFILE='official-xml-v3-formex1-rdf3:3cffd241a1bffb19754d45568a444d97c009173d7e09c64224b427f33cba6e24';
+const schemaCatalog=fs.readFileSync(new URL('../docs/schema-research/catalog.json',import.meta.url));
+const schemaCount=JSON.parse(schemaCatalog.toString('utf8')).entries.length;
+export const XML_PROFILE='official-xml-v3-formex1-rdf3:'+createHash('sha256').update(schemaCatalog).digest('hex');
 export type XmlKind='BWB-Toestand'|'BWB-WTI'|'BWB-manifest'|'SRU-2.0'|'CELLAR-Formex4'|'CELLAR-RDF-tree'|'CELLAR-RDF-object'|'CELLAR-XML-branch';
 export interface XmlReceipt {
   profile:string;status:string;sourceSha256:string;sourceBytes:number;kind:XmlKind;
@@ -100,7 +102,7 @@ class XmlClient {
           const message=JSON.parse(line);
           if(message.type==='fatal'&&message.code==='XML_VALIDATOR_UNAVAILABLE'){this.fail('HELPER_REJECTED');return;}
           if(message.type==='ready'){
-            if(message.profile!==XML_PROFILE||message.lxml!=='6.1.3'||message.rdf!=='7.6.0'||message.schemas!==33)throw new Error();
+            if(message.profile!==XML_PROFILE||message.lxml!=='6.1.3'||message.rdf!=='7.6.0'||message.schemas!==schemaCount)throw new Error();
             resolveReady();continue;
           }
           const wait=this.pending.get(message.id);if(!wait||!message.result)throw new Error();

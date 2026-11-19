@@ -15,6 +15,10 @@ export function validateSourceIssues(issues:unknown,warnings:unknown):asserts is
   }
   if(warnings.some(w=>!issues.some(i=>i.message===w)))throw new Error('Unclassified source warning.');
 }
+export function blocksPublicSourceCoverage(issue:SourceIssue):boolean{
+  return ['SOURCE_UNAVAILABLE','REPRESENTATION_REJECTED','HISTORY_INCOMPLETE','CRITICAL'].includes(issue.classification)||
+    ['WEMI_INDEX_UNAVAILABLE','RDF_NOTICE_UNAVAILABLE','FORMEX_LOCATION_FAILED'].includes(issue.code);
+}
 export interface SourceAvailability {
   identifier:string;profile:'source-issues-v1'|'LEGACY_UNCLASSIFIED';issues:SourceIssue[];
   legacyWarnings:string[];hasOfficialTextFallback:boolean;

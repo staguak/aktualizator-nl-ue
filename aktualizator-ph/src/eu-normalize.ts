@@ -130,6 +130,7 @@ export function euContent(title:string,celex:string,part:number,total:number,bod
 export function normalizeFinalEuBody(body:string): string {
   const text=normalizeEuBody(body.replace(/\r\n?/g,'\n')).body;
   if(body.includes(EU_START)||body.includes(EU_END))throw new Error('Reserved EU boundary marker in source.');
+  if(text===body)return body;
   if(hasSensitiveEuBody(body)&&!equivalentHtml(body,text))throw new Error('Cannot normalize sensitive legal whitespace safely.');
   // Legal whitespace is not the generated-control-file trailing-space policy.
   assert.deepEqual(htmlSignature(body).tags,htmlSignature(text).tags);

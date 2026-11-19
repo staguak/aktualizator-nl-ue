@@ -51,7 +51,8 @@ export function readEuCheckpointFiles(dir:string,acts:EuBuiltAct[],scope:EuAct[]
     assertEuCaseSource(act,native.index,native.items,native.index.range.to);
     assertMissingEuEvidence(act,native.index,native.items);
     const missing=missingEuDocuments(act);
-    if(!Array.isArray(act.files)||!act.files.length&&!missing.length||!Array.isArray(act.documents)||!act.documents.length&&!missing.length||
+    const skipped=act.excludedDocuments?.some(row=>row.reason==='SKIPPED_UNSUPPORTED_LANGUAGE');
+    if(!Array.isArray(act.files)||!act.files.length&&!missing.length&&!skipped||!Array.isArray(act.documents)||!act.documents.length&&!missing.length&&!skipped||
       new Set(act.documents.map(d=>d.celex)).size!==act.documents.length)throw new Error('Invalid EU checkpoint documents.');
     const texts=new Map<string,string>();
     for(const file of act.files){

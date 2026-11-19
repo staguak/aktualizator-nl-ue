@@ -26,7 +26,24 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
+      - name: Check for a public no-change receipt
+        id: public_wait
+        if: >-
+          github.event_name == 'workflow_run' &&
+          github.event.workflow_run.name == 'Publiczna baza NL i UE' &&
+          github.event.workflow_run.conclusion == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
+          SOURCE_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+        run: |
+          [[ "$SOURCE_RUN_ID" =~ ^[1-9][0-9]*$ && "$SOURCE_ATTEMPT" =~ ^[1-9][0-9]*$ ]]
+          names=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/artifacts" --jq '.artifacts[] | select(.expired == false) | .name')
+          if printf '%s\n' "$names" | grep -Fxq "wait-$SOURCE_ATTEMPT"; then
+            echo 'skip=true' >> "$GITHUB_OUTPUT"
+          fi
       - name: Initialize fallback diagnostic artifact
+        if: steps.public_wait.outputs.skip != 'true'
         run: |
           mkdir -p github-reports
           echo '{"status":"incomplete","reason":"export did not complete; inspect workflow logs"}' > github-reports/export-incomplete.json
@@ -34,6 +51,7 @@ jobs:
       # Fetch ONLY the script at the SHA that defines this workflow (main),
       # never code from a contributor branch or fork.
       - name: Fetch exporter from trusted workflow commit
+        if: steps.public_wait.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           WORKFLOW_SHA: ${{ github.workflow_sha }}
@@ -59,15 +77,16 @@ jobs:
               target.write(script)
           PY
       - name: Export source run or completed SonarCloud check
+        if: steps.public_wait.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           SONAR_WAIT_SECONDS: '120'
         run: python3 export_run_reports.py
       - name: Remove fallback marker after successful export
-        if: success()
+        if: success() && steps.public_wait.outputs.skip != 'true'
         run: rm -f github-reports/export-incomplete.json
       - name: Save complete report to GitHub Actions artifact storage
-        if: success()
+        if: success() && steps.public_wait.outputs.skip != 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           # Stable Sonar check ID enables incremental reconciliation without
@@ -77,7 +96,7 @@ jobs:
           retention-days: 90
           if-no-files-found: error
       - name: Save failure diagnostics
-        if: ${{ always() && (failure() || cancelled()) }}
+        if: ${{ always() && (failure() || cancelled()) && steps.public_wait.outcome != 'failure' && steps.public_wait.outputs.skip != 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: error-${{ github.event_name }}-${{ github.run_id }}-${{ github.run_attempt }}

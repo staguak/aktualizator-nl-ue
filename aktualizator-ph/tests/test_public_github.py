@@ -199,8 +199,19 @@ class PublicGitHubTests(unittest.TestCase):
         self.assertEqual(cleanup['run'], 'python3 scripts/public_github.py cleanup')
         build = next(s for s in job['steps'] if s.get('name') == 'Build and independently verify the complete public corpus')
         self.assertNotIn('GH_TOKEN', build.get('env', {}))
+        uploads = [step for step in job['steps'] if 'upload-artifact' in step.get('uses', '')]
+        self.assertEqual(len(uploads), 1)
+        self.assertIn("steps.result.outputs.result == 'NO_CHANGE'", uploads[0]['if'])
+        self.assertEqual(uploads[0]['with']['name'], 'wait-${{ github.run_attempt }}')
+        storage = yaml.safe_load((APP.parent / '.github/workflows/report-storage.yml').read_text())
+        archive_steps = storage['jobs']['archive']['steps']
+        check = next(step for step in archive_steps if step.get('id') == 'public_wait')
+        self.assertIn('github.event.workflow_run.run_attempt', check['env']['SOURCE_ATTEMPT'])
+        self.assertTrue(all("steps.public_wait.outputs.skip != 'true'" in step['if']
+                            for step in archive_steps if 'upload-artifact' in step.get('uses', '')))
+        self.assertEqual(uploads[0]['with']['path'], 'aktualizator-ph/.public-state/wait.md')
         for step in job['steps']:
-            self.assertNotIn('upload-artifact', step.get('uses', ''))
+            self.assertNotEqual(step.get('run'), 'python3 scripts/public_github.py retain')
             if 'uses' in step:
                 self.assertRegex(step['uses'], r'@[a-f0-9]{40}$')
 

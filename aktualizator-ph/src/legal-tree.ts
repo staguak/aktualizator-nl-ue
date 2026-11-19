@@ -125,6 +125,12 @@ export function renderLegalTree(root:LegalSourceNode,context:LegalContext,rules:
         if(node.attributes.hoogte)attrs.height=node.attributes.hoogte;
         for(const [name,value] of Object.entries(node.attributes))attrs['data-source-'+name.replace(/[^a-z0-9-]/gi,'-')]=value;
       }
+      // Some historic EUR-Lex anchors are native UI placeholders. Preserve
+      // their original value as inert evidence and retain their visible text.
+      if(tag==='a'&&context.corpus==='EU'&&link?.trim()==='javascript:void(0);'){
+        attrs['data-source-href']=link;
+        link=undefined;
+      }
       if(link){
         if(link.startsWith('#'))attrs.href=link;
         else {const url=new URL(link,context.sourceUrl);if(!['http:','https:','mailto:'].includes(url.protocol)&&!(tag==='image'&&/^data:image\//i.test(link)))throw new Error('Unsupported legal hyperlink protocol.');attrs.href=url.href;}

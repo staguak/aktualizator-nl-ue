@@ -1,4 +1,7 @@
 """Independent XPath verification of derived unit observations; no network."""
+if not __debug__:
+    raise RuntimeError('Required legal-audit assertions are disabled by optimized Python')
+
 import base64
 import hashlib
 import json

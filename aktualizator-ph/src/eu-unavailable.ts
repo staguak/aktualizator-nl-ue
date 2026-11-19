@@ -1,6 +1,6 @@
 import {isDeepStrictEqual} from 'node:util';
 import type {EuDocument} from './eu-provider.js';
-import {EU_LANGUAGE_ORDER} from './eu-language.js';
+import {EU_LANGUAGE_ORDER,euLanguageOrder,availableEuLanguages,publicEuModules} from './eu-language.js';
 import type {EuLanguage} from './eu-language.js';
 import {checkCelex} from './eu-identifiers.js';
 export interface MissingEuDocument {profile:'eu-document-unavailable-v1';celex:string;document:EuDocument;attempts:{language:EuLanguage;reason:string}[]}
@@ -11,7 +11,11 @@ export function missingEuDocuments(act:{documents?:{celex:string}[];missingDocum
   for(const item of missing){
     checkCelex(item.celex);
     if(item.profile!=='eu-document-unavailable-v1'||item.document.celex!==item.celex||seen.has(item.celex)||
-      act.documents?.some(d=>d.celex===item.celex)||!isDeepStrictEqual(item.attempts.map(a=>a.language),EU_LANGUAGE_ORDER)||
+      act.documents?.some(d=>d.celex===item.celex)||!isDeepStrictEqual(item.attempts.map(a=>a.language),(()=>{
+        if(!publicEuModules())return EU_LANGUAGE_ORDER;
+        const preferred=euLanguageOrder(), advertised=availableEuLanguages(item.document.metadata.available_language??[],preferred);
+        return advertised.length?advertised:preferred;
+      })())||
       item.attempts.some(a=>typeof a.reason!=='string'||!a.reason))throw new Error('Unproven unavailable EU document.');
     seen.add(item.celex);
   }

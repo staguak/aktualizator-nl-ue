@@ -1,7 +1,11 @@
 """Independent validation of reversible Base64 presentation, without Node."""
+if not __debug__:
+    raise RuntimeError('Required legal-audit assertions are disabled by optimized Python')
+
 import base64
 from bisect import bisect_left
 import hashlib
+import json
 from html.parser import HTMLParser
 import re
 import xml.etree.ElementTree as ET
@@ -9,6 +13,19 @@ from urllib.parse import urljoin, urlsplit, unquote
 
 START = '<!-- legal-structure-v1 body -->\n'
 END = '\n<!-- /legal-structure-v1 body -->'
+def image_source_key(source, profile):
+    proof = source.get('resolution')
+    if profile == 'legal-images-v2' and proof:
+        identity = ['official-fallback-v2', source['requestUrl'], source.get('baseUrl'),
+                    proof['documentId'], proof['version'], proof['language'],
+                    proof['sourceUrl'], proof['sourceSha256'], proof['sourceLocator']]
+    elif source.get('baseUrl'):
+        identity = [source['requestUrl'], source['baseUrl']]
+    else:
+        return sha(source['requestUrl'])
+    return sha(json.dumps(identity, separators=(',', ':'), ensure_ascii=False))
+
+
 class _CssUrlMatch:
     def __init__(self, whole, source, kind, position):
         self.whole, self.source, self.kind, self.position = whole, source, kind, position
@@ -312,12 +329,7 @@ def audit_inline(directory, index, documents):
         key=(source.get('baseUrl'),source['requestUrl'])
         source_targets.setdefault(key,[]).append(source)
         if index.get('profile')=='legal-images-v2' and source.get('resolution'):
-            proof=source['resolution']
-            expected=['official-fallback-v2',source['requestUrl'],source.get('baseUrl'),
-                      proof['documentId'],proof['version'],proof['language'],
-                      proof['sourceUrl'],proof['sourceSha256'],proof['sourceLocator']]
-            import json
-            assert source['key']==sha(json.dumps(expected,separators=(',',':'),ensure_ascii=False)), 'Image fallback key differs from official context'
+            assert source['key'] == image_source_key(source, index['profile']), 'Image fallback key differs from official context'
     canonical_files = {}
     for record in records:
         name = record['name']

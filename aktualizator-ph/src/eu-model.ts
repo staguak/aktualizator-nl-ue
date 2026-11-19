@@ -24,7 +24,7 @@ export interface EuBuiltAct {
   order:number;title:string;celex:string;
   documents:EuBuiltDocument[];
   files:{name:string;celex:string;part:number;md5:string}[];
-  excludedDocuments:{celex:string;reason:string}[];
+  excludedDocuments:import('./eu-language.js').EuLanguageExclusion[];
 }
 export type EuPublishedFile = FileMetadata & {celex:string;part:number;sourceHash:string;layoutProfile?:typeof LEGAL_PROFILE} &
   ({kind:'content'|'unavailable';canonicalFile?:never} | {kind:'reference';canonicalFile:string});
@@ -68,7 +68,7 @@ export function buildEuModel(acts: EuBuiltAct[], readBody:(name:string)=>string)
     group.sort(compare);const canonical=group[0];if(group.length>1)groupCount++;
     const resolved=incrementalEuNavigation(canonical.normalized.map(n=>n.body),canonical.files.map(f=>f.name),canonical.doc.sourceUrl,!!canonical.doc.legalDraft);
     const bodies=resolved.chunks;
-    const partHashes=bodies.map(legalBodyHash),documentHash=legalBodyHash(bodies.join(canonical.doc.legalDraft?'':'\n\n'));
+    const partHashes=bodies.map(legalBodyHash);
     for(const entry of group){
       if(entry.files.length!==canonical.files.length)throw new Error('Identical EU documents have inconsistent part boundaries.');
       const {legalDraft,...document}=entry.doc;
@@ -76,7 +76,7 @@ export function buildEuModel(acts: EuBuiltAct[], readBody:(name:string)=>string)
       const title=entry.doc.header?.title.value??entry.act.title;
       // Public structural files always contain the complete text. Reuse the
       // fetched/parsed source, but resolve each physical copy's own navigation.
-      const view=legalDraft?incrementalEuNavigation(entry.normalized.map(n=>n.body),entry.files.map(f=>f.name),entry.doc.sourceUrl,true):resolved;
+      const view=legalDraft&&entry!==canonical?incrementalEuNavigation(entry.normalized.map(n=>n.body),entry.files.map(f=>f.name),entry.doc.sourceUrl,true):resolved;
       const physicalBodies=view.chunks,hashes=physicalBodies.map(legalBodyHash);
       const result=results.get(entry.act.order)!;assertEuIntegrity(entry.doc.integrity,physicalBodies.join(legalDraft?'':'\n'));
       const legalStructure=legalDraft?indexLegalDocument({...legalDraft,sourceFragmentIssues:view.navigation.sourceFragmentIssues},entry.files.map(f=>f.name),physicalBodies):undefined;

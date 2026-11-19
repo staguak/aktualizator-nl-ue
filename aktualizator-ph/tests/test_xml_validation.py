@@ -43,6 +43,35 @@ class RuntimeXmlTests(unittest.TestCase):
         self.assertTrue(receipt['errors'])
         self.assertNotIn('not-a-number', json.dumps(receipt))
 
+    def test_native_formex_0520_uses_the_exact_official_schema(self):
+        sha = '90ba33960712e7e1e637152d4bc1e7329cc8dc935f97840c44ff99d5ff9a1f1d'
+        cases = [
+            ('DOC', '303f18dc09dc44d6128a45fde1a65d75bdc6ca21e2d383a1e8c92b8adedea1be'),
+            ('PUBLICATION', '1a916084007e94b7691910775e3bddc67095ef8df12b32b964e7776aec2504f7'),
+        ]
+        for root, digest in cases:
+            with self.subTest(root=root):
+                raw = (ROOT / 'src/fixtures' / f'formex-0520-native-{root.lower()}.xml').read_bytes()
+                receipt = validate_required(self.schemas, raw, 'https://publications.europa.eu/', 'CELLAR-Formex4')
+                self.assertEqual(receipt['status'], 'PASS')
+                self.assertEqual(receipt['root'], root)
+                self.assertEqual(receipt['sourceSha256'], digest)
+                self.assertEqual(receipt['schemaSha256'], sha)
+
+    def test_native_formex_0501_uses_the_exact_official_schema(self):
+        raw = (ROOT / 'src/fixtures/formex-0501-native-doc.xml').read_bytes()
+        receipt = validate_required(self.schemas, raw, 'https://publications.europa.eu/', 'CELLAR-Formex4')
+        self.assertEqual(receipt['status'], 'PASS')
+        self.assertEqual(receipt['sourceSha256'], 'e5f653e0605e3c42427928cb7d9122d80328b3e5e931c15c59bc0fd40d53c3bf')
+        self.assertEqual(receipt['schemaSha256'], '8f99b87e6eab025c8d729eed410a75a0242ad1a1109adfcc21b39b539ab98314')
+
+    def test_native_formex_0555_uses_the_exact_official_schema(self):
+        raw = (ROOT / 'src/fixtures/formex-0555-native-doc.xml').read_bytes()
+        receipt = validate_required(self.schemas, raw, 'https://publications.europa.eu/', 'CELLAR-Formex4')
+        self.assertEqual(receipt['status'], 'PASS')
+        self.assertEqual(receipt['sourceSha256'], 'c87586800b718b49a6a8a0c76a5ccd1eecb7e5c35288bca6694f44b185e95632')
+        self.assertEqual(receipt['schemaSha256'], '868e7a1675a6bbb7c6fe5a1e63df6e88e1fd98f605720be47d46c9e1cd38c51d')
+
     def test_unknown_schema_is_not_replaced_with_a_known_version(self):
         receipt = validate_required(self.schemas, sru(location='https://example.invalid/next.xsd'), '', 'SRU-2.0')
         self.assertEqual(receipt['status'], 'SCHEMA_REQUIRED')

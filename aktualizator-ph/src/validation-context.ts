@@ -73,7 +73,7 @@ function loadValidationContext(read:(name:string)=>Buffer,list:()=>string[],expe
     const key = `${act.order}:${act.bwbId ?? act.celex}`;
     if (Boolean(act.bwbId) === Boolean(act.celex) || seenActs.has(key) || !expectedActs.some(item =>
       item.order === act.order && (item.bwbId ? item.bwbId === act.bwbId : item.celex === act.celex)) ||
-      !Array.isArray(act.files) || !act.files.length) throw new Error('Missing, duplicate or unexpected act in manifest.');
+      !Array.isArray(act.files) || (!act.files.length&&!(act.celex&&act.excludedDocuments?.some((row:any)=>row.reason==='SKIPPED_UNSUPPORTED_LANGUAGE')))) throw new Error('Missing, duplicate or unexpected act in manifest.');
     seenActs.add(key);
     if(manifest.officialSources&&!act.sourceArchive)throw new Error('Missing official source archive.');
     if(act.sourceArchive){

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: 'Refresh even when the last verified publication is less than one hour old.'
+        description: 'Run the paired build even if conditional preflight proves no change.'
         type: boolean
         default: false
       full_source_audit:
@@ -28,7 +28,7 @@ jobs:
     permissions:
       contents: write
       issues: write
-      actions: write
+      actions: read
     defaults:
       run:
         working-directory: aktualizator-ph
@@ -163,6 +163,7 @@ jobs:
         if: steps.request.outputs.build == 'true'
         env:
           LAW_UPDATER_REVISION: ${{ github.sha }}
+          LAW_PUBLIC_INITIALIZE: ${{ steps.request.outputs.initialize }}
           LAW_RANGE_TO: ${{ steps.request.outputs.range_to }}
           LAW_OBSERVED_ON: ${{ steps.request.outputs.range_to }}
           LAW_SOURCE_AUDIT: ${{ steps.request.outputs.audit_mode }}
@@ -171,7 +172,7 @@ jobs:
         run: |
           set -euo pipefail
           if node --import tsx src/github-build.ts > public-build.log 2>&1; then
-            echo 'Complete NL/EU public build and independent source audit passed.'
+            echo 'Public corpus verification passed.'
           else
             echo 'Public build failed; the last verified publication remains available.'
             tail -n 30 public-build.log
@@ -188,16 +189,10 @@ jobs:
         env:
           PUBLIC_PREPARE_OUTCOME: ${{ steps.request.outcome }}
         run: python3 scripts/public_github.py report
-      - name: Persist attempt and retain two attempts plus the active good base
-        if: always() && steps.admission.outputs.accepted == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/public_github.py retain
-      - name: Trim local source cache and compute shard signatures
+      - name: Compute source cache shard signatures
         id: cache_state
         if: always() && steps.admission.outputs.accepted == 'true'
         run: |
-          python3 scripts/public_cache.py local
           python3 scripts/public_cache.py signatures > .cache-signatures.json
           python3 -c 'import json,os; values=json.load(open(".cache-signatures.json")); out=open(os.environ["GITHUB_OUTPUT"],"a"); [print("shard"+key+"="+value,file=out) for key,value in values.items()]'
       - name: Save source cache shard 0
@@ -296,18 +291,6 @@ jobs:
             aktualizator-ph/.source-cache/models/7
             aktualizator-ph/.source-cache/validated/7
           key: nl-ue-source-v5-${{ runner.os }}-s7-${{ steps.cache_state.outputs.shard7 }}
-      - name: Trim old owned GitHub cache entries after saving this attempt
-        if: always() && steps.admission.outputs.accepted == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/public_cache.py remote
-      - name: Refresh diagnostics after state and cache maintenance
-        # Refresh safe diagnostics after retention/cache maintenance too.
-        # Publication status and the active data pointer remain independent.
-        if: always() && steps.checkout.outcome == 'success'
-        env:
-          PUBLIC_PREPARE_OUTCOME: ${{ steps.request.outcome }}
-        run: python3 scripts/public_github.py report
       - name: Notify the public request
         if: always() && steps.checkout.outcome == 'success' && github.event_name == 'issues'
         continue-on-error: true
@@ -319,6 +302,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/public_github.py release
+      - name: Upload proof when the legal corpus is unchanged
+        if: success() && steps.result.outputs.result == 'NO_CHANGE'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: wait-${{ github.run_attempt }}
+          path: aktualizator-ph/.public-state/wait.md
+          include-hidden-files: true
+          if-no-files-found: error
       - name: Remove all temporary corpus and build files
         if: always() && steps.checkout.outcome == 'success'
         run: python3 scripts/public_github.py cleanup

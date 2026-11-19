@@ -329,6 +329,30 @@
         "http://publications.europa.eu/resource/distribution/formex/xsd/schema_formex/Formex-05.50-20130101.xd",
         "http://publications.europa.eu/resource/cellar/fab97dc0-2f75-11e9-8d04-01aa75ed71a1.0001.01/DOC_1"
       ]
+    },
+    {
+      "url": "http://formex.publications.europa.eu/schema/formex-05.20-20100601.xd",
+      "fetchUrl": "https://formex.publications.europa.eu/schema/formex-05.20-20100601.xd",
+      "file": "formex-05.20-20100601.xd",
+      "sha256": "90ba33960712e7e1e637152d4bc1e7329cc8dc935f97840c44ff99d5ff9a1f1d",
+      "imports": [],
+      "storage": "file"
+    },
+    {
+      "url": "http://formex.publications.europa.eu/schema/formex-05.01-20091201.xd",
+      "fetchUrl": "https://formex.publications.europa.eu/schema/formex-05.01-20091201.xd",
+      "file": "formex-05.01-20091201.xd",
+      "sha256": "8f99b87e6eab025c8d729eed410a75a0242ad1a1109adfcc21b39b539ab98314",
+      "imports": [],
+      "storage": "file"
+    },
+    {
+      "url": "http://formex.publications.europa.eu/schema/formex-05.55-20141201.xd",
+      "fetchUrl": "https://formex.publications.europa.eu/schema/formex-05.55-20141201.xd",
+      "file": "formex-05.55-20141201.xd",
+      "sha256": "868e7a1675a6bbb7c6fe5a1e63df6e88e1fd98f605720be47d46c9e1cd38c51d",
+      "imports": [],
+      "storage": "file"
     }
   ],
   "retrievedAt": "2026-10-11T23:06:02.902398+00:00",

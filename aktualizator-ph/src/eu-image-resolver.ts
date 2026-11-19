@@ -1,7 +1,7 @@
 import {officialImage} from './official-image-source.js';
 import {fetchEuText} from './eu-provider.js';
 import type {EuSource} from './eu-provider.js';
-import {EU_LANGUAGE_ORDER} from './eu-language.js';
+import {euLanguageOrder} from './eu-language.js';
 import type {EuLanguage} from './eu-language.js';
 import {decodeEmbeddedImage} from './eu-assets.js';
 import type {EuImageLoader} from './eu-assets.js';
@@ -30,7 +30,7 @@ export function createOfficialImageResolver(options:{load?:EuImageLoader;documen
     const initial=context?.document.language??'NL';
     try{const result=decodeEmbeddedImage(url)??await load(url);return await prepareSvgImage(result,url,context?.document.sourceUrl??url,load);}
     catch(error){if(error instanceof XmlValidationInfrastructureError||imageInfrastructureFailure(error))throw error;attempts.push({language:initial,url,outcome:'UNAVAILABLE',reason:reason(error)});}
-    if(context?.document.corpus==='EU')for(const language of EU_LANGUAGE_ORDER.filter(l=>l!==initial)){
+    if(context?.document.corpus==='EU')for(const language of euLanguageOrder().filter(l=>l!==initial)){
       let attemptedUrl='https://publications.europa.eu/resource/celex/'+encodeURIComponent(context.document.documentId);
       try{
         const key=JSON.stringify([context.document.documentId,language]);

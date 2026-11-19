@@ -145,7 +145,7 @@ class ReportExportTests(unittest.TestCase):
         self.assertIn('if: success()', source)
         self.assertIn('Save failure diagnostics', source)
         self.assertIn('sonar-check-{0}', source)
-        self.assertIn('if: ${{ always() && (failure() || cancelled()) }}', source)
+        self.assertIn('always() && (failure() || cancelled())', source)
         self.assertIn('github-reports/export-incomplete.json', source)
 
     def test_trusted_exporter_decodes_multiline_github_contents_base64(self):

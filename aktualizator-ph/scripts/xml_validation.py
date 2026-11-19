@@ -24,7 +24,7 @@ _file_validation = importlib.util.module_from_spec(_file_spec)
 _file_spec.loader.exec_module(_file_validation)
 
 XSI = '{http://www.w3.org/2001/XMLSchema-instance}'
-CATALOG_SHA256 = '3cffd241a1bffb19754d45568a444d97c009173d7e09c64224b427f33cba6e24'
+CATALOG_SHA256 = '5db257ffd0b6142e0913a6037081a3e7c0d4c675f70375bcb90a63efb51203d1'
 PROFILE = 'official-xml-v3-formex1-rdf3:' + CATALOG_SHA256
 RDF_PROFILE = 'cellar-rdf-graph-v2:rdflib-7.6.0'
 MAX_XML_BYTES = 64_000_000
@@ -203,14 +203,25 @@ class PinnedSchemas:
         self.entries, self.bytes, self.compiled = {}, {}, {}
         self.bundle_sha256 = catalog['bundleSha256']
         self.catalog_sha256 = CATALOG_SHA256
+        self.schema_count = len(catalog['entries'])
         with checked_zip(raw, 16_000_000) as z:
-            if set(z.namelist()) != {e['file'] for e in catalog['entries']}:
+            packed = {e['file'] for e in catalog['entries'] if e.get('storage', 'zip') == 'zip'}
+            if set(z.namelist()) != packed:
                 raise ValueError('Schema bundle inventory mismatch')
             for entry in catalog['entries']:
-                data = z.read(entry['file'])
+                name = entry['file']
+                if entry.get('storage', 'zip') == 'zip':
+                    data = z.read(name)
+                elif entry.get('storage') == 'file' and re.fullmatch(r'formex-[0-9.]+-[0-9]{8}\.xd', name):
+                    original = directory / name
+                    if original.is_symlink() or not original.is_file():
+                        raise ValueError('Standalone pinned schema is unavailable')
+                    data = original.read_bytes()
+                else:
+                    raise ValueError('Unknown pinned schema storage')
                 if hashlib.sha256(data).hexdigest() != entry['sha256']:
                     raise ValueError('Original schema digest mismatch')
-                self.bytes[entry['file']] = data
+                self.bytes[name] = data
                 for url in (entry['url'], entry['fetchUrl'], *entry.get('aliases', [])):
                     if url in self.entries and self.entries[url]['sha256'] != entry['sha256']:
                         raise ValueError('Conflicting schema URL')
@@ -318,7 +329,7 @@ def check_runtime():
 def serve(directory, source_roots=()):
     check_runtime()
     schemas = PinnedSchemas(directory)
-    print(json.dumps(dict(type='ready', profile=PROFILE, lxml='6.1.3', rdf='7.6.0', schemas=33)), flush=True)
+    print(json.dumps(dict(type='ready', profile=PROFILE, lxml='6.1.3', rdf='7.6.0', schemas=schemas.schema_count)), flush=True)
     while True:
         header = sys.stdin.buffer.readline(16_385)
         if not header:

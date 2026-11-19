@@ -5,6 +5,14 @@ import {safeCacheDirectory} from './cache-directory.js';
 import {importSourceCache} from './source-cache.js';
 import {loadSourceArchive,safeArchiveName} from './official-sources.js';
 
+export function standaloneSourceFiles(root:string,env:NodeJS.ProcessEnv=process.env):void{
+  if(env.LAW_PUBLIC_SOURCE_FILES!==undefined||env.LAW_RELEASE_PHASE||env.LAW_RELEASE_CONTEXT)return;
+  const cache=path.resolve(root,env.LAW_SOURCE_CACHE_DIR??'.source-cache');
+  if(!safeCacheDirectory(cache))throw new Error('Unsafe public source directory.');
+  env.LAW_SOURCE_CACHE_DIR=cache;
+  env.LAW_CACHE_SHARDS='8';
+  env.LAW_PUBLIC_SOURCE_FILES='1';
+}
 export function publicIncrementalEnvironment(root:string,env:NodeJS.ProcessEnv):NodeJS.ProcessEnv{
   const cache=path.resolve(root,env.LAW_SOURCE_CACHE_DIR??'.source-cache');
   const work=path.join(root,'.public-state','build');

@@ -1,3 +1,7 @@
+import {standaloneSourceFiles} from './public-incremental.js';
+import {EU_COUNTRY_MODULES,euLanguageOrder,publicEuModules,unsupportedEuLanguages} from './eu-language.js';
+import {assessPublicEuDocument} from './eu-applicability.js';
+import {baselineEuAct} from './base-plan.js';
 import {writeCorpusManifest} from './legal-manifest-files.js';
 import type {EuLanguage} from './eu-language.js';
 import * as fs from 'node:fs';
@@ -38,9 +42,14 @@ import type {MissingEuDocument} from './eu-unavailable.js';
 import {euDocumentHeader} from './eu-document-header.js';
 import type {EuDocumentHeader} from './eu-document-header.js';
 
+// The standalone module has no active country module. Paired Drive runs
+// supply their own preexisting language policy via the release context.
+if(process.env.LAW_PUBLIC_EU_MODULES===undefined&&!process.env.LAW_RELEASE_PHASE&&!process.env.LAW_RELEASE_CONTEXT)
+  process.env.LAW_PUBLIC_EU_MODULES='';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+standaloneSourceFiles(ROOT);
 const OUTPUT = path.join(process.env.LAW_PUBLIC_WORK_ROOT??ROOT, 'output-ue');
-const CHECKPOINT = path.join(ROOT, '.checkpoint-ue');
+const CHECKPOINT = path.join(process.env.LAW_PUBLIC_CHECKPOINT_ROOT??ROOT, '.checkpoint-ue');
 const digest = (s: string, algo = 'sha256') => createHash(algo).update(s).digest('hex');
 interface SourceFile { name: string; md5: string; celex: string; part: number }
 interface CompletedAct {
@@ -55,7 +64,7 @@ interface CompletedAct {
     integrity: EuIntegrity; navigation: EuNavigation; oversizedParts: number[];
     legalDraft?:LegalDraft;
   })[]; files: SourceFile[];
-  excludedDocuments: {celex: string; reason: string}[];
+  excludedDocuments: import('./eu-language.js').EuLanguageExclusion[];
 }
 
 async function main(): Promise<void> {
@@ -75,6 +84,20 @@ async function main(): Promise<void> {
   const {rangeFrom,rangeTo,observedOn}=resolveRange(ROOT);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(rangeFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(rangeTo) || rangeFrom > rangeTo) {
     throw new Error('Invalid EU date range.');
+  }
+  const baseline=new Map<string,{archive:OfficialSources;documents:EuDocument[]}>();
+  if(process.env.LAW_PUBLIC_PHASE==='BASE'){
+    const planned:EuAct[]=[];
+    await runPool(config.acts,4,async act=>{
+      const archive=new OfficialSources('EU',act.celex,{from:rangeFrom,to:rangeTo,observedOn});
+      const documents=await discoverEuDocuments(act,archive);
+      if(documents.some(d=>d.role===EU_DISCOVERY_FALLBACK_ROLE))throw new Error('Baseline requires verified EU discovery.');
+      const selection=baselineEuAct(act,documents,rangeTo);
+      if(selection.act){planned.push(selection.act);baseline.set(act.celex,{archive,documents});}
+    });
+    if(!planned.length)throw new Error('No confirmed EU baseline acts.');
+    config.acts=planned.sort((a,b)=>a.order-b.order);
+    fs.writeFileSync(path.join(process.env.LAW_PUBLIC_WORK_ROOT!,'eu-base-scope.json'),JSON.stringify({acts:config.acts}));
   }
   const key = digest('official-sources-wemi-v3' + raw + rangeFrom + rangeTo + observedOn + executionRevision(ROOT)+':source-audit:'+sourceAuditCheckpointTag()+
     (process.env.LAW_PUBLIC_INCREMENTAL==='1'?':operation:'+process.env.LAW_PUBLIC_OPERATION_ID:''));
@@ -110,13 +133,14 @@ async function main(): Promise<void> {
   };
   // A source is fetched/revalidated and parsed once per CELEX/include in this
   // process, including simultaneous requests from different scope entries.
-  const loadSource=createEuSourceLoader();
+  const loadSource=createEuSourceLoader(),modules=publicEuModules(),languages=euLanguageOrder();
   async function build(act: EuAct): Promise<CompletedAct> {
     setErrorPhase('SOURCE_DISCOVERY');
     let stage='CELLAR discovery';
-    const archive=new OfficialSources('EU',act.celex,{from:rangeFrom,to:rangeTo,observedOn});
+    const planned=baseline.get(act.celex);
+    const archive=planned?.archive??new OfficialSources('EU',act.celex,{from:rangeFrom,to:rangeTo,observedOn});
     try {
-    const discovered = await discoverEuDocuments(act,archive);
+    const discovered = planned?.documents??await discoverEuDocuments(act,archive);
     let discoveryIncomplete=discovered.some(d=>d.role===EU_DISCOVERY_FALLBACK_ROLE);
     stage='document selection';
     const selected = selectEuDocuments(discovered, act, rangeFrom, rangeTo,'preferred');
@@ -143,6 +167,12 @@ async function main(): Promise<void> {
       }
     }
     for (const doc of documents) {
+      if(modules&&unsupportedEuLanguages(doc.metadata.available_language??[],languages)){
+        result.excludedDocuments.push({celex:doc.celex,reason:'SKIPPED_UNSUPPORTED_LANGUAGE',
+          availableLanguages:doc.metadata.available_language,checkedLanguages:[...languages]});
+        continue;
+      }
+      if(modules)doc.applicability=assessPublicEuDocument(doc.celex,modules.map(id=>EU_COUNTRY_MODULES[id].countryISO),doc.territorialObservations);
       setErrorPhase('SOURCE_BUILD');
       stage=`source ${doc.celex}`;
       let source;
@@ -153,8 +183,8 @@ async function main(): Promise<void> {
         const data=Buffer.from(JSON.stringify(missing));
         const url='https://publications.europa.eu/resource/celex/'+encodeURIComponent(doc.celex);
         archive.add('unavailable/'+doc.celex.replace(/[^A-Za-z0-9.-]/g,'_')+'.json',{bytes:data,url,contentType:'application/json'},url,'CELLAR-document-unavailable',{celex:doc.celex});
-        archive.warning(`Document ${doc.celex} unavailable in EN, PL, NL, FR; remaining documents continue.`,{code:'DOCUMENT_UNAVAILABLE',classification:'SOURCE_UNAVAILABLE',documentId:doc.celex});
-        console.warn(`DOCUMENT_UNAVAILABLE ${doc.celex}: EN -> PL -> NL -> FR; processing continues.`);continue;
+        archive.warning(`Document ${doc.celex} unavailable in ${languages.join(', ')}; remaining documents continue.`,{code:'DOCUMENT_UNAVAILABLE',classification:'SOURCE_UNAVAILABLE',documentId:doc.celex});
+        console.warn(`DOCUMENT_UNAVAILABLE ${doc.celex}: ${languages.join(' -> ')}; processing continues.`);continue;
       }
       const parsed=source.parsed;
       if(!source.nativeSources?.length)throw new Error('Missing original EU source bytes.');
@@ -186,7 +216,7 @@ async function main(): Promise<void> {
     stage='source archive and local checkpoint';
     const native=archive.build(sourceArchiveName(act.order,act.celex));
     result.sourceArchive=native.metadata;fs.writeFileSync(path.join(CHECKPOINT,native.metadata.name),native.bytes);
-    if ((!result.documents.length || !result.files.length)&&!result.missingDocuments?.length) throw new Error(`Empty EU act: ${act.celex}`);
+    if ((!result.documents.length || !result.files.length)&&!result.missingDocuments?.length&&!result.excludedDocuments.some(d=>d.reason==='SKIPPED_UNSUPPORTED_LANGUAGE')) throw new Error(`Empty EU act: ${act.celex}`);
     return result;
     } catch(error) {
       archive.preserveDiagnostic(['CELLAR discovery','formal case discovery'].includes(stage)?'EU_DISCOVERY_FAILED':'EU_SOURCE_FAILED');
@@ -197,7 +227,7 @@ async function main(): Promise<void> {
   const pending = config.acts.filter((a) => !completed.some((d) => d.celex === a.celex));
   // Four workers keep the public source load bounded; checkpoint is committed per complete act.
   await runPool(pending,4,async act=>{
-      console.log(`[UE ${act.order}/${config.acts.length}] ${act.celex}`);
+      console.log(`[UE ${config.acts.indexOf(act)+1}/${config.acts.length}] ${act.celex}`);
       await inErrorPhase('SOURCE_BUILD',async()=>{
         const built = await build(act);
         setErrorPhase('CHECKPOINT');
@@ -217,7 +247,7 @@ async function main(): Promise<void> {
   for(const act of completed)fs.writeFileSync(path.join(OUTPUT,act.sourceArchive!.name),verifiedFiles.get(act.sourceArchive!.name)!);
   for(const file of final.files.values())fs.writeFileSync(path.join(OUTPUT,file.name),file.content);
   const manifest={schemaVersion:2,validationVersion:2,jurisdiction:'EU',generatedAt:process.env.LAW_GENERATED_AT ?? new Date().toISOString(),
-    rangeFrom,rangeTo,language:'EN',languagePreference:['EN','PL','NL','FR'],officialSources:{schemaVersion:1,model:'CELLAR',observedOn,originalBytes:true,view:'Markdown',...xmlValidationSummary()?{xmlValidation:xmlValidationSummary()}:{}},source:config.source,policy:config.policy,configSha256:digest(raw),normalization:final.normalization,acts:final.acts};
+    rangeFrom,rangeTo,language:'EN',languagePreference:[...languages],officialSources:{schemaVersion:1,model:'CELLAR',observedOn,originalBytes:true,view:'Markdown',...xmlValidationSummary()?{xmlValidation:xmlValidationSummary()}:{}},source:config.source,policy:config.policy,configSha256:digest(raw),normalization:final.normalization,acts:final.acts};
   writeControlFile(OUTPUT,'EU','INDEX.md',euIndex(manifest));
   writeCorpusManifest(OUTPUT,manifest);
   setErrorPhase('OUTPUT_VALIDATION');

@@ -92,9 +92,11 @@ export function validateV2(context:ValidationContext):void {
     for(const act of m.acts){
       const expected=expectedActs.find(a=>a.order===act.order);
       const missing=missingEuDocuments(act);
-      if(!Array.isArray(act.documents)||!act.documents.length&&!missing.length||new Set(act.documents.map((d:any)=>d.celex)).size!==act.documents.length)throw new Error('Invalid EU documents.');
+      const skipped=(act.excludedDocuments??[]).filter((row:any)=>row.reason==='SKIPPED_UNSUPPORTED_LANGUAGE');
+      if(!Array.isArray(act.documents)||!act.documents.length&&!missing.length&&!skipped.length||new Set(act.documents.map((d:any)=>d.celex)).size!==act.documents.length)throw new Error('Invalid EU documents.');
       assertEuCaseCoverage(act,expected);
-      for(const id of [...expected?.requiredVersions??[],...expected?.attachedDocuments?.map((d:any)=>d.celex)??[]])if(!act.documents.some((d:any)=>d.celex===id)&&!missing.some(d=>d.celex===id))throw new Error('Missing EU required document.');
+      const original=m.languagePreference?.[1]==='FR'&&expected?.celex?[expected.celex]:[];
+      for(const id of [...original,...expected?.requiredVersions??[],...expected?.attachedDocuments?.map((d:any)=>d.celex)??[]])if(!act.documents.some((d:any)=>d.celex===id)&&!missing.some(d=>d.celex===id)&&!skipped.some((d:any)=>d.celex===id))throw new Error('Missing EU required document.');
       if(act.files.some((f:any)=>!act.documents.some((d:any)=>d.celex===f.celex)&&!(f.kind==='unavailable'&&missing.some(d=>d.celex===f.celex))))throw new Error('Unexpected EU document file.');
       for(const item of missing){const files=act.files.filter((f:any)=>f.celex===item.celex);
         if(files.length!==1||files[0].kind!=='unavailable'||!context.text(files[0].name).includes('DOKUMENT NIEDOSTĘPNY')||!context.text(files[0].name).includes(item.celex))throw new Error('Missing unavailable-document notice.');}

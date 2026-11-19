@@ -6,6 +6,7 @@ import tempfile
 import unittest
 import zipfile
 import sys
+import subprocess
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 
@@ -73,3 +74,19 @@ class OfficialAudit(unittest.TestCase):
             self.assertEqual(audit.audit(directory,'EU')['acts'],1)
             (directory/name).write_bytes(raw.replace(b'PL',b'FR'))
             with self.assertRaises(AssertionError):audit.audit(directory,'EU')
+
+    def test_independent_python_auditors_reject_optimized_execution(self):
+        """With -O all assert-based integrity checks disappear; audits must fail closed."""
+        scripts=Path(__file__).resolve().parents[1]/'scripts'
+        modules=('verify_official_output','verify_formex_package',
+                 'verify_inline_images','verify_eu_headers','verify_unit_fields')
+        for name in modules:
+            with self.subTest(module=name):
+                program=('import sys\n'
+                         'sys.path.insert(0,sys.argv[1])\n'
+                         'import '+name+'\n')
+                run=subprocess.run([sys.executable,'-O','-c',program,str(scripts)],
+                                   input='{}',text=True,capture_output=True,check=False)
+                self.assertNotEqual(run.returncode,0,name+' accepted optimized execution')
+                self.assertIn('Required legal-audit assertions are disabled by optimized Python',
+                              run.stderr,name+' did not reject missing integrity checks')

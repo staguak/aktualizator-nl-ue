@@ -17,7 +17,7 @@ export {officialImage} from './official-image-source.js';
 export async function finalizePackageImages(dir:string,acts:ExpectedAct[],loader:EuImageLoader=createOfficialImageResolver()){
   const before=loadValidatedFiles(dir,acts),manifest=before.manifest;
   if(manifest.imagePackage)throw new Error('Image package was already finalized.');
-  for(const act of manifest.acts)act.sourceArchive.distribution={bundle:manifest.jurisdiction==='NL'?'NL-sources.zip':'UE-sources.zip',prefix:act.sourceArchive.name.replace(/\.sources\.zip$/,'')};
+  for(const act of manifest.acts)if(act.sourceArchive.name.endsWith('.zip'))act.sourceArchive.distribution={bundle:manifest.jurisdiction==='NL'?'NL-sources.zip':'UE-sources.zip',prefix:act.sourceArchive.name.replace(/\.sources\.zip$/,'')};
   const documents=legalDocuments(manifest);
   if(manifest.jurisdiction==='EU'&&manifest.acts.some((a:any)=>a.files.some((f:any)=>f.kind==='reference')))throw new Error('Rebuild public EU output with complete text instead of UE-REF files before Base64 finalization.');
   if(documents.length!==manifest.acts.reduce((n:number,a:any)=>n+(a.legalDocuments?.length??a.documents?.length??0),0))throw new Error('Images require complete legal manifests.');

@@ -53,11 +53,37 @@ export function fileDigests(file:string):{sha256:string;md5:string;size:number}{
 }
 interface FileRecord {schemaVersion:5;key:string;url:string;contentType:string;sha256:string;md5:string;size:number;etag:string|null;lastModified:string|null;retrievedAt:string}
 function sourceKey(url:string,headers:Record<string,string>){return digest(JSON.stringify([url,Object.entries(headers).sort(([a],[b])=>a.localeCompare(b))]));}
-function sourceBlob(root:string,sha:string){if(!/^[a-f0-9]{64}$/.test(sha))throw new Error('Invalid source checksum.');return path.join(root,'blobs',sourceCacheShard(sha),sha+'.bin');}
+export function sourceBlob(root:string,sha:string){if(!/^[a-f0-9]{64}$/.test(sha))throw new Error('Invalid source checksum.');return path.join(root,'blobs',sourceCacheShard(sha),sha+'.bin');}
 function verifyBlob(file:string,record:Pick<FileRecord,'sha256'|'md5'|'size'>){
   if(!safeCacheDirectory(path.dirname(file)))throw new Error('Unsafe source cache path.');
   const known=fileDigests(file);
   if(known.sha256!==record.sha256||known.md5!==record.md5||known.size!==record.size||!known.size)throw new Error('Source cache checksum changed.');
+}
+/** Retain synthetic evidence and file-backed originals under the same verified
+ * blob identity used by conditional HTTP requests. */
+export function storeSourceBlob(root:string,record:Pick<FileRecord,'sha256'|'md5'|'size'>,bytes?:Buffer,filePath?:string):void{
+  const file=sourceBlob(root,record.sha256),directory=path.dirname(file);
+  if(!safeCacheDirectory(directory))throw new Error('Unsafe source evidence directory.');
+  try{verifyBlob(file,record);return;}catch{/* Recreate the object from the available original. */}
+  fs.mkdirSync(directory,{recursive:true});
+  const temporary=file+'.'+randomUUID()+'.tmp';
+  try{
+    if(filePath)fs.copyFileSync(filePath,temporary,fs.constants.COPYFILE_EXCL);
+    else fs.writeFileSync(temporary,bytes!,{flag:'wx'});
+    verifyBlob(temporary,record);
+    fs.renameSync(temporary,file);
+  }finally{fs.rmSync(temporary,{force:true});}
+}
+export function readSourceBlob(root:string,record:Pick<FileRecord,'sha256'|'md5'|'size'>):Buffer{
+  const file=sourceBlob(root,record.sha256);
+  if(!safeCacheDirectory(path.dirname(file)))throw new Error('Unsafe source evidence path.');
+  const fd=fs.openSync(file,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
+  try{
+    if(!fs.fstatSync(fd).isFile())throw new Error('Expected a regular source object.');
+    const bytes=fs.readFileSync(fd);
+    if(bytes.length!==record.size||digest(bytes)!==record.sha256)throw new Error('Source evidence checksum changed.');
+    return bytes;
+  }finally{fs.closeSync(fd);}
 }
 function cacheHint(url:string,headers:Record<string,string>,record:Pick<FileRecord,'etag'|'lastModified'>):SourceCacheHint|undefined{
   if(Object.keys(headers).some(k=>!['accept','accept-language'].includes(k.toLowerCase())))return;
@@ -98,6 +124,17 @@ export function importSourceCache(root:string,entry:{requestedUrl:string;url:str
   try{fs.writeFileSync(temporary,body,{flag:'wx'});fs.renameSync(temporary,file);fs.writeFileSync(meta,JSON.stringify(record),{flag:'wx'});fs.renameSync(meta,metadata);}
   finally{fs.rmSync(temporary,{force:true});fs.rmSync(meta,{force:true});}
   return true;
+}
+
+export function hasVerifiedSourceValidator(root:string,url:string,headers:Record<string,string>,sha256:string):boolean{
+  const key=sourceKey(url,headers),file=publicCacheFile(root,key);
+  try{
+    if(!safeCacheDirectory(path.dirname(file))||!fs.lstatSync(file).isFile())return false;
+    const record=JSON.parse(fs.readFileSync(file,'utf8'));
+    if(record.schemaVersion!==5||record.key!==key||record.sha256!==sha256||!(record.etag||record.lastModified))return false;
+    verifyBlob(sourceBlob(root,sha256),record);
+    return true;
+  }catch{return false;}
 }
 
 /** Canonical entity bytes on disk; the source itself has no default byte limit. */
