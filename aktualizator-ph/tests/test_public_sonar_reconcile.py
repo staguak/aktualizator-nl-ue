@@ -129,6 +129,7 @@ class ReconciliationTests(unittest.TestCase):
         workflow = (ROOT.parent / '.github/workflows/sonar-reconciliation.yml').read_text()
         self.assertIn('workflow_run:', workflow)
         self.assertIn('Verify public updater code', workflow)
+        self.assertIn('    branches: [main]', workflow)
         self.assertIn("github.event.workflow_run.event == 'push'", workflow)
         self.assertIn("github.event.workflow_run.head_branch == 'main'", workflow)
         self.assertIn("github.event.workflow_run.head_repository.full_name == github.repository", workflow)

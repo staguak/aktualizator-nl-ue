@@ -8,6 +8,7 @@ on:
     workflows:
       - Verify public updater code
     types: [completed]
+    branches: [main]
 
 permissions:
   contents: read
