@@ -29,7 +29,7 @@ jobs:
       - name: Initialize fallback diagnostic artifact
         run: |
           mkdir -p github-reports
-          printf '%s\\n' '{"status":"incomplete","reason":"export did not complete; inspect workflow logs"}' > github-reports/export-incomplete.json
+          echo '{"status":"incomplete","reason":"export did not complete; inspect workflow logs"}' > github-reports/export-incomplete.json
       # workflow_run and check_run originate outside this trusted workflow.
       # Fetch ONLY the script at the SHA that defines this workflow (main),
       # never code from a contributor branch or fork.
