@@ -137,6 +137,14 @@ class ReportExportTests(unittest.TestCase):
                 with self.assertRaises(ExportError):
                     fetch_json(url, 'do-not-send-this-token')
 
+    def test_report_upload_keeps_diagnostics_even_on_export_failure(self):
+        workflow = Path(__file__).resolve().parents[2] / '.github/workflows/report-storage.yml'
+        source = workflow.read_text(encoding='utf-8')
+        self.assertIn('Initialize fallback diagnostic artifact', source)
+        self.assertIn('Remove fallback marker after successful export', source)
+        self.assertIn('if: always()', source)
+        self.assertIn('github-reports/export-incomplete.json', source)
+
     def test_trusted_exporter_decodes_multiline_github_contents_base64(self):
         workflow = Path(__file__).resolve().parents[2] / '.github/workflows/report-storage.yml'
         source = workflow.read_text(encoding='utf-8')
