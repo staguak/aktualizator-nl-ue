@@ -13,12 +13,14 @@ on:
 
 permissions:
   contents: read
-  actions: read
-  checks: read
-  pull-requests: read
 
 jobs:
   reconcile_discover:
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+      pull-requests: read
     if: >-
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.head_branch == 'main' &&
@@ -61,6 +63,9 @@ jobs:
         run: python3 sonar_reconcile.py
 
   archive_missing:
+    permissions:
+      contents: read
+      checks: read
     needs: reconcile_discover
     if: needs.reconcile_discover.outputs.checks != '[]'
     strategy:
