@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from export_run_reports import GitHub, ExportError, export, sonar_api_snapshot, sonar_selector
+from export_run_reports import GitHub, ExportError, export, sonar_api_snapshot, sonar_selector, fetch_json
 
 REPO = 'staguak/aktualizator-nl-ue'
 SHA = 'a' * 40
@@ -122,6 +122,16 @@ class ReportExportTests(unittest.TestCase):
         report = export('check_run', event, GitHub(REPO, 'dummy', getter))
         self.assertEqual(report['sonarApi']['status'], 'unavailable')
         self.assertEqual(report['sonarApi']['reason'], 'SONAR_CHECK_HAS_NO_VERIFIED_ANALYSIS_URL')
+
+    def test_untrusted_http_destination_is_refused_before_network(self):
+        for url in ('https://example.net/api/issues/search',
+                    'http://api.github.com/repos/a/b',
+                    'https://api.github.com.evil.net/repos/a/b',
+                    'https://sonarcloud.io/admin/settings',
+                    'https://api.github.com/repos/a/../other'):
+            with self.subTest(url=url):
+                with self.assertRaises(ExportError):
+                    fetch_json(url, 'do-not-send-this-token')
 
     def test_git_api_rejects_bad_repo(self):
         with self.assertRaisesRegex(ExportError, 'INVALID_REPOSITORY'):
