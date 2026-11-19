@@ -14,7 +14,7 @@ import time
 from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlparse, parse_qs
-from urllib.request import Request, urlopen
+from urllib.request import Request, build_opener, HTTPRedirectHandler
 
 SONAR_PROJECT = 'staguak_aktualizator-nl-ue'  # Confirmed from SonarCloud GitHub check-run details
 MAX_ISSUE_PAGES = 20
@@ -25,14 +25,30 @@ class ExportError(RuntimeError):
     pass
 
 
+class RejectRedirects(HTTPRedirectHandler):
+    def redirect_request(self, request, fp, code, msg, headers, newurl):
+        raise ExportError('API_REDIRECT_BLOCKED')
+
+
 def fetch_json(url: str, token: str | None = None) -> dict | list:
-    headers = {'Accept': 'application/vnd.github+json' if url.startswith('https://api.github.com/')
+    # All outbound requests are confined to two hard-coded HTTPS API hosts.
+    parts = urlparse(url)
+    if (parts.scheme != 'https' or parts.netloc not in ('api.github.com', 'sonarcloud.io')
+            or parts.username or parts.password or parts.fragment
+            or '..' in parts.path.split('/')):
+        raise ExportError('UNTRUSTED_API_HOST_OR_URL')
+    if parts.netloc == 'api.github.com' and not parts.path.startswith('/repos/'):
+        raise ExportError('UNTRUSTED_GITHUB_ROUTE')
+    if parts.netloc == 'sonarcloud.io' and not parts.path.startswith('/api/'):
+        raise ExportError('UNTRUSTED_SONAR_ROUTE')
+    headers = {'Accept': 'application/vnd.github+json' if parts.netloc == 'api.github.com'
                else 'application/json', 'User-Agent': 'aktualizator-report-archive'}
-    if token and url.startswith('https://api.github.com/'):
+    if token and parts.netloc == 'api.github.com':
         headers['Authorization'] = 'Bearer ' + token
     request = Request(url, headers=headers)
     try:
-        with urlopen(request, timeout=20) as response:
+        # Never forward credentials through HTTP redirects to an unexpected host.
+        with build_opener(RejectRedirects()).open(request, timeout=20) as response:
             return json.load(response)
     except HTTPError as exc:
         raise ExportError(f'HTTP_{exc.code}') from None
