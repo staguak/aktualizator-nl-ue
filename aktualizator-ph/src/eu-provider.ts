@@ -370,12 +370,25 @@ export async function fetchRdfNotice(base:string,fetcher:typeof request=request,
   return {source,kind:'CELLAR-RDF-object',...xmlValidation?{xmlValidation}:{},warning:`Full RDF tree unavailable: ${treeError instanceof Error?treeError.message:'retrieval failed'}; XML branch unavailable: ${branchError instanceof Error?branchError.message:'retrieval failed'}; non-inferred object notice retained (work metadata only).`};
 }
 
+class FormexIndexFailure extends Error {
+  constructor(language:EuLanguage,cause:unknown){
+    let reason='index response rejected';
+    if(cause instanceof SourceHttpError)reason=`HTTP ${cause.status}`;
+    else if(transientSourceError(cause))reason='network error or timeout';
+    super(`${language} index ${reason}`,{cause});
+  }
+}
+
 /** Query a later language only if every earlier language lacks this format. */
 export async function preferredFormexIndex(celex:string,primary:CellarIndex|undefined,languages:readonly EuLanguage[]=EU_LANGUAGE_ORDER,fetcher:typeof request=request,onIndex:(index:CellarIndex)=>void=()=>{},onEmpty:(error:EuExpressionUnavailable)=>void=()=>{}):Promise<CellarIndex|undefined>{
   for(const language of languages){
     let index:CellarIndex;
     try{index=primary?.language===language?primary:await fetchEuRepresentations(celex,language,fetcher);}
-    catch(error){if(error instanceof EuExpressionUnavailable){onEmpty(error);continue;}throw error;}
+    catch(error){
+      if(error instanceof EuExpressionUnavailable){onEmpty(error);continue;}
+      if(retrievalInfrastructureFailure(error))throw error;
+      throw new FormexIndexFailure(language,error);
+    }
     onIndex(index);
     if(index.rows.some(row=>row.format==='fmx4'))return index;
   }
@@ -411,7 +424,8 @@ async function nativeEuSource(doc:EuDocument,html:SourceResponse,requestedUrl:st
     },empty=>nativeSources.push({name:prefix+'.'+empty.language+'.formats-empty.json',source:empty.source,requestedUrl:empty.requestedUrl,kind:'CELLAR-WEMI-empty-index',metadata:{celex:doc.celex,language:empty.language,scope:'Successfully queried optional representation language; zero expressions.'}}));
   }catch(error){
     if(retrievalInfrastructureFailure(error))throw error;
-    warn('FORMEX_LOCATION_FAILED','METADATA_INCOMPLETE','Formex',`${doc.celex} Formex language search could not be completed; unchanged ${language} XHTML retained.`);
+    const detail=error instanceof FormexIndexFailure?` (${error.message})`:'';
+    warn('FORMEX_LOCATION_FAILED','METADATA_INCOMPLETE','Formex',`${doc.celex} Formex language search could not be completed${detail}; unchanged ${language} XHTML retained.`);
     return {language,html:html.text,sourceUrl:html.url,parsed,nativeSources,nativeWarnings,nativeIssues};
   }
   if(!formexIndex){

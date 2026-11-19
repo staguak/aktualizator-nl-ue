@@ -6,6 +6,7 @@ import type {EuLanguage} from './eu-language.js';
 import {fetchEuText,preferredFormexIndex,selectEuDocuments,EuDocumentUnavailable,EuDocumentVerificationIncomplete} from './eu-provider.js';
 import type {CellarIndex,EuDocument} from './eu-provider.js';
 import {SourceHttpError} from './source-cache.js';
+import {blocksPublicSourceCoverage} from './source-availability.js';
 import {zipSync} from 'fflate';
 
 const celex='32003L0088',work='https://publications.europa.eu/resource/cellar/050dd964-4f94-4c61-ab50-89217a0d90e2';
@@ -68,6 +69,26 @@ test('English legal text stays English while optional Formex lookup examines oth
   });
   assert.equal(result.language,'EN');assert.deepEqual(textLanguages,['eng']);assert.equal(result.html,html('EN'));
   assert.equal(result.nativeSources?.filter(entry=>entry.kind==='CELLAR-XHTML').length,1);
+});
+
+test('an incomplete Formex search reports the failed language and HTTP status',async()=>{
+  const queried:EuLanguage[]=[];
+  const result=await fetchEuText(document,'EN',async(url,headers)=>{
+    if(headers.Accept==='application/sparql-results+json'){
+      const language=languageOf(new URL(url).searchParams.get('query')!);
+      queried.push(language);
+      if(language==='NL')throw new SourceHttpError(503);
+      return source(JSON.stringify({results:{bindings:bindings(language,'html')}}),url);
+    }
+    if(headers.Accept.startsWith('application/rdf+xml'))return source('<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="'+work+'"/></rdf:RDF>',url);
+    return source(html('EN'),url);
+  });
+  assert.deepEqual(queried,['EN','PL','NL']);
+  const failure=result.nativeIssues?.find(issue=>issue.code==='FORMEX_LOCATION_FAILED');
+  assert(failure);
+  assert.match(failure.message,/NL.*HTTP 503/);
+  assert(blocksPublicSourceCoverage(failure));
+  assert(!result.nativeIssues?.some(issue=>issue.code==='FORMEX_NOT_PUBLISHED'));
 });
 
 test('only missing English text permits a complete Polish document, retaining actual language',async()=>{
