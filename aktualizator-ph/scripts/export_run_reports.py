@@ -256,7 +256,22 @@ def main() -> int:
         with path.open(encoding='utf-8') as stream:
             event = json.load(stream)
         gh = GitHub(os.environ['GITHUB_REPOSITORY'], os.environ['GITHUB_TOKEN'])
-        report = export(os.environ['GITHUB_EVENT_NAME'], event, gh)
+        event_name = os.environ['GITHUB_EVENT_NAME']
+        reconcile_id = os.environ.get('SONAR_RECONCILE_CHECK_ID')
+        if reconcile_id is not None:
+            if event_name not in ('schedule', 'workflow_dispatch', 'workflow_run'):
+                raise ExportError('UNAUTHORIZED_RECONCILIATION_EVENT')
+            if not re.fullmatch(r'[1-9][0-9]{0,18}', reconcile_id):
+                raise ExportError('INVALID_RECONCILIATION_CHECK_ID')
+            # The real check is fetched by its repository-scoped ID and its
+            # SonarCloud GitHub App identity is verified before export.
+            event = {'repository': {'full_name': gh.repo},
+                     'check_run': {'id': int(reconcile_id),
+                                   'app': {'slug': 'sonarqubecloud'}}}
+            event_name = 'check_run'
+        report = export(event_name, event, gh)
+        if reconcile_id is not None:
+            report['captureMode'] = 'scheduled-reconciliation'
         (output / 'report.json').write_text(json.dumps(report, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
         print(f"Archived report type: {report['type']}")
         return 0
