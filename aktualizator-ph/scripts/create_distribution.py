@@ -55,8 +55,11 @@ def write_member(archive,name,incoming,expected=None):
 
 def verified_archive(path,records):
     with zipfile.ZipFile(path) as archive:
-        assert len(archive.namelist())==len(records)==len(set(archive.namelist()))
-        assert set(archive.namelist())=={r['name'] for r in records}
+        actual=archive.namelist()
+        expected=[row['name'] for row in records]
+        if (len(actual)!=len(records) or len(set(actual))!=len(actual)
+                or len(set(expected))!=len(expected) or set(actual)!=set(expected)):
+            raise ValueError('Distribution archive inventory differs from verified members')
         for row in records:
             with archive.open(row['name']) as member:check(digests(member),row)
 

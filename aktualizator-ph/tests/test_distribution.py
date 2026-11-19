@@ -1,3 +1,5 @@
+import subprocess
+import sys
 import hashlib
 import base64
 import importlib.util
@@ -71,3 +73,28 @@ class Distribution(unittest.TestCase):
             with zipfile.ZipFile(root/'distribution'/'UE-sources.zip') as archive:
                 for digest,data in [(sha,original),(child,dependency)]:
                     name='image-dependencies/'+digest;self.assertEqual(archive.read(name),data);self.assertEqual(archive.namelist().count(name),1)
+
+    def test_archive_member_inventory_is_enforced_under_optimized_python(self):
+        """An extra ZIP member must be rejected even when Python disables assert."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            archive_path=root/'untrusted.zip'
+            expected=b'Official content\n'
+            with zipfile.ZipFile(archive_path,'w') as archive:
+                archive.writestr('expected.md',expected)
+                archive.writestr('undeclared.md',b'Unexpected content\n')
+            record=[dict(name='expected.md',bytes=len(expected),
+                         sha256=hashlib.sha256(expected).hexdigest(),
+                         md5=hashlib.md5(expected).hexdigest())]
+            command=(
+                'import json,sys\n'
+                'sys.path.insert(0,sys.argv[2])\n'
+                'from create_distribution import verified_archive\n'
+                'verified_archive(sys.argv[1],json.loads(sys.argv[3]))\n'
+            )
+            scripts=Path(__file__).resolve().parents[1]/'scripts'
+            completed=subprocess.run([sys.executable,'-O','-c',command,
+                                      str(archive_path),str(scripts),json.dumps(record)],
+                                     text=True,capture_output=True,check=False)
+            self.assertNotEqual(completed.returncode,0,
+                                'Optimized Python accepted an undeclared archive member')

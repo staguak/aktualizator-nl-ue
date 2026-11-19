@@ -1,4 +1,7 @@
 """Independent byte/XML audit; no inference of legal validity from text dates."""
+if not __debug__:
+    raise RuntimeError('Required legal-audit assertions are disabled by optimized Python')
+
 import hashlib
 import io
 import json
