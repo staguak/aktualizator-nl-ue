@@ -1,11 +1,14 @@
 """Regression tests: run-specific Sonar/Git reports, no guessed or stale results."""
+import json
+import os
+import tempfile
 from pathlib import Path
 import sys
 import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from export_run_reports import GitHub, ExportError, export, sonar_api_snapshot, sonar_selector, fetch_json
+from export_run_reports import GitHub, ExportError, export, sonar_api_snapshot, sonar_selector, fetch_json, main
 
 REPO = 'staguak/aktualizator-nl-ue'
 SHA = 'a' * 40
@@ -132,6 +135,24 @@ class ReportExportTests(unittest.TestCase):
             with self.subTest(url=url):
                 with self.assertRaises(ExportError):
                     fetch_json(url, 'do-not-send-this-token')
+
+    def test_cli_argument_cannot_change_report_destination(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            event_path = root / 'event.json'
+            event_path.write_text(json.dumps({'repository': {'full_name': REPO}}))
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                env = {'GITHUB_EVENT_PATH': str(event_path), 'GITHUB_REPOSITORY': REPO,
+                       'GITHUB_TOKEN': 'fake', 'GITHUB_EVENT_NAME': 'workflow_run'}
+                with patch.dict(os.environ, env), patch('export_run_reports.export', return_value={'type': 'test'}), \
+                     patch.object(sys, 'argv', ['script', '../escape']):
+                    self.assertEqual(main(), 0)
+                self.assertTrue((root / 'github-reports' / 'report.json').is_file())
+                self.assertFalse((root.parent / 'escape').exists())
+            finally:
+                os.chdir(old_cwd)
 
     def test_git_api_rejects_bad_repo(self):
         with self.assertRaisesRegex(ExportError, 'INVALID_REPOSITORY'):
