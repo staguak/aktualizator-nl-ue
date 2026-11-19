@@ -28,3 +28,27 @@ test('preflight requires a verified prior blob and handles 304, changed response
     assert.equal(contacted,false);
   }finally{fs.rmSync(cache,{recursive:true,force:true});}
 });
+
+test('BWB verification retains its official request headers without admitting arbitrary headers',async()=>{
+  const cache=fs.mkdtempSync(path.join(os.tmpdir(),'public-preflight-bwb-'));
+  const url='https://zoekservice.overheid.nl/sru/Search?version=2.0';
+  const headers={Accept:'application/xml','User-Agent':'NL-Law-Updater/1.0','Cache-Control':'no-cache',Pragma:'no-cache'};
+  try{
+    const body=await fetchSourceFile(url,headers,{cacheDir:cache,fetcher:async()=>new Response('<response/>',{
+      headers:{ETag:'"bwb-verified"','Content-Type':'application/xml'}
+    })});
+    assert.deepEqual(body.cacheHint?.headers,headers);
+    const request={requestedUrl:url,kind:'SRU-2.0',sha256:body.sha256!,verificationRequest:{headers}};
+    const unchanged=await verifyUnchangedSources([request],cache,async(_url,options)=>{
+      const retained=new Headers(options?.headers);
+      for(const [name,value] of Object.entries(headers))assert.equal(retained.get(name),value);
+      assert.equal(retained.get('if-none-match'),'"bwb-verified"');
+      return new Response(null,{status:304});
+    });
+    assert.deepEqual(unchanged,{status:'NO_CHANGE',checked:1});
+    for(const invalid of [
+      {...request,requestedUrl:'https://publications.europa.eu/webapi/rdf/sparql'},
+      {...request,verificationRequest:{headers:{...headers,Authorization:'unapproved'}}}
+    ])await assert.rejects(verifyUnchangedSources([invalid],cache),/Unverifiable prior source request/);
+  }finally{fs.rmSync(cache,{recursive:true,force:true});}
+});

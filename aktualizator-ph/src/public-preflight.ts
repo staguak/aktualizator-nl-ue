@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {runPool} from './concurrency.js';
-import {fetchSourceFile,hasVerifiedSourceValidator} from './source-cache.js';
+import {fetchSourceFile,hasVerifiedSourceValidator,sourceVerificationHeadersAllowed} from './source-cache.js';
 import {sourceAuditMode} from './source-audit.js';
 
 const hosts=['publications.europa.eu','eur-lex.europa.eu','repository.officiele-overheidspublicaties.nl','zoekservice.overheid.nl'];
@@ -12,8 +12,7 @@ class SourceChanged extends Error {}
 function requestIdentity(entry:ObservedRequest):string{
   const url=new URL(entry.requestedUrl),headers=entry.verificationRequest?.headers;
   if(url.protocol!=='https:'||!hosts.includes(url.hostname)||url.username||url.password||url.port||
-    !headers||!Object.keys(headers).length||Object.entries(headers).some(([key,value])=>
-      !['accept','accept-language'].includes(key.toLowerCase())||typeof value!=='string'||/[\r\n]/.test(value))||
+    !headers||!Object.keys(headers).length||!sourceVerificationHeadersAllowed(url,headers)||
     !/^[a-f0-9]{64}$/.test(entry.sha256))throw new Error('Unverifiable prior source request.');
   return JSON.stringify([url.href,Object.entries(headers).sort(([a],[b])=>a.localeCompare(b,'en'))]);
 }

@@ -1,7 +1,7 @@
 import * as path from 'node:path';
 import { XMLParser } from 'fast-xml-parser';
 import type { VersionRecord } from './types.js';
-import { fetchSource,retrySource } from './source-cache.js';
+import { BWB_USER_AGENT,fetchSource,retrySource } from './source-cache.js';
 import {operationMetrics} from './operation-metrics.js';
 import type { SourceResponse } from './source-cache.js';
 import { OfficialSources, xmlObject } from './official-sources.js';
@@ -23,7 +23,7 @@ export function sleep(ms: number): Promise<void> {
 }
 
 async function fetchResponseWithRetry(url: string,unconditional=false): Promise<SourceResponse> {
-  return retrySource(()=>fetchSource(url,{'User-Agent':'NL-Law-Updater/1.0',Accept:'application/xml',
+  return retrySource(()=>fetchSource(url,{'User-Agent':BWB_USER_AGENT,Accept:'application/xml',
     ...unconditional?{'Cache-Control':'no-cache',Pragma:'no-cache'}:{}},
     {cacheDir:unconditional?undefined:process.env.LAW_SOURCE_CACHE_DIR??(HTTP_CACHE_DIR?path.join(HTTP_CACHE_DIR,'revalidated-v1'):undefined),
       timeoutMs:45_000,allowedHosts:['zoekservice.overheid.nl','repository.officiele-overheidspublicaties.nl']}),MAX_RETRIES);

@@ -85,8 +85,23 @@ export function readSourceBlob(root:string,record:Pick<FileRecord,'sha256'|'md5'
     return bytes;
   }finally{fs.closeSync(fd);}
 }
+export const BWB_USER_AGENT='NL-Law-Updater/1.0';
+
+export function sourceVerificationHeadersAllowed(url:URL,headers:Record<string,string>):boolean{
+  const bwb=['zoekservice.overheid.nl','repository.officiele-overheidspublicaties.nl'].includes(url.hostname);
+  return Object.entries(headers).every(([name,value])=>{
+    if(typeof value!=='string'||/[\r\n]/.test(value))return false;
+    switch(name.toLowerCase()){
+      case 'accept': case 'accept-language': return true;
+      case 'user-agent': return bwb&&value===BWB_USER_AGENT;
+      case 'cache-control': case 'pragma': return bwb&&value==='no-cache';
+      default: return false;
+    }
+  });
+}
+
 function cacheHint(url:string,headers:Record<string,string>,record:Pick<FileRecord,'etag'|'lastModified'>):SourceCacheHint|undefined{
-  if(Object.keys(headers).some(k=>!['accept','accept-language'].includes(k.toLowerCase())))return;
+  if(!sourceVerificationHeadersAllowed(new URL(url),headers))return;
   return {url,headers:{...headers},etag:record.etag,lastModified:record.lastModified};
 }
 function fileResponse(filePath:string,record:FileRecord,observation:SourceObservation,hint?:SourceCacheHint):SourceResponse{
@@ -106,7 +121,7 @@ export function importSourceCache(root:string,entry:{requestedUrl:string;url:str
   const allowed=['publications.europa.eu','eur-lex.europa.eu','repository.officiele-overheidspublicaties.nl','zoekservice.overheid.nl'];
   const check=(value:string)=>{const u=new URL(value);if(u.protocol!=='https:'||u.username||u.password||u.port||!allowed.includes(u.hostname))throw new Error('Unsafe imported source URI.');};
   check(entry.url);check(hint.url);
-  if(hint.url!==entry.requestedUrl||!hint.headers||Object.entries(hint.headers).some(([k,v])=>!['accept','accept-language'].includes(k.toLowerCase())||typeof v!=='string'||/[\r\n]/.test(v))||
+  if(hint.url!==entry.requestedUrl||!hint.headers||!sourceVerificationHeadersAllowed(new URL(hint.url),hint.headers)||
     [hint.etag,hint.lastModified].some(v=>v!==null&&typeof v!=='string'))throw new Error('Unsafe imported source request.');
   const key=sourceKey(hint.url,hint.headers),metadata=publicCacheFile(root,key);
   if(!safeCacheDirectory(path.dirname(metadata)))throw new Error('Unsafe imported source cache path.');
