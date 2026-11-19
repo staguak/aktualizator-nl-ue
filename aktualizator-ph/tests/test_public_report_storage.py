@@ -142,7 +142,10 @@ class ReportExportTests(unittest.TestCase):
         source = workflow.read_text(encoding='utf-8')
         self.assertIn('Initialize fallback diagnostic artifact', source)
         self.assertIn('Remove fallback marker after successful export', source)
-        self.assertIn('if: always()', source)
+        self.assertIn('if: success()', source)
+        self.assertIn('Save failure diagnostics', source)
+        self.assertIn('sonar-check-{0}', source)
+        self.assertIn('if: ${{ always() && (failure() || cancelled()) }}', source)
         self.assertIn('github-reports/export-incomplete.json', source)
 
     def test_trusted_exporter_decodes_multiline_github_contents_base64(self):
