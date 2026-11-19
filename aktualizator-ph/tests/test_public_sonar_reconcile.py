@@ -126,7 +126,7 @@ class ReconciliationTests(unittest.TestCase):
             discover(TooManyChecks({}), now=NOW)
 
     def test_workflow_has_schedule_manual_trigger_and_reconcile_matrix(self):
-        workflow = (ROOT.parent / '.github/workflows/report-storage.yml').read_text()
+        workflow = (ROOT.parent / '.github/workflows/sonar-reconciliation.yml').read_text()
         self.assertIn('workflow_dispatch:', workflow)
         self.assertIn('schedule:', workflow)
         self.assertIn('sonar_reconcile.py', workflow)
