@@ -1,4 +1,5 @@
 """Regression tests: run-specific Sonar/Git reports, no guessed or stale results."""
+import base64
 import json
 import os
 import tempfile
@@ -135,6 +136,15 @@ class ReportExportTests(unittest.TestCase):
             with self.subTest(url=url):
                 with self.assertRaises(ExportError):
                     fetch_json(url, 'do-not-send-this-token')
+
+    def test_trusted_exporter_decodes_multiline_github_contents_base64(self):
+        workflow = Path(__file__).resolve().parents[2] / '.github/workflows/report-storage.yml'
+        source = workflow.read_text(encoding='utf-8')
+        self.assertIn("b64decode(''.join(payload['content'].split()), validate=True)", source)
+        sample = base64.b64encode(b'print(42)').decode('ascii')
+        github_content = sample[:4] + '\n' + sample[4:] + '\n'
+        self.assertEqual(base64.b64decode(''.join(github_content.split()), validate=True),
+                         b'print(42)')
 
     def test_cli_argument_cannot_change_report_destination(self):
         with tempfile.TemporaryDirectory() as directory:
