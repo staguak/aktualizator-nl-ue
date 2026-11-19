@@ -250,7 +250,7 @@ def export(event_name: str, event: dict, gh: GitHub, sonar_getter=fetch_json) ->
 
 def main() -> int:
     path = Path(os.environ['GITHUB_EVENT_PATH'])
-    output = Path(sys.argv[1] if len(sys.argv) > 1 else 'github-reports')
+    output = Path('github-reports')  # fixed directory; never derived from the event or CLI
     output.mkdir(parents=True, exist_ok=True)
     try:
         with path.open(encoding='utf-8') as stream:
