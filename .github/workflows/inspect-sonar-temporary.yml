@@ -1,0 +1,54 @@
+name: Temporary inspect Sonar check findings
+
+on:
+  push:
+    branches:
+      - feat/github-actions-report-storage-20261119
+
+permissions:
+  contents: read
+  checks: read
+
+jobs:
+  sonar-diagnostics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - name: Report exact SonarCloud check annotations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_SHA: ${{ github.sha }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import json, os, time, urllib.request
+          base = 'https://api.github.com/repos/' + os.environ['GH_REPO']
+          head = {'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                  'Accept': 'application/vnd.github+json'}
+          def fetch(path):
+              with urllib.request.urlopen(urllib.request.Request(base + path, headers=head), timeout=20) as response:
+                  return json.load(response)
+          sha = os.environ['GH_SHA']
+          sonar = []
+          for attempt in range(24):
+              checks = fetch('/commits/' + sha + '/check-runs?per_page=100').get('check_runs', [])
+              sonar = [c for c in checks if c.get('app', {}).get('slug') == 'sonarqubecloud']
+              if sonar and all(c.get('status') == 'completed' for c in sonar):
+                  break
+              time.sleep(10)
+          print('Sonar check count:',len(sonar), 'on', sha)
+          for check in sonar:
+              print('Check ID:',check['id'],'result:',check.get('conclusion'))
+              out=check.get('output') or {}
+              print('Title:',out.get('title'))
+              for page in range(1, 4):
+                  ann=fetch('/check-runs/' + str(check['id']) + '/annotations?per_page=100&page=' + str(page))
+                  for item in ann:
+                      print('SONAR_ANNOTATION:',json.dumps({
+                          'path':item.get('path'),'start_line':item.get('start_line'),
+                          'end_line':item.get('end_line'),'title':item.get('title'),
+                          'message':item.get('message'),'annotation_level':item.get('annotation_level')
+                      }, ensure_ascii=False))
+                  if len(ann) < 100:
+                      break
+          PY
