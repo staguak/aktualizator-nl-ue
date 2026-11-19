@@ -50,6 +50,8 @@ class FakeGitHub:
             return {'artifacts': self.artifacts}
         if path.startswith('/pulls?'):
             return self.pulls
+        if path.startswith('/branches?'):
+            return []
         if '/check-runs?' in path:
             for sha in (SHA, PR_SHA):
                 if path.startswith('/commits/' + sha + '/'):
