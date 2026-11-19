@@ -5,6 +5,8 @@ import {fetchSourceFile,hasVerifiedSourceValidator,sourceVerificationHeadersAllo
 import {sourceAuditMode} from './source-audit.js';
 
 const hosts=['publications.europa.eu','eur-lex.europa.eu','repository.officiele-overheidspublicaties.nl','zoekservice.overheid.nl'];
+const sruHost='zoekservice.overheid.nl';
+const maxSruCatalogBytes=4_000_000;
 type Result={status:'NO_CHANGE'|'CHANGED'|'UNKNOWN';checked:number};
 interface ObservedRequest {requestedUrl:string;sha256:string;kind:string;verificationRequest?:{headers:Record<string,string>}|null}
 class SourceChanged extends Error {}
@@ -17,6 +19,13 @@ function requestIdentity(entry:ObservedRequest):string{
   return JSON.stringify([url.href,Object.entries(headers).sort(([a],[b])=>a.localeCompare(b,'en'))]);
 }
 
+function isSruCatalog(entry:ObservedRequest):boolean{
+  const url=new URL(entry.requestedUrl);
+  return entry.kind==='SRU-2.0'&&url.hostname===sruHost&&url.pathname==='/sru/Search'&&
+    url.searchParams.get('operation')==='searchRetrieve'&&url.searchParams.get('version')==='2.0'&&
+    url.searchParams.get('x-connection')==='BWB';
+}
+
 export async function verifyUnchangedSources(requests:ObservedRequest[],cache:string,fetcher:typeof fetch=fetch):Promise<Result>{
   if(!requests.length)return {status:'UNKNOWN',checked:0};
   const unique=new Map<string,ObservedRequest>();
@@ -25,24 +34,28 @@ export async function verifyUnchangedSources(requests:ObservedRequest[],cache:st
     if(previous&&previous.sha256!==request.sha256)return {status:'UNKNOWN',checked:0};
     unique.set(key,request);
   }
-  if([...unique.values()].some(entry=>!hasVerifiedSourceValidator(cache,entry.requestedUrl,entry.verificationRequest!.headers,entry.sha256)))
+  const entries=[...unique.values()].map(entry=>({entry,catalog:isSruCatalog(entry)}));
+  if(entries.some(({entry,catalog})=>!catalog&&!hasVerifiedSourceValidator(cache,entry.requestedUrl,entry.verificationRequest!.headers,entry.sha256)))
     return {status:'UNKNOWN',checked:0};
   let checked=0,changed=false,unknown=false;
-  await runPool([...unique.values()],4,async entry=>{
+  await runPool(entries,4,async({entry,catalog})=>{
     if(changed||unknown)return;
     try{
       const source=await fetchSourceFile(entry.requestedUrl,entry.verificationRequest!.headers,{
-        cacheDir:cache,allowedHosts:hosts,timeoutMs:15_000,
+        cacheDir:cache,allowedHosts:catalog?[sruHost]:hosts,timeoutMs:15_000,
+        ...catalog?{maxBytes:maxSruCatalogBytes}:{},
         fetcher:async(url,options)=>{
           const response=await fetcher(url,options);
-          if(response.status===200){
+          if(response.status===200&&!catalog){
             await response.body?.cancel();
             throw new SourceChanged();
           }
           return response;
         }
       });
-      if(source.sha256!==entry.sha256||source.observation?.status!==304)unknown=true;
+      const downloadedCatalog=catalog&&source.observation?.status===200;
+      if(downloadedCatalog&&source.sha256!==entry.sha256)changed=true;
+      else if(source.sha256!==entry.sha256||!downloadedCatalog&&source.observation?.status!==304)unknown=true;
       else checked++;
     }catch(error){
       if(error instanceof SourceChanged)changed=true;

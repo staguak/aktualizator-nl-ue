@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -50,5 +51,24 @@ test('BWB verification retains its official request headers without admitting ar
       {...request,requestedUrl:'https://publications.europa.eu/webapi/rdf/sparql'},
       {...request,verificationRequest:{headers:{...headers,Authorization:'unapproved'}}}
     ])await assert.rejects(verifyUnchangedSources([invalid],cache),/Unverifiable prior source request/);
+  }finally{fs.rmSync(cache,{recursive:true,force:true});}
+});
+
+test('an official SRU catalog can prove unchanged bytes without an HTTP validator',async()=>{
+  const cache=fs.mkdtempSync(path.join(os.tmpdir(),'public-preflight-sru-'));
+  const body='<searchRetrieveResponse/>';
+  const headers={Accept:'application/xml','User-Agent':'NL-Law-Updater/1.0'};
+  const request={requestedUrl:'https://zoekservice.overheid.nl/sru/Search?version=2.0&operation=searchRetrieve&x-connection=BWB',
+    kind:'SRU-2.0',sha256:createHash('sha256').update(body).digest('hex'),verificationRequest:{headers}};
+  try{
+    const matched=await verifyUnchangedSources([request],cache,async()=>new Response(body));
+    assert.deepEqual(matched,{status:'NO_CHANGE',checked:1});
+    assert.equal((await verifyUnchangedSources([request],cache,async()=>new Response('<different/>'))).status,'CHANGED');
+    assert.equal((await verifyUnchangedSources([request],cache,async()=>new Response(null,{status:503}))).status,'UNKNOWN');
+    let contacted=false;
+    const anotherEndpoint={...request,requestedUrl:'https://zoekservice.overheid.nl/other'};
+    const rejected=await verifyUnchangedSources([anotherEndpoint],cache,async()=>{contacted=true;return new Response(body);});
+    assert.equal(rejected.status,'UNKNOWN');
+    assert.equal(contacted,false);
   }finally{fs.rmSync(cache,{recursive:true,force:true});}
 });

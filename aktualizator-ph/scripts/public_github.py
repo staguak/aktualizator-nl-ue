@@ -612,7 +612,7 @@ def publish():
                 or proof['configurationSha256'] != request['configSha256']
                 or any(proof[key] != request[key] for key in ('previousSha', 'rangeTo', 'executionSha256'))):
             raise ValueError('No-change preflight identity mismatch')
-        record_no_change(request, f"Urzędowe odpowiedzi 304 potwierdziły {proof['checked']} zweryfikowanych źródeł.")
+        record_no_change(request, f"Odpowiedzi 304 lub zgodność SHA-256 katalogów SRU potwierdziły {proof['checked']} urzędowych źródeł.")
         return
     update = {module: APP / directory for module, directory in corpus.OUTPUTS.items()}
     audit = corpus.verified_phase(update, STATE / 'build/verified.json', request['rangeTo'])
