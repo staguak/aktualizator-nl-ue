@@ -51,6 +51,11 @@ test('CELLAR addressees distinguish a Dutch decision from a foreign addressee wi
   assert.equal(included.status,'APPLICABILITY_CONFIRMED');
   assert.equal(included.unitApplicability,'APPLICABILITY_UNKNOWN');
   assert.equal(assessPublicEuDocument('32025D2591',[],[row('NL')]).status,'APPLICABILITY_UNKNOWN');
+  const dutch=row('NL');
+  const securePredicate=predicate.replace(/^http:/,'https:');
+  assert.equal(territorialObservation(securePredicate,dutch.value,dutch.sourceUrl,dutch.sourceSha256)?.predicate,securePredicate);
+  assert.equal(territorialObservation(predicate.replace('publications.europa.eu','example.com'),
+    dutch.value,dutch.sourceUrl,dutch.sourceSha256),undefined);
 });
 
 test('official notification date retains its predicate and literal type without inventing an adoption date',()=>{

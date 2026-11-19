@@ -10,6 +10,7 @@ import re
 from pathlib import Path
 import zipfile
 import xml.etree.ElementTree as ET
+from verify_eu_headers import CDM
 from verify_inline_images import image_source_key
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -124,16 +125,17 @@ def verify_eu_catalog_evidence(act, index, source, preference):
             if 'language' in row:
                 languages_by_id.setdefault(identifier, set()).add(row['language']['value'])
             predicate = row.get('p', {}).get('value')
-            if predicate == 'http://publications.europa.eu/ontology/cdm#available_language':
+            if predicate == CDM + 'available_language':
                 languages_by_id.setdefault(identifier, set()).add(row['v']['value'])
             if predicate:
                 spec, work = row['v'], row.get('w', {}).get('value')
             elif 'date' in row:
-                predicate = 'http://publications.europa.eu/ontology/cdm#work_date_document'
+                predicate = CDM + 'work_date_document'
                 spec, work = row['date'], row['work']['value']
             else:
                 continue
-            if predicate.rsplit('#', 1)[-1] in {'resource_legal_addresses_country', 'resource_legal_addresses_institution'}:
+            if re.fullmatch(r'https?://publications\.europa\.eu/ontology/cdm#resource_legal_addresses_(?:country|institution)',
+                            predicate):
                 territory_rows.add((identifier, predicate, spec['value'], work, entry['url'], source_sha))
             if re.search('date|period|duration', predicate, re.IGNORECASE) or re.search(
                 r'#(?:date|dateTime|gYear|gYearMonth|duration)$', spec.get('datatype', '')
@@ -176,10 +178,8 @@ def verify_eu_catalog_evidence(act, index, source, preference):
         if (observed != applicability.get('addressedTo') or len(recorded_territory) != len(observed)
                 or recorded_territory != {row for row in territory_rows if row[0] == document['celex']}):
             raise ValueError('EU addressee differs from original query')
-        dutch = [row for row in observed if row['value'].replace('https:', 'http:', 1) in {
-            'http://publications.europa.eu/resource/authority/country/NLD',
-            'http://publications.europa.eu/resource/authority/fd_050/NL',
-        }]
+        dutch = [row for row in observed if re.fullmatch(
+            r'https?://publications\.europa\.eu/resource/authority/(?:country/NLD|fd_050/NL)', row['value'])]
         confirmed = dutch and target_countries and re.fullmatch(r'3\d{4}D\d{4}', document['celex'])
         if confirmed:
             evidence = dutch[0]
