@@ -13,6 +13,9 @@ Nie zakładaj aktualności wyłącznie na podstawie zielonego testu kodu: sprawd
 
 ## Odczyt i uruchamianie
 
+Prace nad aktualizatorem można wznowić od [instrukcji kontynuacji](docs/KONTYNUACJA_AKTUALIZATORA.md).
+Zawiera stan roboczego PR, następne zadanie i sposób sprawdzenia wyniku.
+
 * **Każdy, również bez konta GitHub**, może otworzyć indeks i pobrać pliki bezpośrednio z gałęzi `dane`.
   Katalogi `NL/` i `UE/` zawierają Markdown, indeksy i grafiki. Zachowane wersje wcześniejszych migawek
   są dostępne przez `history.json`, który wiąże pierwotne nazwy i sumy SHA-256 z obecnymi ścieżkami.
