@@ -1,3 +1,5 @@
+import {territorialObservation} from './eu-applicability.js';
+import type {TerritorialObservation} from './eu-applicability.js';
 import type { EuText } from './eu-parser.js';
 import type {SourceIssue} from './source-availability.js';
 import { fetchSource, fetchBinarySource, fetchSourceFile } from './source-cache.js';
@@ -5,13 +7,15 @@ import type { BinarySource, SourceResponse } from './source-cache.js';
 import { OfficialSources, xmlObject, formexInfo } from './official-sources.js';
 import { shareInFlight } from './concurrency.js';
 import {assertEuSourceIdentity} from './eu-source-identity.js';
-import {documentDate} from './eu-dates.js';
+import {createHash} from 'node:crypto';
+import {officialDateObservation,documentDate} from './eu-dates.js';
+import type {EuDateObservation} from './eu-dates.js';
 import {retrySource,SourceHttpError,transientSourceError,sourceInfrastructureFailure} from './source-cache.js';
 import {validateSourceXml,validateSourceXmlFile,preserveRejectedSource,XmlValidationInfrastructureError} from './xml-validation.js';
 import type {XmlKind,XmlReceipt} from './xml-validation.js';
 import {validateFormexXml} from './xml-archive-validation.js';
 import {parseEuSource} from './parsed-source-cache.js';
-import {EU_LANGUAGE_ORDER,languageCode,languageAccept,languageMatches,preferredEuLanguages,firstEuLanguage} from './eu-language.js';
+import {EU_LANGUAGE_ORDER,languageCode,languageAccept,languageMatches,euLanguageOrder,publicEuModules,availableEuLanguages} from './eu-language.js';
 import type {EuLanguage} from './eu-language.js';
 import {checkCelex} from './eu-identifiers.js';
 export {checkCelex} from './eu-identifiers.js';
@@ -26,6 +30,9 @@ export interface EuAct {
   outputProfile?:'legal-structure-v1';
 }
 export interface EuDocument {
+  officialDates?:EuDateObservation[];
+  territorialObservations?:TerritorialObservation[];
+  applicability?:ReturnType<typeof import('./eu-applicability.js').assessPublicEuDocument>;
   celex: string; metadata: Record<string, string[]>; role: string; include: string;
   selectionInclude?:string;
   outputProfile?:'legal-structure-v1';
@@ -63,7 +70,7 @@ export async function discoverEuDocuments(act: EuAct, archive?: OfficialSources,
   const family = act.celex.startsWith('3') ? ` || STRSTARTS(str(?id), "0${act.celex.slice(1)}-")` : '';
   const relationFilter = RELATIONS.map((p) => `cdm:${p}`).join(',');
   const query = `PREFIX cdm: <${CDM}>
-SELECT DISTINCT ?id ?p ?v ?relation WHERE {
+SELECT DISTINCT ?id ?p ?v ?relation ?w WHERE {
   { ?w cdm:resource_legal_id_celex ?id . FILTER(str(?id) IN (${ids})${family}) }
   UNION {
     ?base cdm:resource_legal_id_celex ?baseId . FILTER(str(?baseId) = "${act.celex}")
@@ -72,7 +79,7 @@ SELECT DISTINCT ?id ?p ?v ?relation WHERE {
   }
   { ?w ?p ?v .
   FILTER(STRSTARTS(str(?p), "${CDM}") &&
-    (regex(str(?p), "date|in-force|ecli|version|information_miscellaneous|consolidat|amend|modif|correct|repeal|annul")
+    (regex(str(?p), "date|in-force|ecli|version|information_miscellaneous|consolidat|amend|modif|correct|repeal|annul|address|territor|applicab|period")
       || ?p = cdm:resource_legal_id_celex)) }
   UNION {
     ?expression cdm:expression_belongs_to_work ?w ; cdm:expression_uses_language ?language .
@@ -85,7 +92,7 @@ SELECT DISTINCT ?id ?p ?v ?relation WHERE {
   const fallback=(reason:string,rowCount:number|null,status?:number):EuDocument[]=>{
     const record={profile:'eu-discovery-unavailable-v1',celex:act.celex,reason,rowCount,...status?{httpStatus:status}:{}};
     archive?.add('discovery-unavailable.json',{bytes:Buffer.from(JSON.stringify(record)),url:url.href,contentType:'application/json'},url.href,'CELLAR-discovery-unavailable',{celex:act.celex});
-    archive?.warning(`Source catalog unavailable for ${act.celex}; configured documents still tried in EN, PL, NL, FR.`,{classification:'SOURCE_UNAVAILABLE',code:'DISCOVERY_UNAVAILABLE',documentId:act.celex});
+    archive?.warning(`Source catalog unavailable for ${act.celex}; configured documents still checked in the active language order.`,{classification:'SOURCE_UNAVAILABLE',code:'DISCOVERY_UNAVAILABLE',documentId:act.celex});
     archive?.completeDiscovery({protocol:'CELLAR-SPARQL',rowCount,limit:10000,unavailable:true,scope:'Configured identifiers only; connected history/case catalog is incomplete.'});
     return [...new Set([act.celex,...act.requiredVersions,...extras])].map(celex=>{checkCelex(celex);return {celex,metadata:{},role:EU_DISCOVERY_FALLBACK_ROLE,include:'full-document'};});
   };
@@ -98,6 +105,7 @@ SELECT DISTINCT ?id ?p ?v ?relation WHERE {
   if (!Array.isArray(rows) || rows.length >= 10000) return fallback('INCOMPLETE_CATALOG',Array.isArray(rows)?rows.length:null);
   if(!rows.length)return fallback('EMPTY_CATALOG',0);
   const documents = new Map<string, EuDocument>();
+  const sourceSha256=publicEuModules()?discovery.sha256??createHash('sha256').update(discovery.bytes).digest('hex'):undefined;
   for (const row of rows) {
     const id = row.id?.value;
     if (typeof id !== 'string') throw new Error('Malformed EU metadata identifier.');
@@ -105,12 +113,21 @@ SELECT DISTINCT ?id ?p ?v ?relation WHERE {
     const doc = documents.get(id) ?? { celex: id, metadata: {}, role: row.relation ? 'amendment/correction/legal-effect' :
       id.startsWith('0') ? 'consolidated-documentary-version' : 'original', include: /R\(\d{2}\)$/.test(id) ? 'corrigendum' : 'full-document' };
     const property = row.p?.value?.slice(CDM.length), value = row.v?.value;
-    if (!property || typeof value !== 'string') throw new Error('Malformed EU metadata row.');
+    if (!property || typeof value !== 'string'||!row.p.value.startsWith(CDM)) throw new Error('Malformed EU metadata row.');
     const values = doc.metadata[property] ?? [];
     if (!values.includes(value)) values.push(value);
     doc.metadata[property] = values;
+    if(sourceSha256){
+      const work=row.w?.value;
+      const territorial=territorialObservation(row.p.value,value,discovery.url,sourceSha256,work);
+      if(territorial&&!(doc.territorialObservations??=[]).some(evidence=>JSON.stringify(evidence)===JSON.stringify(territorial)))
+        doc.territorialObservations.push(territorial);
+      const observation=officialDateObservation(row.p.value,row.v,{celex:id,...work?{work}:{}},discovery.url,sourceSha256);
+      if(observation&&!(doc.officialDates??=[]).some(date=>JSON.stringify(date)===JSON.stringify(observation)))doc.officialDates.push(observation);
+    }
     documents.set(id, doc);
   }
+  if(publicEuModules()&&!documents.has(act.celex))throw new Error('Official catalogue lacks its configured original: '+act.celex);
   // Required corpus versions remain mandatory even if index migration omits them.
   for (const id of act.requiredVersions) {
     checkCelex(id);
@@ -124,16 +141,21 @@ SELECT DISTINCT ?id ?p ?v ?relation WHERE {
   }
   archive?.completeDiscovery({protocol:'CELLAR-SPARQL',rowCount:rows.length,limit:10000,
     scope:'Configured CELEX family, relations and required pins; completed bounded query.'});
-  for (const doc of documents.values()) for (const values of Object.values(doc.metadata)) values.sort();
+  for (const doc of documents.values()){
+    for (const values of Object.values(doc.metadata)) values.sort((a,b)=>a.localeCompare(b,'en'));
+    doc.territorialObservations?.sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b),'en'));
+    doc.officialDates?.sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b),'en'));
+  }
   return [...documents.values()].sort((a,b)=>a.celex.localeCompare(b.celex));
 }
 
 export function selectEuDocuments(documents: EuDocument[], act: EuAct, from: string, to: string, language: EuLanguage|'preferred' = 'NL'): EuDocument[] {
   const required = new Set([...act.requiredVersions, ...act.attachedDocuments.map((d) => d.celex)]);
+  if(publicEuModules()&&language==='preferred')required.add(act.celex);
   const date=(d:EuDocument):string|undefined=>{
     const value=documentDate(d);
     if(value===null&&(d.celex.startsWith('0')||d.metadata.work_date_document?.length))
-      throw new Error(`Invalid or ambiguous documentary date for EU source: ${d.celex}`);
+      throw new Error(`DATE_UNDETERMINED: Invalid or ambiguous documentary date for EU source ${d.celex}`);
     return value??undefined;
   };
   const hasRequestedLanguage = (d: EuDocument) => language==='preferred'?true:
@@ -152,7 +174,7 @@ export function selectEuDocuments(documents: EuDocument[], act: EuAct, from: str
     if (d.celex.startsWith('0')) return d === baseline || (versionDate! >= from && versionDate! <= to);
     // Monitor connected changes in the fixed window and any later than the baseline.
     // Older underlying changes remain represented by the original/baseline full text.
-    if (!versionDate) throw new Error(`Missing documentary date for connected EU source: ${d.celex}`);
+    if (!versionDate) throw new Error(`DATE_UNDETERMINED: missing documentary date for connected EU source ${d.celex}`);
     const futureEffect = (d.metadata['resource_legal_date_entry-into-force'] ?? []).some((value) => value >= from && value <= to);
     return versionDate <= to && (versionDate >= from || futureEffect || !baseline || versionDate > date(baseline)!);
   });
@@ -225,11 +247,14 @@ export class EuExpressionUnavailable extends Error {
 export async function fetchEuText(doc: EuDocument, language:EuLanguage='EN',fetcher:typeof request=request,binaryFetcher:typeof fetchBinarySource=fetchBinarySource): Promise<EuSource> {
   // Explicit legacy NL callers retain their requested scope; the public EN path
   // alone enables the approved EN→PL→NL→FR fallback.
-  const languages=language==='EN'?EU_LANGUAGE_ORDER:[language];
+  const preferred=language==='EN'?euLanguageOrder():[language];
+  const advertised=doc.metadata.available_language??[];
+  const supported=publicEuModules()&&advertised.length?availableEuLanguages(advertised,preferred):[];
+  const languages=supported.length?supported:preferred;
   let result:EuSource|undefined;const attempts:{language:EuLanguage;reason:string}[]=[];
   let unresolved:Exclude<EuTextFailureClass,'NOT_OBSERVED'>|undefined;
   for(const lang of languages){
-    try{result=await fetchEuTextLanguage(doc,lang,fetcher,binaryFetcher,language==='EN'?EU_LANGUAGE_ORDER:[language]);break;}
+    try{result=await fetchEuTextLanguage(doc,lang,fetcher,binaryFetcher,languages);break;}
     catch(error){if(retrievalInfrastructureFailure(error))throw error;
       if(error instanceof EuLanguageUnavailable&&error.classification!=='NOT_OBSERVED')
         unresolved??=error.classification;
@@ -345,12 +370,25 @@ export async function fetchRdfNotice(base:string,fetcher:typeof request=request,
   return {source,kind:'CELLAR-RDF-object',...xmlValidation?{xmlValidation}:{},warning:`Full RDF tree unavailable: ${treeError instanceof Error?treeError.message:'retrieval failed'}; XML branch unavailable: ${branchError instanceof Error?branchError.message:'retrieval failed'}; non-inferred object notice retained (work metadata only).`};
 }
 
+class FormexIndexFailure extends Error {
+  constructor(language:EuLanguage,cause:unknown){
+    let reason='index response rejected';
+    if(cause instanceof SourceHttpError)reason=`HTTP ${cause.status}`;
+    else if(transientSourceError(cause))reason='network error or timeout';
+    super(`${language} index ${reason}`,{cause});
+  }
+}
+
 /** Query a later language only if every earlier language lacks this format. */
 export async function preferredFormexIndex(celex:string,primary:CellarIndex|undefined,languages:readonly EuLanguage[]=EU_LANGUAGE_ORDER,fetcher:typeof request=request,onIndex:(index:CellarIndex)=>void=()=>{},onEmpty:(error:EuExpressionUnavailable)=>void=()=>{}):Promise<CellarIndex|undefined>{
   for(const language of languages){
     let index:CellarIndex;
     try{index=primary?.language===language?primary:await fetchEuRepresentations(celex,language,fetcher);}
-    catch(error){if(error instanceof EuExpressionUnavailable){onEmpty(error);continue;}throw error;}
+    catch(error){
+      if(error instanceof EuExpressionUnavailable){onEmpty(error);continue;}
+      if(retrievalInfrastructureFailure(error))throw error;
+      throw new FormexIndexFailure(language,error);
+    }
     onIndex(index);
     if(index.rows.some(row=>row.format==='fmx4'))return index;
   }
@@ -386,7 +424,8 @@ async function nativeEuSource(doc:EuDocument,html:SourceResponse,requestedUrl:st
     },empty=>nativeSources.push({name:prefix+'.'+empty.language+'.formats-empty.json',source:empty.source,requestedUrl:empty.requestedUrl,kind:'CELLAR-WEMI-empty-index',metadata:{celex:doc.celex,language:empty.language,scope:'Successfully queried optional representation language; zero expressions.'}}));
   }catch(error){
     if(retrievalInfrastructureFailure(error))throw error;
-    warn('FORMEX_LOCATION_FAILED','METADATA_INCOMPLETE','Formex',`${doc.celex} Formex language search could not be completed; unchanged ${language} XHTML retained.`);
+    const detail=error instanceof FormexIndexFailure?` (${error.message})`:'';
+    warn('FORMEX_LOCATION_FAILED','METADATA_INCOMPLETE','Formex',`${doc.celex} Formex language search could not be completed${detail}; unchanged ${language} XHTML retained.`);
     return {language,html:html.text,sourceUrl:html.url,parsed,nativeSources,nativeWarnings,nativeIssues};
   }
   if(!formexIndex){

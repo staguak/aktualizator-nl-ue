@@ -1,4 +1,7 @@
 """Independent byte/XML audit; no inference of legal validity from text dates."""
+if not __debug__:
+    raise RuntimeError('Required legal-audit assertions are disabled by optimized Python')
+
 import hashlib
 import io
 import json
@@ -7,6 +10,8 @@ import re
 from pathlib import Path
 import zipfile
 import xml.etree.ElementTree as ET
+from verify_eu_headers import CDM
+from verify_inline_images import image_source_key
 
 ROOT = Path(__file__).resolve().parents[1]
 LANGUAGES = {'EN': ('ENG', {'en', 'eng'}), 'PL': ('POL', {'pl', 'pol'}),
@@ -20,12 +25,14 @@ def md5(data):
 def verify_digests(data, record):
     # MD5 is only a legacy compatibility attribute. New source evidence
     # carries a SHA-256 digest which is independently checked here.
-    if len(data) != record['size'] or md5(data) != record['md5']:
-        return False
+    legacy = record.get('md5')
     strong = record.get('sha256')
-    return strong is None or (isinstance(strong, str) and
-        re.fullmatch(r'[a-f0-9]{64}', strong) is not None and
-        hashlib.sha256(data).hexdigest() == strong)
+    if len(data) != record['size'] or (legacy is not None and md5(data) != legacy):
+        return False
+    if strong is None:
+        return legacy is not None
+    return (isinstance(strong, str) and re.fullmatch(r'[a-f0-9]{64}', strong) is not None
+            and hashlib.sha256(data).hexdigest() == strong)
 
 
 def load_manifest(directory):
@@ -61,6 +68,129 @@ def load_manifest(directory):
     return manifest, files
 
 
+class CachedSourceFiles:
+    """Read a validated catalog and independent SHA-addressed source objects."""
+    def __init__(self, catalog):
+        self.catalog = catalog
+        self.entries = {}
+        for row in json.loads(catalog.read_bytes())['entries']:
+            name, sha = row['name'], row['sha256']
+            if name in self.entries or name == 'manifest.json' or not re.fullmatch('[a-f0-9]{64}', sha):
+                raise ValueError('Invalid source catalog entry')
+            self.entries[name] = sha
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return False
+
+    def namelist(self):
+        return ['manifest.json', *self.entries]
+
+    def open(self, name):
+        if name == 'manifest.json':
+            return self.catalog.open('rb')
+        sha = self.entries[name]
+        root = Path(os.environ['LAW_SOURCE_CACHE_DIR'])
+        path = root / 'blobs' / str(int(sha[0], 16) % 8) / (sha + '.bin')
+        if any(p.is_symlink() for p in (root, path.parent.parent, path.parent, path)) or not path.is_file():
+            raise ValueError('Missing or unsafe source evidence')
+        return os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW), 'rb')
+
+    def read(self, name):
+        with self.open(name) as stream:
+            data = stream.read()
+        if name != 'manifest.json' and hashlib.sha256(data).hexdigest() != self.entries[name]:
+            raise ValueError('Cached source checksum mismatch')
+        return data
+
+
+def verify_eu_catalog_evidence(act, index, source, preference):
+    if preference not in (['EN', 'FR'], ['EN', 'FR', 'NL']):
+        raise ValueError('Invalid public corpus language preference')
+    date_rows = set()
+    territory_rows = set()
+    languages_by_id = {}
+    for entry in index['entries']:
+        if entry['kind'] not in {'CELLAR-SPARQL', 'CELLAR-case-catalog'}:
+            continue
+        data = source.read(entry['name'])
+        response = json.loads(data)
+        source_sha = hashlib.sha256(data).hexdigest()
+        for row in response.get('results', {}).get('bindings', []):
+            if 'id' not in row:
+                continue
+            identifier = row['id']['value']
+            if 'language' in row:
+                languages_by_id.setdefault(identifier, set()).add(row['language']['value'])
+            predicate = row.get('p', {}).get('value')
+            if predicate == CDM + 'available_language':
+                languages_by_id.setdefault(identifier, set()).add(row['v']['value'])
+            if predicate:
+                spec, work = row['v'], row.get('w', {}).get('value')
+            elif 'date' in row:
+                predicate = CDM + 'work_date_document'
+                spec, work = row['date'], row['work']['value']
+            else:
+                continue
+            if re.fullmatch(r'https?://publications\.europa\.eu/ontology/cdm#resource_legal_addresses_(?:country|institution)',
+                            predicate):
+                territory_rows.add((identifier, predicate, spec['value'], work, entry['url'], source_sha))
+            if re.search('date|period|duration', predicate, re.IGNORECASE) or re.search(
+                r'#(?:date|dateTime|gYear|gYearMonth|duration)$', spec.get('datatype', '')
+            ):
+                date_rows.add((identifier, predicate, spec['value'], spec.get('type', 'unspecified'),
+                               spec.get('datatype'), spec.get('xml:lang'), work, entry['url'], source_sha))
+    supported = {LANGUAGES[lang][0] for lang in preference}
+    skipped = set()
+    for exclusion in act.get('excludedDocuments', []):
+        if exclusion['reason'] != 'SKIPPED_UNSUPPORTED_LANGUAGE':
+            continue
+        identifier = exclusion['celex']
+        observed = languages_by_id.get(identifier, set())
+        if (not observed or identifier in skipped or observed != set(exclusion['availableLanguages'])
+                or exclusion['checkedLanguages'] != preference
+                or any(not re.fullmatch(r'https?://publications\.europa\.eu/resource/authority/language/[A-Z]{3}', uri)
+                       or uri.rsplit('/', 1)[-1] in supported for uri in observed)):
+            raise ValueError('Unsupported-language exclusion lacks official proof')
+        skipped.add(identifier)
+    for document in act.get('documents', []):
+        if document['celex'] in skipped or document['language'] not in preference:
+            raise ValueError('Public EU document language differs from scope')
+        dates = set()
+        for observation in document.get('officialDates', []):
+            scope = observation['scope']
+            if scope['celex'] != document['celex']:
+                raise ValueError('EU date scope differs from queried document')
+            dates.add((scope['celex'], observation['predicate'], observation['originalValue'], observation['type'],
+                       observation.get('datatype'), observation.get('language'), scope.get('work'),
+                       observation['sourceUrl'], observation['sourceSha256']))
+        if dates != {row for row in date_rows if row[0] == document['celex']} or len(dates) != len(document.get('officialDates', [])):
+            raise ValueError('EU date observations differ from original queries')
+        applicability = document.get('applicability', {})
+        target_countries = ['NL'] if 'NL' in preference else []
+        if applicability.get('checkedScope') != target_countries:
+            raise ValueError('Applicability scope differs from active modules')
+        observed = document.get('territorialObservations', [])
+        recorded_territory = {(document['celex'], row['predicate'], row['value'], row.get('work'),
+                               row['sourceUrl'], row['sourceSha256']) for row in observed}
+        if (observed != applicability.get('addressedTo') or len(recorded_territory) != len(observed)
+                or recorded_territory != {row for row in territory_rows if row[0] == document['celex']}):
+            raise ValueError('EU addressee differs from original query')
+        dutch = [row for row in observed if re.fullmatch(
+            r'https?://publications\.europa\.eu/resource/authority/(?:country/NLD|fd_050/NL)', row['value'])]
+        confirmed = dutch and target_countries and re.fullmatch(r'3\d{4}D\d{4}', document['celex'])
+        if confirmed:
+            evidence = dutch[0]
+            if applicability.get('status') != 'APPLICABILITY_CONFIRMED' or applicability.get('sourceEvidence') != [
+                {'scope': 'COUNTRIES', 'countries': ['NL'], 'source': evidence['sourceUrl'], 'locator': evidence['predicate']}
+            ]:
+                raise ValueError('Unverified decision addressee')
+        elif applicability.get('status') != 'APPLICABILITY_UNKNOWN' or applicability.get('sourceEvidence') != []:
+            raise ValueError('Unverified territorial applicability claim')
+
+
 def audit(directory, jurisdiction):
     manifest, legal_indexes = load_manifest(directory)
     assert manifest['jurisdiction'] == jurisdiction
@@ -70,7 +200,7 @@ def audit(directory, jurisdiction):
                    sourceFiles=0, sourceBytes=0, formexPackages=0,
                    formexLayers=0, xmlFiles=0, warnings=0,
                    representationIndexes=0, formexUnavailable=0,
-                   branchNotices=0, objectNotices=0)
+                   branchNotices=0, objectNotices=0, unresolvedSources=0)
     for act in manifest['acts']:
         files = act['files'] + [act['sourceArchive']]
         for record in files:
@@ -79,8 +209,11 @@ def audit(directory, jurisdiction):
             raw = (directory / record['name']).read_bytes()
             assert verify_digests(raw, record)
         archive = act['sourceArchive']
-        with zipfile.ZipFile(directory / archive['name']) as z:
-            assert z.testzip() is None, 'ZIP CRC mismatch'
+        source_path = directory / archive['name']
+        source = CachedSourceFiles(source_path) if source_path.suffix == '.json' else zipfile.ZipFile(source_path)
+        with source as z:
+            if isinstance(z, zipfile.ZipFile):
+                assert z.testzip() is None, 'ZIP CRC mismatch'
             index = json.loads(z.read('manifest.json'))
             discovery_failures = [e for e in index['entries'] if e['kind'] in {'CELLAR-discovery-unavailable','CELLAR-case-discovery-unavailable'}]
             if act.get('discoveryIncomplete'):
@@ -93,13 +226,18 @@ def audit(directory, jurisdiction):
                     assert any(i['code'] == code and i['classification'] == 'SOURCE_UNAVAILABLE' for i in index['sourceIssues'])
             else:
                 assert not discovery_failures
+            if jurisdiction == 'EU' and source_path.suffix == '.json':
+                verify_eu_catalog_evidence(act, index, z, manifest['languagePreference'])
             missing = act.get('missingDocuments', [])
             assert len({m['celex'] for m in missing}) == len(missing)
             failures = [e for e in index['entries'] if e['kind'] == 'CELLAR-document-unavailable']
             assert len(failures) == len(missing)
             for m in missing:
                 assert m['profile'] == 'eu-document-unavailable-v1' and m['document']['celex'] == m['celex']
-                assert [a['language'] for a in m['attempts']] == ['EN','PL','NL','FR'] and all(a['reason'] for a in m['attempts'])
+                preferred = manifest.get('languagePreference', ['EN','PL','NL','FR'])
+                advertised = m['document']['metadata'].get('available_language', [])
+                supported = [lang for lang in preferred if any(uri.endswith('/'+LANGUAGES[lang][0]) for uri in advertised)]
+                assert [a['language'] for a in m['attempts']] == (supported or preferred) and all(a['reason'] for a in m['attempts'])
                 assert not any(d['celex'] == m['celex'] for d in act.get('documents', []))
                 matches = [e for e in failures if e['metadata']['celex'] == m['celex']]
                 assert len(matches) == 1 and json.loads(z.read(matches[0]['name'])) == m
@@ -111,6 +249,11 @@ def audit(directory, jurisdiction):
             assert len(z.namelist()) == archive['entryCount'] + 1
             assert len(z.namelist()) == len(set(z.namelist()))
             summary['warnings'] += len(index['warnings'])
+            if source_path.suffix == '.json':
+                summary['unresolvedSources'] += sum(
+                    issue['classification'] in {'SOURCE_UNAVAILABLE', 'REPRESENTATION_REJECTED', 'HISTORY_INCOMPLETE', 'CRITICAL'}
+                    or issue['code'] in {'WEMI_INDEX_UNAVAILABLE', 'RDF_NOTICE_UNAVAILABLE', 'FORMEX_LOCATION_FAILED'}
+                    for issue in index.get('sourceIssues', []))
             states = set()
             html = {}
             representations = {}
@@ -273,8 +416,7 @@ def audit(directory, jurisdiction):
             assert occurrence['target'] in {a['name'] for a in image_index['assets']}
             if occurrence.get('sourceEvidenceKey'):
                 source = evidence[occurrence['sourceEvidenceKey']]
-                key = json.dumps([source['requestUrl'],source['baseUrl']],ensure_ascii=False,separators=(',',':')) if source.get('baseUrl') else source['requestUrl']
-                assert source['key'] == hashlib.sha256(key.encode()).hexdigest()
+                assert source['key'] == image_source_key(source, image_index['profile'])
                 if source.get('baseUrl'):assert source['baseUrl']==occurrence['sourceUrl']
                 assert asset_map[occurrence['target']]['sha256'] == source['sha256']
                 assert asset_map[occurrence['target']]['bytes'] == source['bytes']
@@ -294,7 +436,15 @@ def audit(directory, jurisdiction):
     summary['missingDocuments'] = sum(len(a.get('missingDocuments', [])) for a in manifest['acts'])
     summary['unavailableImages'] = (manifest.get('imagePackage') or {}).get('unavailableImages', 0)
     summary['incompleteCatalogs'] = sum(bool(a.get('discoveryIncomplete')) for a in manifest['acts'])
-    summary['completeness'] = 'PARTIAL' if summary['missingDocuments'] or summary['unavailableImages'] or summary['incompleteCatalogs'] else 'COMPLETE'
+    if jurisdiction == 'EU':
+        documents = [doc for act in manifest['acts'] for doc in act.get('documents', [])]
+        unknown = sum(doc.get('applicability', {}).get('status') == 'APPLICABILITY_UNKNOWN' for doc in documents)
+        summary['territorialApplicabilityCoverage'] = {'documents': len(documents), 'unknown': unknown,
+                                                       'confirmed': sum(doc.get('applicability', {}).get('status') == 'APPLICABILITY_CONFIRMED' for doc in documents)}
+        summary['languageCoverage'] = {'retained': len(documents),
+                                       'skippedUnsupported': sum(row['reason'] == 'SKIPPED_UNSUPPORTED_LANGUAGE'
+                                           for act in manifest['acts'] for row in act.get('excludedDocuments', []))}
+    summary['completeness'] = 'PARTIAL' if summary['missingDocuments'] or summary['unavailableImages'] or summary['incompleteCatalogs'] or summary['unresolvedSources'] else 'COMPLETE'
     return summary
 
 

@@ -156,7 +156,7 @@ def release(store, receipt, result, now=None):
     if sha != receipt['sha'] or not same_owner or value['status'] != 'RUNNING':
         raise PublicError('LOCK_OWNERSHIP_CHANGED', 'RELEASE')
     idle = {**state, 'status': 'IDLE', 'finishedAt': max(now, parse_time(state['startedAt'])).isoformat(),
-            'lastResult': result if result in {'PUBLISHED', 'REUSED', 'FAILED'} else 'FAILED'}
+            'lastResult': result if result in {'PUBLISHED', 'NO_CHANGE', 'REUSED', 'FAILED'} else 'FAILED'}
     if not store.compare_and_set(sha, idle):
         raise PublicError('LOCK_RELEASE_CONFLICT', 'RELEASE')
     return True

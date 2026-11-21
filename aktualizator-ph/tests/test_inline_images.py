@@ -13,6 +13,13 @@ PNG = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4
 
 
 class InlineImages(unittest.TestCase):
+    def test_contextual_image_source_key(self):
+        source = {'requestUrl': 'https://publications.europa.eu/resource/celex/01992L0058-20190726.ENG.xhtml.r1.jpg',
+                  'resolution': {'documentId': '01992L0058-20190726', 'version': '01992L0058-20190726',
+                                 'language': 'FR', 'sourceUrl': 'https://eur-lex.europa.eu/',
+                                 'sourceSha256': '3'*64, 'sourceLocator': 'img[1]'}}
+        self.assertNotEqual(inline.image_source_key(source, 'legal-images-v2'), inline.image_source_key(source, 'legal-images-v1'))
+
     def fixture(self, directory):
         url = 'https://publications.europa.eu/image.png'
         body = '<p>A🧾 legal text.</p><img alt="Exact drawing" src="'+url+'">'

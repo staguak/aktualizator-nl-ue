@@ -1,3 +1,4 @@
+import {blocksPublicSourceCoverage} from './source-availability.js';
 import {loadSourceArchive,unpackOfficialZip} from './official-sources.js';
 import type {SourceArchive} from './official-sources.js';
 import type {BinarySource} from './source-cache.js';
@@ -20,6 +21,8 @@ export async function validateFormexXml(source:BinarySource):Promise<Record<stri
 export async function validateCheckpointArchive(bytes:Buffer,archive:SourceArchive,jurisdiction:'NL'|'EU',identifier:string):Promise<{entry:string;validation:XmlReceipt}[]>{
   if(!xmlValidationEnabled())return [];
   const {index,items}=loadSourceArchive(bytes,archive,jurisdiction,identifier);
+  if(process.env.LAW_PUBLIC_SOURCE_FILES==='1'&&index.sourceIssues?.some(blocksPublicSourceCoverage))
+    throw new Error('Incomplete public source checkpoint requires another source attempt.');
   const records:{entry:string;validation:XmlReceipt}[]=[];
   let toestandCount=0;
   const xmlKinds=new Set(['BWB-Toestand','BWB-WTI','BWB-manifest','SRU-2.0','CELLAR-RDF-tree','CELLAR-RDF-object','CELLAR-XML-branch']);

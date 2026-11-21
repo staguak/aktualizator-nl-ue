@@ -1,7 +1,7 @@
 import {zipSync} from 'fflate';
 import {XMLParser,XMLValidator} from 'fast-xml-parser';
 import {createHash} from 'node:crypto';
-import {fileDigests} from './source-cache.js';
+import {fileDigests,storeSourceBlob,readSourceBlob} from './source-cache.js';
 import type {BinarySource} from './source-cache.js';
 import type {FileMetadata} from './final-file.js';
 import {fileMetadata,stableJson,stableCompactJson} from './output.js';
@@ -27,7 +27,7 @@ export interface SourceArchive extends FileMetadata {sha256?:string;entryCount:n
 interface SourceEntry {name:string;size:number;md5:string;sha256:string;requestedUrl:string;url:string;contentType:string;kind:string;metadata:unknown;httpObservation?:BinarySource['observation'];cacheHint?:BinarySource['cacheHint']}
 const checksum=(b:Uint8Array)=>createHash('md5').update(b).digest('hex');
 const safePath=(n:string)=>/^[A-Za-z0-9_.\/-]+$/.test(n)&&!n.split('/').some(p=>!p||p==='.'||p==='..');
-export const safeArchiveName=(n:unknown):n is string=>typeof n==='string'&&/^\d+_[A-Za-z0-9_.-]+\.sources\.zip$/.test(n);
+export const safeArchiveName=(n:unknown):n is string=>typeof n==='string'&&/^\d+_[A-Za-z0-9_.-]+\.sources\.(?:zip|json)$/.test(n);
 export function sourceArchiveName(order:number,identifier:string):string {
   if(!Number.isSafeInteger(order)||order<0||!identifier)throw new Error('Invalid source archive identity.');
   return `${String(order).padStart(2,'0')}_${identifier.replace(/[^A-Za-z0-9_.-]/g,'_')}.sources.zip`;
@@ -71,13 +71,14 @@ export class OfficialSources {
     // completed act/checkpoint can be published. Never substitute a later fetch.
     const dir=process.env.LAW_XML_DIAGNOSTICS_DIR??path.join(process.cwd(),'.source-diagnostics');
     const native=this.entries.size?this.build(sourceArchiveName(0,this.identifier),{diagnosticOnly:true}):null;
+    const extension=process.env.LAW_PUBLIC_SOURCE_FILES==='1'?'.sources.json':'.zip';
     const digest=native?createHash('sha256').update(native.bytes).digest('hex'):null;
     const status=this.jurisdiction==='NL'?'INCOMPLETE_SOURCE_SELECTION':code==='EU_DISCOVERY_FAILED'?'INCOMPLETE_SOURCE_DISCOVERY':'INCOMPLETE_SOURCE_PROCESSING';
     const record=Buffer.from(stableJson({schemaVersion:1,status,code,
       jurisdiction:this.jurisdiction,identifier:this.identifier,range:this.range,
       sourceIssueProfile:'source-issues-v1',sourceIssues:[{classification:'CRITICAL',code,documentId:this.identifier,
         message:'Required source discovery/selection/processing did not complete; available original responses retained.'}],
-      archive:native?{...native.metadata,file:digest+'.zip',sha256:digest}:null,
+      archive:native?{...native.metadata,file:digest+extension,sha256:digest}:null,
       scope:'Diagnostic original observations only; not a validated or publishable corpus.'}));
     const write=(name:string,bytes:Buffer)=>{
       const file=path.join(dir,name);
@@ -87,11 +88,13 @@ export class OfficialSources {
     };
     try{if(!safeCacheDirectory(dir))throw new Error('Unsafe diagnostics directory.');
       fs.mkdirSync(dir,{recursive:true});if(!safeCacheDirectory(dir))throw new Error('Unsafe diagnostics directory.');
-      if(native)write(digest+'.zip',native.bytes);
+      if(native)write(digest+extension,native.bytes);
       write(createHash('sha256').update(record).digest('hex')+'.selection.json',record);}
     catch{throw new Error('Source-selection evidence persistence failed.');}
   }
   build(name:string,options:{diagnosticOnly?:boolean}={}):{metadata:SourceArchive;bytes:Buffer} {
+    const fileBacked=process.env.LAW_PUBLIC_SOURCE_FILES==='1';
+    if(fileBacked)name=name.replace(/\.zip$/,'.json');
     if(!safeArchiveName(name))throw new Error(`Unsafe official sources archive name: ${name}`);
     if(!this.entries.size)throw new Error('Empty official sources archive.');
     if(this.unclassifiedWarnings.size&&this.sourceIssues.length)throw new Error('Cannot mix typed and unclassified source issues.');
@@ -125,7 +128,12 @@ export class OfficialSources {
     for(const e of entries)if(e.bytes)data[e.entry.name]=[e.bytes,{mtime}];
     data['manifest.json']=[Buffer.from(histories.length?stableCompactJson(document):stableJson(document)),{mtime}];
     let bytes:Buffer;
-    if(entries.some(e=>e.filePath)){
+    if(fileBacked){
+      const cache=process.env.LAW_SOURCE_CACHE_DIR;
+      if(!cache)throw new Error('Public source evidence requires a cache directory.');
+      for(const entry of entries)storeSourceBlob(cache,entry.entry,entry.bytes,entry.filePath);
+      bytes=Buffer.from(data['manifest.json'][0]);
+    }else if(entries.some(e=>e.filePath)){
       const parent=process.env.LAW_SOURCE_CACHE_DIR??path.join(process.cwd(),'.source-cache');fs.mkdirSync(parent,{recursive:true});
       const temp=fs.mkdtempSync(path.join(parent,'zip-work-'));
       try{
@@ -161,7 +169,9 @@ export function loadSourceArchive(bytes:Buffer,expected:SourceArchive,jurisdicti
     (expected.sha256!==undefined&&(!/^[a-f0-9]{64}$/.test(expected.sha256)||
       createHash('sha256').update(bytes).digest('hex')!==expected.sha256)))
     throw new Error('Official source archive checksum mismatch.');
-  const items=unpackOfficialZip(bytes),index=JSON.parse(Buffer.from(items['manifest.json']??[]).toString('utf8'));
+  const fileBacked=expected.name.endsWith('.json');
+  const items:Record<string,Uint8Array>=fileBacked?Object.assign(Object.create(null),{'manifest.json':bytes}):unpackOfficialZip(bytes);
+  const index=JSON.parse(Buffer.from(items['manifest.json']??[]).toString('utf8'));
   if(index.schemaVersion!==1||index.jurisdiction!==jurisdiction||index.identifier!==identifier||
     !Array.isArray(index.entries)||!index.entries.length||expected.entryCount!==index.entries.length||
     (index.catalogFormat!==undefined&&index.catalogFormat!=='canonical-compact-json-v1')||index.catalogFormat!==expected.catalogFormat||
@@ -169,7 +179,13 @@ export function loadSourceArchive(bytes:Buffer,expected:SourceArchive,jurisdicti
     JSON.stringify(index.warnings)!==JSON.stringify(expected.warnings)||expected.model!==(jurisdiction==='NL'?'BWB':'CELLAR'))throw new Error('Invalid official source catalog.');
   const names=new Set(['manifest.json']);
   for(const e of index.entries){
-    if(!safePath(e.name)||names.has(e.name)||!items[e.name]||items[e.name].length!==e.size||checksum(items[e.name])!==e.md5||
+    if(!safePath(e.name)||names.has(e.name))throw new Error('Unsafe or duplicate official source name.');
+    if(fileBacked){
+      const cache=process.env.LAW_SOURCE_CACHE_DIR;
+      if(!cache)throw new Error('Public source evidence requires a cache directory.');
+      items[e.name]=readSourceBlob(cache,e);
+    }
+    if(!items[e.name]||items[e.name].length!==e.size||checksum(items[e.name])!==e.md5||
       (index.sourceIssueProfile==='source-issues-v1'||e.sha256!==undefined)&&(typeof e.sha256!=='string'||!/^[a-f0-9]{64}$/.test(e.sha256)||createHash('sha256').update(items[e.name]).digest('hex')!==e.sha256)||
       !['https:','http:'].includes(new URL(e.url).protocol))throw new Error('Invalid official source bytes/catalog.');
     names.add(e.name);

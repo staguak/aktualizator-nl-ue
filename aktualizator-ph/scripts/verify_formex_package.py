@@ -1,4 +1,7 @@
 """Independent original-ZIP checks of Formex members, links and unit indexes."""
+if not __debug__:
+    raise RuntimeError('Required legal-audit assertions are disabled by optimized Python')
+
 import hashlib
 import io
 import posixpath

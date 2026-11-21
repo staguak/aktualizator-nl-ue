@@ -43,7 +43,7 @@ export function completeBuiltOutput(dir: string, expectedActs: ExpectedAct[], re
     const content = [...context.files.values()].filter(f => !CONTROL_FILES.includes(f.name));
     const result: ValidationResult = {status:'PASS',fileCount:context.files.size,contentFileCount:content.length,
       contentBytes:content.reduce((n,f)=>n+f.size,0),...context.sourceStructure?{sourceStructure:context.sourceStructure,sourceAvailability:context.sourceAvailability}:{},checks:['kompletność zestawu','UTF-8/LF','finalne MD5/size',
-        ...(context.manifest.officialSources?['oryginalne bajty ZIP','katalog i MD5 każdego źródła']:[]),
+        ...(context.manifest.officialSources?[process.env.LAW_PUBLIC_SOURCE_FILES==='1'?'oryginalne obiekty źródłowe SHA-256':'oryginalne bajty ZIP','katalog i MD5 każdego źródła']:[]),
         ...(jurisdiction==='NL' ? ['artykuły i wersje','stany źródłowe','treść prawna','przypisy','INDEX']
           : ['treść prawna i obrazy','metadane','części dokumentów','nawigacja','UE-REF bez łańcuchów','INDEX'])]};
     // Only REPORT changes after the full corpus check. Independently read and

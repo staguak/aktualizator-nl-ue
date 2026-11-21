@@ -36,7 +36,7 @@ export function finalizeEu(acts: EuBuiltAct[], readBody:(name:string)=>string) {
   }
   for(const act of model.acts)for(const missing of missingEuDocuments(act)){
     const name=`${String(act.order).padStart(2,'0')}_${missing.celex.replace(/[^A-Za-z0-9.-]/g,'_')}__UNAVAILABLE.md`;
-    const text=normalizeOutput(`# CELEX ${missing.celex}\n\nDOKUMENT NIEDOSTĘPNY — wynik niekompletny.\n\nSprawdzono źródła w kolejności EN → PL → NL → FR. Nie zastąpiono brakującej treści odnośnikiem ani treścią innego aktu.\n`);
+    const text=normalizeOutput(`# CELEX ${missing.celex}\n\nDOKUMENT NIEDOSTĘPNY — wynik niekompletny.\n\nSprawdzono źródła w kolejności ${missing.attempts.map(a=>a.language).join(' → ')}. Nie zastąpiono brakującej treści odnośnikiem ani treścią innego aktu.\n`);
     const file=finalFile(name,text,{jurisdiction:'EU',kind:'unavailable',metadata:{celex:missing.celex,part:1,sourceHash:legalHash(text)}});
     files.set(name,file);outputs.set(name,text);act.files.push(publishedEuFile(file));afterBytes+=file.size;
   }
@@ -45,7 +45,7 @@ export function finalizeEu(acts: EuBuiltAct[], readBody:(name:string)=>string) {
 }
 export function euIndex(m:any):string {
   return normalizeOutput(['# Aktualizator UE — indeks','',`Zakres: ${m.rangeFrom} – ${m.rangeTo}; język ${m.language??'NL'}.`,'','[Maszynowy indeks wersji i jednostek](manifest.json).','',
-    ...m.acts.flatMap((a:any)=>[`## ${a.order}. ${a.title}`,'',...(a.documents??[]).flatMap((d:any)=>d.legalStructure?[`### ${d.celex} · ${d.language}`,d.header?d.header.title.value:'',d.header?euHeaderDateLines(d.header):'',...legalIndexRows(d.legalStructure),'']:[]),...a.files.map((f:any)=>`- [${f.celex}, część ${f.part}](${f.name})${f.kind==='reference'?` → [treść](${f.canonicalFile})`:''}`),...(a.sourceArchive?[`- [Oryginalne źródła CELLAR](${a.sourceArchive.distribution?.bundle??a.sourceArchive.name}) — ${a.sourceArchive.entryCount} zasobów; MD5 ${a.sourceArchive.md5}.${a.sourceArchive.distribution?' Katalog: '+a.sourceArchive.distribution.prefix+'.':''}`]:[]),'']),...imageIndexRows(m)].join('\n'));
+    ...m.acts.flatMap((a:any)=>[`## ${a.order}. ${a.title}`,'',...(a.documents??[]).flatMap((d:any)=>d.legalStructure?[`### ${d.celex} · ${d.language}`,d.header?d.header.title.value:'',d.header?euHeaderDateLines(d.header):'',d.applicability?.status??'',...legalIndexRows(d.legalStructure),'']:[]),...(a.excludedDocuments??[]).filter((d:any)=>d.reason==='SKIPPED_UNSUPPORTED_LANGUAGE').map((d:any)=>`- ${d.celex} — ${d.reason}`),...a.files.map((f:any)=>`- [${f.celex}, część ${f.part}](${f.name})${f.kind==='reference'?` → [treść](${f.canonicalFile})`:''}`),...(a.sourceArchive?[`- [Oryginalne źródła CELLAR](${a.sourceArchive.distribution?.bundle??a.sourceArchive.name}) — ${a.sourceArchive.entryCount} zasobów; MD5 ${a.sourceArchive.md5}.${a.sourceArchive.distribution?' Katalog: '+a.sourceArchive.distribution.prefix+'.':''}`]:[]),'']),...imageIndexRows(m)].join('\n'));
 }
 export function euReport(m:any,previous:any,validation: ValidationResult = pendingValidation()):string {
   const files=m.acts.flatMap((a:any)=>a.files),docs=m.acts.flatMap((a:any)=>a.documents),n=m.normalization,statuses=docs.flatMap((d:any)=>d.htmlNormalization);
@@ -53,7 +53,7 @@ export function euReport(m:any,previous:any,validation: ValidationResult = pendi
     `Pozycje: ${m.acts.length}; dokumenty źródłowe: ${docs.length}; pełne pliki: ${files.length-n.referenceCount}; UE-REF: ${n.referenceCount}; grupy deduplikacji: ${n.deduplicationGroups}.`,
     `Rozmiar przed/po: ${n.beforeBytes}/${n.afterBytes} bajtów; oszczędność: ${n.savedBytes} bajtów.`,
     `HTML: zweryfikowane zmiany ${statuses.filter((s:string)=>s==='verified').length}; pominięte wrażliwe ${statuses.filter((s:string)=>s==='sensitive-skip').length}; wycofane optymalizacje ${statuses.filter((s:string)=>s==='fallback').length}.`,
-    `Zmiany: ${outputChanges(previous,m)}`,'',`Niedostępne dokumenty po sprawdzeniu EN/PL/NL/FR: ${m.acts.reduce((n:number,a:any)=>n+(a.missingDocuments?.length??0),0)}; grafiki: ${m.imagePackage?.unavailableImages??0}.`,
+    `Zmiany: ${outputChanges(previous,m)}`,'',`Niedostępne dokumenty po sprawdzeniu ${m.languagePreference?.join('/')??'EN/PL/NL/FR'}: ${m.acts.reduce((n:number,a:any)=>n+(a.missingDocuments?.length??0),0)}; grafiki: ${m.imagePackage?.unavailableImages??0}.`,
     m.acts.some((a:any)=>a.missingDocuments?.length||a.discoveryIncomplete)||m.imagePackage?.unavailableImages?'Kompletność: NIEPEŁNA — braki jawnie zapisane; pozostałe dokumenty przetworzono.':validation.status==='PASS'?'Metadane: odtworzenie dostępnych dokumentów zgodne z oryginałem.':'Metadane: zobacz wynik walidacji.',
     reportValidation(validation),'','## Anomalie i wyjątki','',
     ...m.acts.flatMap((a:any)=>(a.sourceArchive?.warnings??[]).map((w:string)=>`- ${a.celex}: ${w}`)),

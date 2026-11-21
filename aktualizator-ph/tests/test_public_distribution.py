@@ -25,13 +25,14 @@ class PublicDistributionTests(unittest.TestCase):
         for i,step in enumerate(restores):
             self.assertIn(f'blobs/{i}',step['with']['path']);self.assertIn('admission.outputs.accepted',step['if'])
         commands=[s.get('run','') for s in steps]
-        retain=next(i for i,c in enumerate(commands) if 'public_github.py retain' in c)
+        self.assertFalse(any('public_github.py retain' in c for c in commands))
+        cache=next(i for i,s in enumerate(steps) if s is saves[-1])
         release=next(i for i,c in enumerate(commands) if 'public_github.py release' in c)
-        self.assertLess(retain,release)
+        self.assertLess(cache,release)
         build=next(s for s in steps if 'src/github-build.ts' in s.get('run',''))
         self.assertNotIn('GH_TOKEN',build.get('env',{}));self.assertNotIn('GOOGLE_DRIVE_OAUTH_JSON',str(workflow))
         prepare=next(s for s in steps if 'public_github.py prepare' in s.get('run',''));self.assertIn('GH_TOKEN',prepare['env'])
-        self.assertEqual(job['permissions']['actions'],'write')
+        self.assertEqual(job['permissions']['actions'],'read')
 
     def test_only_main_manual_workflow_can_access_drive_and_schedule_is_absent(self):
         workflow = yaml.safe_load((ROOT / '.github/workflows/updater.yml').read_text())

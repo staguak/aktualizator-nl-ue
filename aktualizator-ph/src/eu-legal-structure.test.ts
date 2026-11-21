@@ -77,3 +77,15 @@ test('public parser uses the structural profile while retaining language and sou
   assert.throws(()=>parseEuHtml(html,context.sourceUrl,'full-document','PL',context),/language/);
   assert.throws(()=>parseEuHtml('<body>Access Denied</body>',context.sourceUrl,'full-document','EN',context),/challenge/);
 });
+
+test('historic EUR-Lex placeholder preserves the text and original value without an executable hyperlink',()=>{
+  const html='<html lang="en"><body><p class="oj-ti-art">Article 1</p>'+
+    '<p><a href="javascript:void(0);">Official publication label</a></p></body></html>';
+  const draft=parseEuLegalStructure(html,context);
+  const $=load(draft.chunks.map(chunk=>chunk.body).join(''));
+  const anchor=$('a[data-source-href]');
+  assert.equal(anchor.text(),'Official publication label');
+  assert.equal(anchor.attr('data-source-href'),'javascript:void(0);');
+  assert.equal(anchor.attr('href'),undefined);
+  assert.throws(()=>parseEuLegalStructure(html.replace('void(0);','unknown();'),context),/Unsupported legal hyperlink/);
+});

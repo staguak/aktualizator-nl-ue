@@ -14,6 +14,7 @@ import shutil
 import sys
 from zoneinfo import ZoneInfo
 from public_support import (PublicError, GitHubApi, authenticated_environment, executable_digest, git, parse_time, record_diagnostic)
+import public_corpus as corpus
 from public_admission import StateStore, acquire as acquire_lease, release as release_lease, request_time
 from public_releases import ReleaseStore, release_record, pack_runtime_state, restore_state, file_digest
 
@@ -28,7 +29,6 @@ INDEX_PROFILE = 'public-nl-ue-index-v2'
 REQUEST_TITLE = '[Aktualizacja bazy]'
 MAX_FILE = 95_000_000
 MAX_RELEASE_ASSET = 2_147_483_648
-MAX_TOTAL = 500_000_000
 MAX_FILES = 10_000
 COOLDOWN_SECONDS = 3600
 CONFIG_FILES = ('aktualizator.json', 'zakres.json', 'zakres-ue.json')
@@ -39,6 +39,10 @@ def repository():
     if not re.fullmatch(r'[-A-Za-z0-9_.]+/[-A-Za-z0-9_.]+', value):
         raise ValueError('Invalid repository identity')
     return value
+
+
+def data_remote():
+    return 'https://github.com/' + repository() + '.git'
 
 
 def trusted_event(event_name, event, ref):
@@ -129,6 +133,8 @@ def report():
         status = 'PUBLISHED'
     elif candidate:
         status = 'UNKNOWN'
+    elif read_control('no-change.json') and (STATE / 'wait.md').is_file():
+        status = 'NO_CHANGE'
     elif request and not request['build'] and os.environ.get('PUBLIC_PREPARE_OUTCOME') == 'success':
         status = 'REUSED'
     else:
@@ -165,9 +171,9 @@ def configuration_digest():
 
 
 def allowed_name(name):
-    if name in {'README.md', 'publication.json', 'VERIFICATION.json'}:
+    if name in {'README.md', 'publication.json', 'VERIFICATION.json', 'INDEX.md'}:
         return True
-    match = re.fullmatch(r'(NL|UE)/([A-Za-z0-9_.-]+)', name)
+    match = re.fullmatch(r'(NL|UE)/([A-Za-z0-9_.-]+|images/[a-f0-9]{64}\.[a-z0-9]+|evidence/[a-f0-9]{64}\.json|history/[a-f0-9]{64}\.(?:bin|md|json|jpg|png|svg|webp|gif))', name)
     return bool(match and match[2] not in {'.', '..'})
 
 
@@ -177,7 +183,7 @@ def inventory(directory):
         if path.is_symlink():
             raise ValueError('Snapshot cannot contain symlinks')
         if path.is_dir():
-            if path.relative_to(directory).as_posix() not in {'NL', 'UE'}:
+            if path.relative_to(directory).as_posix() not in {'NL', 'UE', 'NL/images', 'UE/images', 'NL/history', 'UE/history', 'NL/evidence', 'UE/evidence'}:
                 raise ValueError('Unexpected snapshot directory')
             continue
         name = path.relative_to(directory).as_posix()
@@ -185,7 +191,7 @@ def inventory(directory):
             raise ValueError('Unexpected or oversized public file')
         blob = path.read_bytes()
         rows.append(dict(name=name, bytes=len(blob), sha256=hashlib.sha256(blob).hexdigest()))
-    if len(rows) > MAX_FILES or sum(row['bytes'] for row in rows) > MAX_TOTAL:
+    if len(rows) > MAX_FILES:
         raise ValueError('Public snapshot storage limit exceeded')
     return rows
 
@@ -224,7 +230,7 @@ def validate_snapshot(directory):
     if not required <= names:
         raise ValueError('Incomplete paired public snapshot')
     expected = [row for row in rows if row['name'] != 'publication.json']
-    if value.get('profile') != PROFILE or value.get('status') != 'PASS' or value.get('files') != expected:
+    if value.get('profile') not in {PROFILE, corpus.PROFILE} or value.get('status') != 'PASS' or value.get('files') != expected:
         raise ValueError('Public snapshot checksum inventory mismatch')
     if not re.fullmatch('[a-f0-9]{40}', value.get('codeRevision', '')):
         raise ValueError('Snapshot producer revision is missing')
@@ -244,6 +250,12 @@ def validate_snapshot(directory):
                 or manifest.get('rangeTo') != value.get('rangeTo')
                 or len(manifest['acts']) != value['counts'].get(module)):
             raise ValueError('Snapshot module identity/range/count mismatch')
+    if value['profile'] == corpus.PROFILE:
+        if any(name.endswith('.zip') for name in names):
+            raise ValueError('File-based corpus cannot contain ZIP')
+        corpus.audit_pair(corpus.json_file(directory / 'VERIFICATION.json'), value.get('rangeTo'))
+        corpus.check_current(directory, rows)
+        corpus.check_history(directory, rows)
     return value
 
 
@@ -266,10 +278,12 @@ def restore_previous(remote, target):
     tree = git(target, 'ls-tree', '-r', '-z', 'FETCH_HEAD').stdout.split(b'\0')
     if len(tree) > MAX_FILES + 1:
         raise ValueError('Public tree entry limit exceeded')
+    paths = set()
     for row in filter(None, tree):
         header, name = row.split(b'\t', 1)
         if not header.startswith(b'100644 blob ') or not allowed_name(name.decode()):
             raise ValueError('The data branch contains unmanaged paths')
+        paths.add(name)
     commit = git(target, 'cat-file', '-p', 'FETCH_HEAD').stdout.split(b'\n\n', 1)[0]
     if any(row.startswith(b'parent ') for row in commit.splitlines()):
         raise ValueError('Data branch must contain a single independent snapshot')
@@ -279,7 +293,12 @@ def restore_previous(remote, target):
     parked = target.parent / 'prior-git'
     database.rename(parked)
     try:
-        value = validate_snapshot(target)
+        # A new branch may contain only its README, with no historical data to
+        # preserve. Retain its exact ref as the initialization lease.
+        if paths <= {b'README.md'}:
+            value = None
+        else:
+            value = validate_snapshot(target)
     finally:
         parked.rename(database)
     return actual, value
@@ -320,31 +339,37 @@ def prepare():
     if git(APP, 'rev-parse', 'HEAD').stdout.decode().strip() != revision:
         raise ValueError('Checked-out code differs from the event revision')
     stage('RESTORE_PREVIOUS')
-    sha, previous = restore_previous('https://github.com/' + repository() + '.git', STATE / 'prior')
+    sha, previous = restore_previous(data_remote(), STATE / 'prior')
     now = datetime.now(timezone.utc)
     stage('PLAN_BUILD')
     manual = os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch'
     full_audit = manual and os.environ.get('INPUT_FULL_SOURCE_AUDIT') == 'true'
-    requested_force = manual and (os.environ.get('INPUT_FORCE') == 'true' or full_audit)
     execution = executable_digest(APP)
-    rebuild = not fresh(previous, revision, configuration_digest(), now, requested_force, execution)
     state = dict(previousSha=sha, revision=revision, configSha256=configuration_digest(),
-                 rangeTo=now.astimezone(ZoneInfo('Europe/Warsaw')).date().isoformat(), build=rebuild,
-                 executionSha256=execution, sourceAudit='unconditional' if full_audit else 'conditional',
-                 previousKnown=True, activeReleaseId=previous.get('release', {}).get('id') if previous else None)
+                 rangeTo=now.astimezone(ZoneInfo('Europe/Warsaw')).date().isoformat(), build=True,
+                 initialize=previous is None, executionSha256=execution,
+                 forceBuild=manual and os.environ.get('INPUT_FORCE') == 'true',
+                 sourceAudit='unconditional' if full_audit else 'conditional')
     if previous:
         (STATE / 'previous-publication.json').write_text(json.dumps(previous))
+    if previous and previous.get('profile') == INDEX_PROFILE:
+        # The indexed, already published artifact is read only for migration.
+        active = previous['release']
+        target = STATE / 'legacy-runtime'
+        release_store().restore(active['id'], target, expected_assets=active['assets'], asset_names=['runtime-state.zip'])
+        restore_state(target / 'runtime-state.zip', APP, selected_names={'output', 'output-ue'})
+        prior = STATE / 'legacy-corpus'
+        prior.mkdir()
+        for module, directory in corpus.OUTPUTS.items():
+            shutil.copytree(APP / directory, prior / module)
+        state['priorDirectory'] = prior.name
+    elif previous:
+        state['priorDirectory'] = 'prior'
+        for module, directory in corpus.OUTPUTS.items():
+            shutil.copytree(STATE / 'prior' / module, APP / directory)
     (STATE / 'request.json').write_text(json.dumps(state))
-    if rebuild:
-        if previous and previous.get('profile') != INDEX_PROFILE:
-            for module, directory in [('NL', 'output'), ('UE', 'output-ue')]:
-                target = APP / directory
-                if target.exists():
-                    raise ValueError('Build output must start empty')
-                shutil.copytree(STATE / 'prior' / module, target)
-        restore_runtime(previous if previous and previous.get('profile') == INDEX_PROFILE else None,full_audit)
-    output(build=str(rebuild).lower(), range_to=state['rangeTo'], audit_mode=state['sourceAudit'])
-    print('A new public build is required.' if rebuild else 'The current validated public corpus is still fresh.')
+    output(build='true', initialize=str(state['initialize']).lower(), range_to=state['rangeTo'], audit_mode=state['sourceAudit'])
+    print('Initial BASE and UPDATE are required.' if state['initialize'] else 'Current corpus loaded; official source verification is required.')
 
 
 def release_store():
@@ -550,6 +575,20 @@ def push_snapshot(snapshot, previous_sha, remote, env=None, record=None):
     return sha
 
 
+def record_no_change(request, proof):
+    remote = data_remote()
+    current = git(APP, 'ls-remote', '--heads', remote, REF).stdout.decode().split()
+    if current != [request['previousSha'], REF]:
+        raise PublicError('DATA_REF_CONFLICT', 'VALIDATE_PUBLICATION')
+    (STATE / 'wait.md').write_text(
+        '# NO_CHANGE\n\n'
+        + 'Sprawdzenie: ' + datetime.now(timezone.utc).astimezone(ZoneInfo('Europe/Warsaw')).isoformat() + '\n\n'
+        + 'Zweryfikowany HEAD: `' + request['previousSha'] + '`.\n\n' + proof + '\n',
+        encoding='utf-8')
+    write_control('no-change.json', {'sha': request['previousSha']})
+    print('NO_CHANGE')
+
+
 def publish():
     stage('VERIFY_LEASE')
     receipt = read_control('admission.json')
@@ -565,35 +604,66 @@ def publish():
         return
     if request['configSha256'] != configuration_digest() or request['executionSha256'] != executable_digest(APP):
         raise PublicError('BUILD_INPUT_CHANGED', 'PUBLISH')
-    distribution_dir = STATE / 'distribution'
-    distribution = validate_distribution(distribution_dir)
-    if distribution['rangeTo'] != request['rangeTo']:
-        raise PublicError('BUILD_RANGE_CHANGED', 'PUBLISH')
-    audit = json.loads((STATE / 'independent-audit.json').read_bytes())
-    if audit.get('status') != 'PASS':
-        raise PublicError('INDEPENDENT_AUDIT_REQUIRED', 'PUBLISH')
-    require_complete_publication(distribution,audit)
-    pack_runtime_state(APP, ['output', 'output-ue', '.checkpoint', '.checkpoint-ue', '.source-diagnostics'],
-               distribution_dir / 'runtime-state.zip')
-    run, attempt = run_identity()
-    releases = release_store()
-    metadata = {'configurationSha256': request['configSha256'], 'executionSha256': request['executionSha256'],
-                'rangeFrom': distribution['rangeFrom'], 'rangeTo': distribution['rangeTo']}
-    stage('STAGE_RELEASE')
-    release_value = releases.publish(releases.stage(distribution_dir, run, attempt, request['revision'], metadata=metadata))
-    write_control('release-attempt.json', {'id': release_value['id']})
+    preflight_path = STATE / 'preflight.json'
+    if preflight_path.is_file():
+        proof = corpus.json_file(preflight_path)
+        if (request['initialize'] or request.get('forceBuild') or request['sourceAudit'] != 'conditional' or not request['previousSha']
+                or proof['status'] != 'NO_CHANGE' or type(proof.get('checked')) is not int or proof['checked'] < 1
+                or proof['configurationSha256'] != request['configSha256']
+                or any(proof[key] != request[key] for key in ('previousSha', 'rangeTo', 'executionSha256'))):
+            raise ValueError('No-change preflight identity mismatch')
+        record_no_change(request, f"Odpowiedzi 304 lub zgodność SHA-256 katalogów SRU potwierdziły {proof['checked']} urzędowych źródeł.")
+        return
+    update = {module: APP / directory for module, directory in corpus.OUTPUTS.items()}
+    audit = corpus.verified_phase(update, STATE / 'build/verified.json', request['rangeTo'])
+    previous = corpus.json_file(STATE / 'previous-publication.json') if request.get('priorDirectory') else None
+    if request['initialize'] != (previous is None):
+        raise ValueError('Publication mode differs from the prepared base')
+    prior = {module: STATE / request['priorDirectory'] / module for module in corpus.MODULES} if previous else None
+    base = None
+    range_from = audit['results'][0]['range'][0]
+    if request['initialize']:
+        base = {module: STATE / 'base' / directory for module, directory in corpus.OUTPUTS.items()}
+        if range_from >= request['rangeTo']:
+            raise ValueError('Initialization target must be later than base')
+        corpus.verified_phase(base, STATE / 'base/verified.json', range_from)
+    if prior and not any(corpus.compare(prior, update).values()):
+        record_no_change(request, 'Audyt źródeł i porównanie stanu prawnego NL/UE nie wykazały nowych ani zmienionych wersji.')
+        return
     destination = STATE / 'snapshot'
-    create_release_index(destination, request, release_value, distribution, audit, recent_attempt_rows(releases))
-    sha = push_snapshot(destination, request['previousSha'], 'https://github.com/' + repository() + '.git',
+    manifests = corpus.assemble(destination, update, prior, base, APP / '.source-cache')
+    if any((m['rangeFrom'], m['rangeTo']) != (range_from, request['rangeTo']) for m in manifests.values()):
+        raise ValueError('Snapshot range differs from the verified request')
+    (destination / 'VERIFICATION.json').write_bytes(corpus.canonical(audit))
+    (destination / 'README.md').write_text('# Publiczna baza prawa NL i UE\n\n[Indeks](INDEX.md)\n', encoding='utf-8')
+    (destination / 'INDEX.md').write_text(
+        '# Publiczna baza prawa NL i UE\n\n[NL](NL/INDEX.md) · [UE](UE/INDEX.md) · [Wykaz i SHA-256](publication.json)\n',
+        encoding='utf-8')
+    rows = inventory(destination)
+    candidate_sizes = corpus.folder_sizes(rows)
+    if prior:
+        previous_rows = [row for module, directory in prior.items()
+                         for row in corpus.hashes(corpus.files_at(directory, module + '/'))]
+        if previous['profile'] != INDEX_PROFILE:
+            if sorted(previous_rows, key=lambda row: row['name']) != [
+                row for row in previous['files'] if row['name'].startswith(('NL/', 'UE/'))
+            ]:
+                raise ValueError('Prior corpus changed after preparation')
+        previous_sizes = corpus.folder_sizes(previous_rows)
+        print(json.dumps({'folderBytesBefore': previous_sizes, 'folderBytesAfter': candidate_sizes}, sort_keys=True))
+        corpus.require_monotonic(previous_sizes, candidate_sizes)
+    else:
+        print(json.dumps({'folderBytesAfter': candidate_sizes}, sort_keys=True))
+    value = dict(profile=corpus.PROFILE, status='PASS', rangeFrom=range_from, rangeTo=request['rangeTo'],
+                 codeRevision=request['revision'], configurationSha256=request['configSha256'], executionSha256=request['executionSha256'],
+                 counts={module: len(m['acts']) for module, m in manifests.items()}, files=rows,
+                 lastCheckedAt=datetime.now(timezone.utc).astimezone(ZoneInfo('Europe/Warsaw')).isoformat())
+    (destination / 'publication.json').write_bytes(corpus.canonical(value))
+    sha = push_snapshot(destination, request['previousSha'], data_remote(),
                         authenticated_environment(os.environ.get('GH_TOKEN', '')),
                         record=lambda candidate: write_control('publication-attempt.json', {'sha': candidate}))
-    write_control('publication.json', {'status': 'PUBLISHED', 'sha': sha, 'releaseId': release_value['id'], 'url': release_value['html_url']})
+    write_control('publication.json', {'status': 'PUBLISHED', 'sha': sha})
     print('Validated public corpus published. Revision: ' + sha)
-
-
-def result_links(repo):
-    base = 'https://github.com/' + repo
-    return base + '/tree/dane', base + '/releases'
 
 
 def retain():
@@ -647,34 +717,10 @@ def retain():
         retained = {'retained': [], 'deleted': [], 'status': 'ACTIVE_POINTER_UNKNOWN'}
     write_control('retention.json', retained)
     if recovered_drafts:write_control('draft-recovery.json',{'recovered':recovered_drafts})
-    if active_id is not None:
-        update_attempt_index(releases, publication)
     summary = os.environ.get('GITHUB_STEP_SUMMARY')
     if summary:
         with open(summary, 'a') as out:
             out.write('\nMateriały uruchomień zapisane; retencja: dwa ostatnie przebiegi i chroniona poprawna baza.\n')
-
-
-def update_attempt_index(releases, publication):
-    """Record failed/REUSED history without changing the active good release."""
-    remote = 'https://github.com/' + repository() + '.git'
-    previous_sha, previous = restore_previous(remote, STATE / 'retention-prior')
-    if not previous or previous.get('profile') != INDEX_PROFILE:
-        return
-    expected_active = publication.get('releaseId') if publication else json.loads((STATE / 'request.json').read_bytes()).get('activeReleaseId')
-    if previous['release']['id'] != expected_active:
-        raise PublicError('ACTIVE_RELEASE_CHANGED', 'RETAIN')
-    attempts = recent_attempt_rows(releases)
-    if previous.get('attempts') == attempts:
-        return
-    target = STATE / 'retention-index'
-    target.mkdir()
-    previous['attempts'] = attempts
-    shutil.copyfile(STATE / 'retention-prior/VERIFICATION.json', target / 'VERIFICATION.json')
-    write_index_readme(target, previous)
-    previous['files'] = inventory(target)
-    (target / 'publication.json').write_text(json.dumps(previous, ensure_ascii=False, indent=2) + '\n')
-    push_snapshot(target, previous_sha, remote, authenticated_environment(os.environ.get('GH_TOKEN', '')))
 
 
 def find_comment(api, number, marker):
@@ -719,9 +765,9 @@ def finish_request():
     status = result['status']
     repo = repository()
     run, attempt = run_identity()
-    data, archive = result_links(repo)
+    data = 'https://github.com/' + repo + '/tree/dane'
     marker = '<!-- public-corpus-result:' + run + ':' + str(attempt) + ' -->'
-    if status in {'PUBLISHED', 'REUSED'}:
+    if status in {'PUBLISHED', 'NO_CHANGE', 'REUSED'}:
         message = 'Gotowa, zweryfikowana baza jest dostępna.'
     elif status in {'BUSY', 'STALE'}:
         message = 'Prośba odrzucona: aktualizacja już trwa, trwała w chwili zgłoszenia albo GitHub dostarczył żądanie z opóźnieniem. Nie dodano go do kolejki i nie uruchomi się później.'
@@ -729,7 +775,7 @@ def finish_request():
         message = 'Nie udało się potwierdzić końcowego stanu publikacji. Sprawdź wynik uruchomienia; dane mogły zostać zapisane.'
     else:
         message = 'Aktualizacja nie powiodła się. Wcześniej opublikowana poprawna baza, jeśli istniała, pozostaje dostępna.'
-    body = marker + '\n' + message + '\n\nBaza: ' + data + '\n\nPobierz pliki z Releases: ' + archive
+    body = marker + '\n' + message + '\n\nBaza: ' + data
     admission = read_control('admission.json') or {}
     if admission.get('ownerRun'):
         body += '\n\nUruchomienie aktualizatora: https://github.com/' + repo + '/actions/runs/' + admission['ownerRun']
@@ -738,9 +784,9 @@ def finish_request():
         body += '\n\nKod: `' + result['error']['code'] + '`; etap: `' + result['error']['stage'] + '`.'
     api = GitHubApi(repo, os.environ.get('GH_TOKEN', ''))
     notify(api, event['issue']['number'], body, marker)
-    if status in {'PUBLISHED', 'REUSED', 'BUSY', 'STALE'}:
+    if status in {'PUBLISHED', 'NO_CHANGE', 'REUSED', 'BUSY', 'STALE'}:
         api.request('/issues/' + str(event['issue']['number']),
-                    {'state': 'closed', 'state_reason': 'completed' if status in {'PUBLISHED', 'REUSED'} else 'not_planned'}, 'PATCH')
+                    {'state': 'closed', 'state_reason': 'completed' if status in {'PUBLISHED', 'NO_CHANGE', 'REUSED'} else 'not_planned'}, 'PATCH')
     output(notification='success')
     print('Public request received its result. Status: ' + status)
 
@@ -761,11 +807,11 @@ def cleanup():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', choices=['acquire', 'prepare', 'publish', 'report', 'finish-request', 'retain', 'release', 'cleanup'])
+    parser.add_argument('command', choices=['acquire', 'prepare', 'publish', 'report', 'finish-request', 'release', 'cleanup'])
     command = parser.parse_args().command
     stage(command.replace('-', '_').upper())
     commands = {'acquire': acquire, 'prepare': prepare, 'publish': publish, 'report': report,
-                'finish-request': finish_request, 'retain': retain, 'release': release, 'cleanup': cleanup}
+                'finish-request': finish_request, 'release': release, 'cleanup': cleanup}
     try:
         commands[command]()
     except Exception as error:

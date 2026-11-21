@@ -1,0 +1,2 @@
+# The catalogue pins the publisher's exact bytes, including line endings.
+*.xd -text -whitespace

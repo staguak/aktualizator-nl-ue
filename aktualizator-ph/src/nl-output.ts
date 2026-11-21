@@ -52,7 +52,7 @@ export function nlReport(manifest: any, previous: any, validation: ValidationRes
     `Pliki treści: ${files.length}; rozmiar korpusu: ${files.reduce((n,f)=>n+f.size,0)} bajtów.`,
     `Zmiany: ${outputChanges(previous,manifest)}`,'','## Ostrzeżenia i anomalie','',
     ...(manifest.imagePackage?.unavailableImages?[`Kompletność: NIEPEŁNA — niedostępne grafiki: ${manifest.imagePackage.unavailableImages}; pozostałą treść przetworzono.`]:[]),
-    ...(manifest.officialSources?['XML w archiwach źródłowych zachowuje oryginalne bajty. Markdown jest widokiem pochodnym.',
+    ...(manifest.officialSources?[acts.some(a=>a.sourceArchive?.name.endsWith('.sources.json'))?'Katalog wiąże źródłowy XML z oryginalnymi bajtami według SHA-256. Markdown jest widokiem pochodnym.':'XML w archiwach źródłowych zachowuje oryginalne bajty. Markdown jest widokiem pochodnym.',
       'Przedziały V opisują zarejestrowane brzmienie w stanach BWB, nie osobne daty obowiązywania wszystkich ustępów.',
       ...acts.flatMap(a=>(a.sourceArchive?.warnings??[]).map(w=>`- ${a.bwbId}: ${w}`))]:[]),
     ...acts.flatMap(a=>(a.legalDocuments??[]).filter(d=>d.sourceFragmentIssues?.length).map(d=>`- ${a.bwbId}, ${d.version}: nierozpoznane fragmenty źródła zachowano jako odnośniki urzędowe: ${d.sourceFragmentIssues!.join(', ')}.`)),

@@ -1,3 +1,6 @@
+import {standaloneSourceFiles} from './public-incremental.js';
+import {baselineNlScope,baselineNlUnits} from './base-plan.js';
+import {loadSourceArchive} from './official-sources.js';
 import {writeCorpusManifest} from './legal-manifest-files.js';
 import * as fs from 'node:fs';
 import {operationMetrics,registerProcessMetrics} from './operation-metrics.js';
@@ -30,10 +33,11 @@ import {withOperationErrors,setErrorPhase,inErrorPhase} from './operation-errors
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, '..');
+standaloneSourceFiles(ROOT);
 let RUN_RANGE:ReturnType<typeof resolveRange>;
 const CONFIG_PATH = configFile(ROOT, 'zakres.json');
 const OUTPUT_DIR = path.join(process.env.LAW_PUBLIC_WORK_ROOT??ROOT, 'output');
-const CHECKPOINT_DIR = path.join(ROOT, '.checkpoint');
+const CHECKPOINT_DIR = path.join(process.env.LAW_PUBLIC_CHECKPOINT_ROOT??ROOT, '.checkpoint');
 const CHECKPOINT_OUTPUT_DIR = path.join(CHECKPOINT_DIR, 'output');
 const CHECKPOINT_STATE_PATH = path.join(CHECKPOINT_DIR, 'state.json');
 
@@ -45,6 +49,8 @@ function readConfig(): { config: ScopeConfig; configSha256: string } {
     configSha256: createHash('sha256').update(raw, 'utf8').digest('hex'),
   };
 }
+
+const PUBLIC_BASE=process.env.LAW_PUBLIC_PHASE==='BASE';
 
 function today(): string {
   return RUN_RANGE.observedOn;
@@ -79,8 +85,12 @@ function freshCheckpoint(
 }
 
 function resetCheckpointProgress(): void {
-  fs.rmSync(CHECKPOINT_OUTPUT_DIR, { recursive: true, force: true });
-  fs.rmSync(CHECKPOINT_STATE_PATH, { force: true });
+  if(process.env.LAW_PUBLIC_CHECKPOINT_ROOT&&fs.existsSync(CHECKPOINT_DIR)){
+    fs.renameSync(CHECKPOINT_DIR,CHECKPOINT_DIR+'-rejected-'+randomUUID());
+  }else{
+    fs.rmSync(CHECKPOINT_OUTPUT_DIR, { recursive: true, force: true });
+    fs.rmSync(CHECKPOINT_STATE_PATH, { force: true });
+  }
   fs.mkdirSync(CHECKPOINT_OUTPUT_DIR, { recursive: true });
 }
 
@@ -125,7 +135,22 @@ async function loadCheckpoint(
       return freshCheckpoint(rangeFrom, rangeTo, configSha256, revision);
     }
 
-    const files=readNlCheckpointFiles(CHECKPOINT_OUTPUT_DIR,state.completedActs,config);
+    const expected=PUBLIC_BASE?{...config,acts:config.acts.map(act=>{
+      const existing=state.completedActs.find(item=>item.bwbId===act.bwbId);
+      if(!existing?.sourceArchive)return act;
+      const source=existing.sourceArchive;
+      if(!/^\d+_[A-Za-z0-9_.-]+\.sources\.json$/.test(source.name))throw new Error('Invalid baseline catalog filename.');
+      const catalog=path.join(CHECKPOINT_OUTPUT_DIR,source.name);
+      if(!fs.lstatSync(catalog).isFile())throw new Error('Baseline catalog must be a regular file.');
+      const native=loadSourceArchive(fs.readFileSync(catalog),source,'NL',act.bwbId);
+      const originals=native.index.entries.filter((entry:any)=>entry.kind==='BWB-Toestand').map((entry:any)=>{
+        const bytes=Buffer.from(native.items[entry.name]);
+        return parseNlSource({bytes,text:bytes.toString('utf8'),url:entry.url,contentType:entry.contentType,sha256:entry.sha256});
+      });
+      return baselineNlUnits(act,originals).act;
+    })}:config;
+    const files=readNlCheckpointFiles(CHECKPOINT_OUTPUT_DIR,state.completedActs,expected);
+    config.acts=expected.acts;
     for(const act of state.completedActs)await validateCheckpointArchive(files.get(act.sourceArchive!.name)!,act.sourceArchive!,'NL',act.bwbId);
     installCheckpointFiles(OUTPUT_DIR,files);
 
@@ -218,6 +243,7 @@ async function buildAct(
     throw new Error('No BWB versions discovered for ' + act.bwbId);
   }
 
+  if(PUBLIC_BASE)baselineNlScope({acts:[act]} as ScopeConfig,new Map([[act.bwbId,allVersions]]),rangeTo,today());
   const selected = selectBwbVersions(allVersions, rangeFrom, rangeTo, today(),archive);
   console.log(
     '  SRU versions: ' + allVersions.length + '; selected: ' + selected.length,
@@ -225,7 +251,8 @@ async function buildAct(
 
   setErrorPhase('SOURCE_BUILD');
   const snapshots = await fetchSnapshots(act, selected, archive);
-  const model = incrementalNlModel(ROOT,act, snapshots, rangeFrom, rangeTo);
+  const effective=PUBLIC_BASE?baselineNlUnits(act,snapshots.map(snapshot=>snapshot.statute)).act:act;
+  const model = incrementalNlModel(ROOT,effective, snapshots, rangeFrom, rangeTo);
 
   if (
     model.missingArticles.length > 0 ||
@@ -303,6 +330,7 @@ async function main(): Promise<void> {
     fs.writeFileSync(path.join(CHECKPOINT_OUTPUT_DIR,native.metadata.name),native.bytes);
     const record = {...nlActManifest(rendered,discoveredVersions),sourceArchive:native.metadata};
     manifest.acts.push(record);
+    if(PUBLIC_BASE)config.acts[config.acts.findIndex(row=>row.bwbId===act.bwbId)]=rendered.act;
     setErrorPhase('CHECKPOINT');
     saveCheckpoint(checkpoint,record,rendered.chunks);
     await persistCompletedAct(ROOT,'NL');
@@ -312,6 +340,7 @@ async function main(): Promise<void> {
   writeControlFile(OUTPUT_DIR,'NL','INDEX.md',nlIndex(manifest));
   writeCorpusManifest(OUTPUT_DIR,manifest);
   setErrorPhase('OUTPUT_VALIDATION');
+  if(PUBLIC_BASE)fs.writeFileSync(path.join(process.env.LAW_PUBLIC_WORK_ROOT!,'nl-base-scope.json'),JSON.stringify({acts:config.acts}));
   completeBuiltOutput(OUTPUT_DIR,config.acts,result=>nlReport(manifest,previous,result));
   console.log(`NL COMPLETE: ${manifest.acts.length} acts, ${fs.readdirSync(OUTPUT_DIR).length} final files.`);
   console.log(JSON.stringify({module:'NL',derivedCache:parsedCacheStats()}));

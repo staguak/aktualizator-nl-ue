@@ -1,8 +1,9 @@
 import type {EuDocument} from './eu-provider.js';
 import type {SourceResponse} from './source-cache.js';
 import {checkCelex} from './eu-identifiers.js';
-import {documentDate} from './eu-dates.js';
-import {preferredEuLanguages} from './eu-language.js';
+import {createHash} from 'node:crypto';
+import {documentDate,officialDateObservation} from './eu-dates.js';
+import {publicEuModules} from './eu-language.js';
 import {isDeepStrictEqual} from 'node:util';
 import {isCalendarDate} from './calendar.js';
 
@@ -51,14 +52,16 @@ export async function expandEuCaseScope(selected:EuDocument[],to:string,fetcher:
   url.searchParams.set('query',euCaseQuery(seeds));url.searchParams.set('format','application/sparql-results+json');
   const source=await fetcher(url.href,{Accept:'application/sparql-results+json'});
   preserve?.(source,url.href);
-  return parseEuCaseResponse(selected,to,source.text);
+  return parseEuCaseResponse(selected,to,source.text,publicEuModules()?{url:source.url,
+    sha256:source.sha256??createHash('sha256').update(source.bytes).digest('hex')}:undefined);
 }
-export function parseEuCaseResponse(selected:EuDocument[],to:string,text:string){
+export function parseEuCaseResponse(selected:EuDocument[],to:string,text:string,evidence?:{url:string;sha256:string}){
   if(!isCalendarDate(to))throw new Error('Invalid EU case range end.');
   const seeds=[...new Set(selected.filter(d=>d.celex.startsWith('6')).map(d=>d.celex))].sort();
   const rows=JSON.parse(text).results?.bindings;
   if(!Array.isArray(rows)||rows.length>=CASE_ROW_LIMIT)throw new Error('Incomplete EU case catalog.');
   const found=new Set<string>(),members=new Map<string,Omit<CaseMember,'status'>>();
+  const dates=new Map<string,NonNullable<EuDocument['officialDates']>>();
   const metadata=new Map<string,Record<string,string[]>>();
   const add=(id:string,key:string,value:string|undefined)=>{
     if(value===undefined)return;
@@ -78,6 +81,12 @@ export function parseEuCaseResponse(selected:EuDocument[],to:string,text:string)
     if(celex){
       add(celex,'resource_legal_id_celex',celex);
       add(celex,'work_date_document',row.date?.value);
+      if(evidence&&row.date){
+        const observation=officialDateObservation(CDM+'work_date_document',row.date,{celex,work:row.work.value},evidence.url,evidence.sha256);
+        const values=dates.get(celex)??[];
+        if(observation&&!values.some(value=>isDeepStrictEqual(value,observation)))values.push(observation);
+        dates.set(celex,values);
+      }
       add(celex,'case-law_ecli',row.ecli?.value);
       add(celex,'available_language',row.language?.value);
     }
@@ -90,6 +99,9 @@ export function parseEuCaseResponse(selected:EuDocument[],to:string,text:string)
     if(member.celex){
       const id=member.celex,doc:EuDocument=documents.get(id)??{celex:id,include:'full-document',role:'same-case-document',metadata:{}};
       for(const [key,values] of Object.entries(metadata.get(id)??{}))doc.metadata[key]=[...new Set([...(doc.metadata[key]??[]),...values])].sort();
+      for(const observation of dates.get(id)??[]){
+        if(!(doc.officialDates??=[]).some(value=>isDeepStrictEqual(value,observation)))doc.officialDates.push(observation);
+      }
       const date=documentDate(doc);
       if(!date)throw new Error('Missing or ambiguous date for EU case document: '+id);
       // Catalog language hints do not replace the required EN/PL/NL/FR
@@ -123,7 +135,7 @@ export function assertEuCaseSource(act:{caseCatalog?:EuCaseCatalog},index:any,it
 
 /** Check coverage before checkpoint reuse and before publication. A dropped
  * case document cannot be excused by recalculating output-file checksums. */
-export function assertEuCaseCoverage(act:{celex:string;retrievalScope?:string;documents:EuDocument[];caseCatalog?:EuCaseCatalog;missingDocuments?:import('./eu-unavailable.js').MissingEuDocument[];discoveryIncomplete?:boolean},
+export function assertEuCaseCoverage(act:{celex:string;retrievalScope?:string;documents:EuDocument[];caseCatalog?:EuCaseCatalog;missingDocuments?:import('./eu-unavailable.js').MissingEuDocument[];discoveryIncomplete?:boolean;excludedDocuments?:import('./eu-language.js').EuLanguageExclusion[]},
   expected?:{retrievalScope?:string;celex?:string;requiredVersions?:string[];attachedDocuments?:{celex:string}[]}):void{
   if(expected?.retrievalScope!=='full-act-and-case')return;
   if(act.retrievalScope!==expected.retrievalScope)throw new Error('EU retrieval scope differs from configuration.');
@@ -132,7 +144,8 @@ export function assertEuCaseCoverage(act:{celex:string;retrievalScope?:string;do
   // This partial result makes no assertion of complete history/case coverage.
   if(act.discoveryIncomplete)return;
   const caseDocuments=[...act.documents,...(act.missingDocuments??[]).map(m=>m.document)].filter(d=>d.celex.startsWith('6'));
-  if(!caseDocuments.length){if(act.caseCatalog)throw new Error('Unexpected case catalog.');return;}
+  const skipped=new Set((act.excludedDocuments??[]).filter(row=>row.reason==='SKIPPED_UNSUPPORTED_LANGUAGE').map(row=>row.celex));
+  if(!caseDocuments.length&&!act.caseCatalog)return;
   const catalog=act.caseCatalog;
   if(!catalog||catalog.profile!=='cellar-case-dossiers-v1'||!Array.isArray(catalog.seeds)||!catalog.seeds.length||
     new Set(catalog.seeds).size!==catalog.seeds.length||!Array.isArray(catalog.members)||!catalog.members.length||
@@ -140,7 +153,7 @@ export function assertEuCaseCoverage(act:{celex:string;retrievalScope?:string;do
     throw new Error('Missing or incomplete EU case catalog.');
   const required=[expected.celex,...expected.requiredVersions??[],...expected.attachedDocuments?.map(d=>d.celex)??[]]
     .filter((id):id is string=>typeof id==='string'&&id.startsWith('6'));
-  if(required.some(id=>!catalog.seeds.includes(id))||catalog.seeds.some(id=>!caseDocuments.some(d=>d.celex===id)))
+  if(required.some(id=>!catalog.seeds.includes(id))||catalog.seeds.some(id=>!skipped.has(id)&&!caseDocuments.some(d=>d.celex===id)))
     throw new Error('EU case discovery seed coverage differs from selection.');
   const seen=new Set<string>();
   for(const member of catalog.members){
@@ -148,7 +161,7 @@ export function assertEuCaseCoverage(act:{celex:string;retrievalScope?:string;do
       throw new Error('Unresolved or malformed EU case member.');
     resource(member.caseUri);resource(member.work);checkCelex(member.celex);
     const key=JSON.stringify(member);if(seen.has(key))throw new Error('Duplicate EU case member.');seen.add(key);
-    if(member.status==='INCLUDED'&&!caseDocuments.some(d=>d.celex===member.celex&&d.caseMemberships?.some(link=>
+    if(member.status==='INCLUDED'&&!skipped.has(member.celex)&&!caseDocuments.some(d=>d.celex===member.celex&&d.caseMemberships?.some(link=>
       link.seedCelex===member.seedCelex&&link.caseUri===member.caseUri&&link.caseId===member.caseId)))throw new Error('Missing complete EU case document.');
   }
   for(const doc of caseDocuments){
