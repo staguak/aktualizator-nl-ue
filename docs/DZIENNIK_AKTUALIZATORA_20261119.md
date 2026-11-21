@@ -53,3 +53,9 @@
 ## 19.11.2026 · Weryfikacja na GitHub
 
 - Oddzielna gałąź weryfikacyjna i roboczy PR #24 uruchomiły testy Actions i SonarCloud dla kodu naprawy. Pierwszy `verify` zaliczył. SonarCloud odrzucił trzy użycia MD5 w nowych katalogach i jedno sortowanie bez jawnego komparatora. Nowe katalogi i zachowane w nich dowody mają identyfikację SHA-256. Odczyt historycznych deklaracji MD5 pozostał zgodny. Sortowanie metadanych używa jawnej kolejności. [PR #24](https://github.com/staguak/aktualizator-nl-ue/pull/24)
+
+## Wznowienie po przerwie środowiska
+
+- Odtworzono lokalną gałąź `work` z `cc33a70` do zapisanej rewizji PR #24 `b49f12d`. Dawny katalog w `/tmp` i skrypt wznowienia checkpointów były niedostępne. Pełny przebieg na tej rewizji wymaga nowego izolowanego uruchomienia lub odzyskania checkpointów.
+- Dodano warunkowy preflight bezpośrednich grafik z zatwierdzonego indeksu obrazu. Wspólna konstrukcja żądania zachowuje ten sam `Accept`, normalizację HTTPS oraz ograniczenie przekierowań do hosta obrazu. Warunek 304 wymaga lokalnego oryginału zgodnego z SHA-256. Nowy 200 oznacza konieczność dalszego sprawdzenia, brak dowodu kieruje do pełnego audytu. Grafiki zastępcze, pochodne i niedostępne nadal wymagają pełnego audytu.
+- Zaliczyło 47 testów ukierunkowanych na preflight i grafiki oraz kontrola typów. Regresja obejmuje odpowiedź 304, zmienioną grafikę, obce przekierowanie i grafikę zastępczą. Uaktualniono opis użytkowy w README.

@@ -29,6 +29,9 @@ Nie zakładaj aktualności wyłącznie na podstawie zielonego testu kodu: sprawd
 Publiczne żądanie uruchamia zatwierdzony zakres z `main`. Aktualizator sprawdza
 źródła oraz porównuje ustalenia prawne z poprzednią bazą. Wynik `NO_CHANGE`
 pozostawia ten sam commit `dane` i udostępnia w Actions artefakt `wait.md`.
+Sprawdzenie wstępne może potwierdzić bezpośrednie grafiki za pomocą zweryfikowanej
+kopii i odpowiedzi HTTP 304. Grafika zastępcza z innej wersji językowej, grafika
+przetwarzana albo brak dowodu dla źródła kierują przebieg do pełnego audytu.
 
 Jednocześnie działa najwyżej jeden aktualizator. **Nie ma kolejki aktualizacji.**
 Nowe żądanie podczas pracy dostaje błąd „aktualizacja w toku” i nie uruchomi się później.

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {fetchSourceFile,sourceBlob} from './source-cache.js';
-import {verifyUnchangedSources} from './public-preflight.js';
+import {publicPreflight,verifyUnchangedSources} from './public-preflight.js';
 
 test('preflight requires a verified prior blob and handles 304, changed response and remote failure',async()=>{
   const cache=fs.mkdtempSync(path.join(os.tmpdir(),'public-preflight-'));
@@ -71,4 +71,48 @@ test('an official SRU catalog can prove unchanged bytes without an HTTP validato
     assert.equal(rejected.status,'UNKNOWN');
     assert.equal(contacted,false);
   }finally{fs.rmSync(cache,{recursive:true,force:true});}
+});
+
+test('preflight revalidates direct graphics and defers language fallback to the full audit',async()=>{
+  const state=fs.mkdtempSync(path.join(os.tmpdir(),'public-preflight-images-'));
+  const cache=path.join(state,'cache');
+  const write=(name:string,value:unknown)=>fs.writeFileSync(path.join(state,name),JSON.stringify(value));
+  const range={rangeFrom:'2025-01-01',rangeTo:'2026-11-19',observedOn:'2026-11-19'};
+  const imageUrl='https://publications.europa.eu/image.jpg';
+  try{
+    const seed=async(kind:string,requestedUrl:string,accept:string)=>{
+      const headers={Accept:accept};
+      const body=await fetchSourceFile(requestedUrl,headers,{cacheDir:cache,fetcher:async()=>new Response(kind,{headers:{ETag:'"prior"'}})});
+      return {kind,requestedUrl,sha256:body.sha256!,verificationRequest:{headers}};
+    };
+    const nl=await Promise.all(['SRU-2.0','BWB-WTI','BWB-Toestand'].map(kind=>seed(kind,'https://zoekservice.overheid.nl/'+kind,'application/xml')));
+    const eu=await seed('CELLAR-SPARQL','https://publications.europa.eu/sparql','application/sparql-results+json');
+    const image=await seed('direct-image',imageUrl,'image/jpeg');
+    const source={requestUrl:imageUrl.replace('https:','http:'),sha256:image.sha256};
+    const imageIndex={profile:'legal-images-v2',sources:[source]};
+    for(const module of ['NL','UE']){
+      fs.mkdirSync(path.join(state,'prior',module),{recursive:true});
+      write(`prior/${module}/manifest.json`,{acts:[{sourceArchive:{name:'1_fixture.sources.json'}}],
+        ...module==='UE'?{imagePackage:{index:{name:'IMAGE_INDEX.json'},assets:[{name:'images/fixture.jpg'}]}}:{}});
+      write(`prior/${module}/1_fixture.sources.json`,{entries:module==='NL'?nl:[eu]});
+    }
+    write('prior/UE/IMAGE_INDEX.json',imageIndex);
+    write('request.json',{previousSha:'prior',priorDirectory:'prior',executionSha256:'code',configSha256:'config'});
+    write('previous-publication.json',{profile:'public-nl-eu-corpus-v2',...range,executionSha256:'code',configurationSha256:'config'});
+    const revalidate:typeof fetch=async(url,options)=>{
+      assert.equal(new Headers(options?.headers).get('if-none-match'),'"prior"');
+      if(url===imageUrl)assert.equal(new Headers(options?.headers).get('accept'),'image/jpeg');
+      return new Response(null,{status:304});
+    };
+    assert.deepEqual(await publicPreflight(state,cache,range,revalidate),{status:'NO_CHANGE',checked:5});
+    fs.unlinkSync(path.join(state,'preflight.json'));
+    const changed=await publicPreflight(state,cache,range,async(url,options)=>url===imageUrl?new Response('changed'):revalidate(url,options));
+    assert.equal(changed?.status,'CHANGED');
+    const redirected=await publicPreflight(state,cache,range,async(url,options)=>url===imageUrl
+      ?new Response(null,{status:302,headers:{Location:'https://eur-lex.europa.eu/image.jpg'}}):revalidate(url,options));
+    assert.equal(redirected?.status,'UNKNOWN');
+    write('prior/UE/IMAGE_INDEX.json',{...imageIndex,sources:[{...source,resolution:{language:'FR'}}]});
+    assert.equal(await publicPreflight(state,cache,range,async()=>assert.fail('fallback must trigger the full audit')),undefined);
+    assert.equal(fs.existsSync(path.join(state,'preflight.json')),false);
+  }finally{fs.rmSync(state,{recursive:true,force:true});}
 });

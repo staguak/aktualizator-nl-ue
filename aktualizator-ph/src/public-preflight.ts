@@ -3,6 +3,8 @@ import path from 'node:path';
 import {runPool} from './concurrency.js';
 import {fetchSourceFile,hasVerifiedSourceValidator,sourceVerificationHeadersAllowed} from './source-cache.js';
 import {sourceAuditMode} from './source-audit.js';
+import {officialImageRequest} from './official-image-source.js';
+import type {LegalImageIndex} from './legal-images.js';
 
 const hosts=['publications.europa.eu','eur-lex.europa.eu','repository.officiele-overheidspublicaties.nl','zoekservice.overheid.nl'];
 const sruHost='zoekservice.overheid.nl';
@@ -31,7 +33,7 @@ export async function verifyUnchangedSources(requests:ObservedRequest[],cache:st
   const unique=new Map<string,ObservedRequest>();
   for(const request of requests){
     const key=requestIdentity(request),previous=unique.get(key);
-    if(previous&&previous.sha256!==request.sha256)return {status:'UNKNOWN',checked:0};
+    if(previous&&(previous.sha256!==request.sha256||previous.kind!==request.kind))return {status:'UNKNOWN',checked:0};
     unique.set(key,request);
   }
   const entries=[...unique.values()].map(entry=>({entry,catalog:isSruCatalog(entry)}));
@@ -41,8 +43,9 @@ export async function verifyUnchangedSources(requests:ObservedRequest[],cache:st
   await runPool(entries,4,async({entry,catalog})=>{
     if(changed||unknown)return;
     try{
+      const allowedHosts=entry.kind==='direct-image'?[new URL(entry.requestedUrl).hostname]:catalog?[sruHost]:hosts;
       const source=await fetchSourceFile(entry.requestedUrl,entry.verificationRequest!.headers,{
-        cacheDir:cache,allowedHosts:catalog?[sruHost]:hosts,timeoutMs:15_000,
+        cacheDir:cache,allowedHosts,timeoutMs:15_000,
         ...catalog?{maxBytes:maxSruCatalogBytes}:{},
         fetcher:async(url,options)=>{
           const response=await fetcher(url,options);
@@ -65,7 +68,21 @@ export async function verifyUnchangedSources(requests:ObservedRequest[],cache:st
   return {status:unknown?'UNKNOWN':changed?'CHANGED':'NO_CHANGE',checked};
 }
 
-export async function publicPreflight(state:string,cache:string,range:{rangeFrom:string;rangeTo:string;observedOn:string}){
+function directImageRequests(index:LegalImageIndex):ObservedRequest[]|undefined{
+  if(index.profile!=='legal-images-v2'||!Array.isArray(index.sources)||index.unavailableImages?.length)return;
+  const requests:ObservedRequest[]=[];
+  for(const source of index.sources){
+    if(source.resolution||source.derivation)return;
+    try{
+      const {url,headers,host}=officialImageRequest(source.requestUrl);
+      if(!hosts.includes(host)||!/^[a-f0-9]{64}$/.test(source.sha256))return;
+      requests.push({requestedUrl:url,sha256:source.sha256,kind:'direct-image',verificationRequest:{headers}});
+    }catch{return;}
+  }
+  return requests;
+}
+
+export async function publicPreflight(state:string,cache:string,range:{rangeFrom:string;rangeTo:string;observedOn:string},fetcher:typeof fetch=fetch){
   if(sourceAuditMode()!=='conditional'||!fs.existsSync(path.join(state,'request.json')))return;
   const read=(name:string)=>JSON.parse(fs.readFileSync(path.join(state,name),'utf8'));
   const request=read('request.json');
@@ -79,9 +96,13 @@ export async function publicPreflight(state:string,cache:string,range:{rangeFrom
   const entries:ObservedRequest[]=[];
   for(const module of ['NL','UE']){
     const manifest=read(`prior/${module}/manifest.json`);
-    // Image receipts need a separate origin-aware probe; use normal validation
-    // when a document contains integrated graphical sources.
-    if(manifest.imagePackage?.assets?.length)return;
+    if(manifest.imagePackage){
+      // The prior publication's inventory verifies the index before preflight.
+      // Embedded bytes are covered by the original document's source receipt.
+      const images=directImageRequests(read(`prior/${module}/IMAGE_INDEX.json`));
+      if(!images)return;
+      entries.push(...images);
+    }
     for(const act of manifest.acts){
       const name=act.sourceArchive?.name;
       if(typeof name!=='string'||!/^\d+_[A-Za-z0-9_.-]+\.sources\.json$/.test(name))return;
@@ -93,7 +114,7 @@ export async function publicPreflight(state:string,cache:string,range:{rangeFrom
       entries.push(...observed.filter(entry=>entry.verificationRequest));
     }
   }
-  const result=await verifyUnchangedSources(entries,cache);
+  const result=await verifyUnchangedSources(entries,cache,fetcher);
   if(result.status==='NO_CHANGE')fs.writeFileSync(path.join(state,'preflight.json'),JSON.stringify({
     ...result,previousSha:request.previousSha,rangeTo:range.rangeTo,executionSha256:request.executionSha256,
     configurationSha256:request.configSha256
